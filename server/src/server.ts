@@ -41,6 +41,15 @@ export function createGameServer() {
       ack?.({ ok: true, playerId: player.id });
     });
 
+    socket.on("reconnect", (playerId: string, ack?: (result: JoinResult) => void) => {
+      if (!dispatch({ type: "reconnect", playerId })) {
+        ack?.({ ok: false, error: "We couldn't find that session — please join again." });
+        return;
+      }
+
+      ack?.({ ok: true, playerId });
+    });
+
     socket.on("startGame", () => {
       dispatch({ type: "startGame" });
     });

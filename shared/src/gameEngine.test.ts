@@ -46,6 +46,43 @@ describe("gameEngine: join", () => {
   });
 });
 
+describe("gameEngine: reconnect", () => {
+  it("reattaches a known Player id, preserving their score and connected state", () => {
+    let state = startedGame();
+    const [dana] = state.players;
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "buzz", playerId: dana.id });
+    state = applyAction(state, { type: "judge", correct: true });
+    const scoreBefore = state.players.find((p) => p.id === dana.id)?.score;
+
+    const next = applyAction(state, { type: "reconnect", playerId: dana.id });
+
+    expect(next.players.find((p) => p.id === dana.id)).toMatchObject({
+      id: dana.id,
+      score: scoreBefore,
+      connected: true,
+    });
+  });
+
+  it("rejects an unknown Player id", () => {
+    const state = startedGame();
+
+    const next = applyAction(state, { type: "reconnect", playerId: "not-a-real-player" });
+
+    expect(next).toBe(state);
+  });
+
+  it("rejects a reconnect once the roster has been cleared by a reset", () => {
+    let state = startedGame();
+    const [dana] = state.players;
+    state = applyAction(state, { type: "resetGame" });
+
+    const next = applyAction(state, { type: "reconnect", playerId: dana.id });
+
+    expect(next).toBe(state);
+  });
+});
+
 describe("gameEngine: startGame", () => {
   it("rejects starting with fewer than 2 players", () => {
     let state = initialState();

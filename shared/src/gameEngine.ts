@@ -21,6 +21,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "join":
       return applyJoin(state, action.name);
+    case "reconnect":
+      return applyReconnect(state, action.playerId);
     case "startGame":
       return applyStartGame(state);
     case "selectTile":
@@ -48,6 +50,19 @@ function applyJoin(state: GameState, name: string): GameState {
 
   const player: Player = { id: crypto.randomUUID(), name: trimmedName, score: 0, connected: true };
   return { ...state, players: [...state.players, player] };
+}
+
+// Reattaches a Player who joined before the Game started to their existing identity —
+// same id, score, and roster position — rather than minting a new Player. An id that
+// doesn't match anyone currently in the roster (never joined, or the roster was cleared
+// by a reset) is rejected; the caller falls back to a normal join attempt.
+function applyReconnect(state: GameState, playerId: string): GameState {
+  if (!state.players.some((player) => player.id === playerId)) return state;
+
+  return {
+    ...state,
+    players: state.players.map((player) => (player.id === playerId ? { ...player, connected: true } : player)),
+  };
 }
 
 function applyStartGame(state: GameState): GameState {

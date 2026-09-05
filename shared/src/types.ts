@@ -35,6 +35,7 @@ export interface GameState {
 
 export type GameAction =
   | { type: "join"; name: string }
+  | { type: "reconnect"; playerId: string }
   | { type: "startGame" }
   | { type: "selectTile"; categoryIndex: number; tileIndex: number }
   | { type: "buzz"; playerId: string }

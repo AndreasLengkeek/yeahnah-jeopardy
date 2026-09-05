@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { resolveActiveClue } from "../activeClue";
 import { GameOver } from "../components/GameOver";
 import { formatScore } from "../format";
+import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
@@ -53,6 +54,24 @@ export function JoinPage() {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId() !== null);
+
+  // On mount, a Player whose browser persisted an identifier from a previous join
+  // attempts to reattach to it — covering both a reload and a dropped connection. An
+  // unrecognized or post-Lobby-closed id falls back to the normal join form below.
+  useEffect(() => {
+    const storedPlayerId = getStoredPlayerId();
+    if (!storedPlayerId) return;
+
+    socket.emit("reconnect", storedPlayerId, (result: JoinResult) => {
+      if (result.ok) {
+        setPlayerId(result.playerId);
+      } else {
+        clearStoredPlayerId();
+      }
+      setReconnecting(false);
+    });
+  }, []);
 
   // A reset clears the roster and returns the Game to the Lobby — once that happens, a
   // Player who had joined the prior Game no longer appears in it, so send them back to
@@ -61,6 +80,7 @@ export function JoinPage() {
     if (state && playerId && state.phase === "lobby" && !state.players.some((player) => player.id === playerId)) {
       setJoinedName(null);
       setPlayerId(null);
+      clearStoredPlayerId();
     }
   }, [state, playerId]);
 
@@ -74,6 +94,7 @@ export function JoinPage() {
     socket.emit("join", trimmed, (result: JoinResult) => {
       setSubmitting(false);
       if (result.ok) {
+        storePlayerId(result.playerId);
         setJoinedName(trimmed);
         setPlayerId(result.playerId);
       } else {
@@ -84,6 +105,9 @@ export function JoinPage() {
 
   const gameStarted = state !== null && state.phase !== "lobby";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
+  // A fresh join already knows the typed name before the state broadcast confirming it
+  // arrives; a reconnect has no local name to fall back on, so it waits on `me`.
+  const displayName = joinedName ?? me?.name ?? "";
   const activeClue = state?.activeClue ?? null;
   const clueDetails = state && activeClue ? resolveActiveClue(activeClue, state.board, state.players) : null;
   const iHaveTheBuzz = activeClue?.buzzedPlayerId === playerId;
@@ -105,13 +129,15 @@ export function JoinPage() {
           textAlign: "center",
         }}
       >
-        {joinedName && playerId ? (
+        {reconnecting ? (
+          <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
+        ) : playerId ? (
           state?.phase === "gameOver" ? (
             <GameOver players={state.players} />
           ) : (
             <>
               <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
-                {joinedName}
+                {displayName}
                 {me && <span style={{ color: accent }}> — {formatScore(me.score)}</span>}
               </div>
               {!gameStarted ? (

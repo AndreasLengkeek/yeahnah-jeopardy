@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import type { GameState } from "@yeahnah/shared";
+import type { GameState, JoinResult } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameServer } from "./server.js";
@@ -114,6 +114,31 @@ describe("socket.io wiring", () => {
     const closed = await dana.nextState();
     expect(closed.activeClue).toBeNull();
     expect(closed.board[0].tiles[0].used).toBe(true);
+  });
+
+  it("reattaches a known Player id to a fresh socket connection, and rejects an unknown one", async () => {
+    const dana = await connect();
+    await dana.nextState();
+    const joinAck = await new Promise<JoinResult>((resolve) => {
+      dana.socket.emit("join", "Dana", resolve);
+    });
+    await dana.nextState();
+    const danaId = (joinAck as Extract<JoinResult, { ok: true }>).playerId;
+
+    // Simulates Dana's phone reloading: a brand-new socket connection reconnecting
+    // with the id her browser persisted at join.
+    const reconnected = await connect();
+    await reconnected.nextState();
+
+    const ack = await new Promise<JoinResult>((resolve) => {
+      reconnected.socket.emit("reconnect", danaId, resolve);
+    });
+    expect(ack).toEqual({ ok: true, playerId: danaId });
+
+    const badAck = await new Promise<JoinResult>((resolve) => {
+      reconnected.socket.emit("reconnect", "not-a-real-player", resolve);
+    });
+    expect(badAck.ok).toBe(false);
   });
 
   it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
