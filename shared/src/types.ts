@@ -42,6 +42,7 @@ export type GameAction =
   | { type: "reveal" }
   | { type: "judge"; correct: boolean }
   | { type: "closeClue" }
+  | { type: "setScore"; playerId: string; score: number }
   | { type: "resetGame" };
 
 export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };
