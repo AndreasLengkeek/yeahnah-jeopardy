@@ -151,6 +151,10 @@ export function JoinPage() {
               maxLength={24}
               style={inputStyle}
               autoFocus
+              autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-form-type="other"
             />
             <button type="submit" disabled={submitting || !name.trim()} style={submitButtonStyle}>
               Join
