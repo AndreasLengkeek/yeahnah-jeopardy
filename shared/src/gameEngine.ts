@@ -1,18 +1,53 @@
 import { CATS, VALUES } from "./trivia.js";
-import type { ActiveClue, Category, GameAction, GameState, Player } from "./types.js";
+import type { CategoryData } from "./trivia.js";
+import type { ActiveClue, Category, ClueField, GameAction, GameState, Player } from "./types.js";
 
-function buildBoard(): Category[] {
+const CLUES_PER_CATEGORY = VALUES.length;
+const MIN_CATEGORIES = 3;
+const MAX_CATEGORIES = 6;
+
+// A deep copy of the bundled example, so edits during Board Setup never mutate the
+// shared fixture module.
+function seedContent(): CategoryData[] {
   return CATS.map((category) => ({
+    name: category.name,
+    clues: category.clues.map((clue) => ({ text: clue.text, answer: clue.answer })),
+  }));
+}
+
+function blankContent(categoryCount: number): CategoryData[] {
+  return Array.from({ length: categoryCount }, () => ({
+    name: "",
+    clues: Array.from({ length: CLUES_PER_CATEGORY }, () => ({ text: "", answer: "" })),
+  }));
+}
+
+// The played Board: one column of five Value Tiles per authored Category, all unused.
+// Derived from `content`'s category names when the Lobby opens (and rebuilt fresh on
+// replay), never edited directly.
+function buildBoard(content: CategoryData[]): Category[] {
+  return content.map((category) => ({
     name: category.name,
     tiles: VALUES.map((value) => ({ value, used: false })),
   }));
 }
 
+// Every Category has a non-blank name and every Clue non-blank text and answer — the
+// gate for opening the Lobby, and the same check the editor uses to flag blank fields.
+export function isContentComplete(content: CategoryData[]): boolean {
+  return content.every(
+    (category) =>
+      category.name.trim() !== "" &&
+      category.clues.every((clue) => clue.text.trim() !== "" && clue.answer.trim() !== ""),
+  );
+}
+
 export function initialState(): GameState {
   return {
-    phase: "lobby",
+    phase: "setup",
     players: [],
-    board: buildBoard(),
+    content: seedContent(),
+    board: [],
     activeClue: null,
   };
 }
@@ -23,6 +58,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyJoin(state, action.name);
     case "reconnect":
       return applyReconnect(state, action.playerId);
+    case "newBoard":
+      return applyNewBoard(state, action.categoryCount);
+    case "editCategoryName":
+      return applyEditCategoryName(state, action.categoryIndex, action.name);
+    case "editClue":
+      return applyEditClue(state, action.categoryIndex, action.tileIndex, action.field, action.value);
+    case "openLobby":
+      return applyOpenLobby(state);
     case "startGame":
       return applyStartGame(state);
     case "selectTile":
@@ -35,8 +78,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyJudge(state, action.correct);
     case "closeClue":
       return applyCloseClue(state);
+    case "returnToSetup":
+      return applyReturnToSetup(state);
     case "resetGame":
-      return initialState();
+      return applyResetGame(state);
     default:
       return state;
   }
@@ -65,6 +110,61 @@ function applyReconnect(state: GameState, playerId: string): GameState {
   };
 }
 
+// --- Board Setup: authoring `content` before the Lobby opens. All of these are
+// no-ops outside `phase === "setup"`, matching the reducer's reject-by-returning-
+// -unchanged-state convention.
+
+function applyNewBoard(state: GameState, categoryCount: number): GameState {
+  if (state.phase !== "setup") return state;
+  if (!Number.isInteger(categoryCount) || categoryCount < MIN_CATEGORIES || categoryCount > MAX_CATEGORIES) {
+    return state;
+  }
+
+  return { ...state, content: blankContent(categoryCount) };
+}
+
+function applyEditCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
+  if (state.phase !== "setup") return state;
+  if (!state.content[categoryIndex]) return state;
+
+  return {
+    ...state,
+    content: state.content.map((category, index) => (index === categoryIndex ? { ...category, name } : category)),
+  };
+}
+
+function applyEditClue(
+  state: GameState,
+  categoryIndex: number,
+  tileIndex: number,
+  field: ClueField,
+  value: string,
+): GameState {
+  if (state.phase !== "setup") return state;
+  if (!state.content[categoryIndex]?.clues[tileIndex]) return state;
+
+  return {
+    ...state,
+    content: state.content.map((category, index) =>
+      index === categoryIndex
+        ? {
+            ...category,
+            clues: category.clues.map((clue, clueIndex) =>
+              clueIndex === tileIndex ? { ...clue, [field]: value } : clue,
+            ),
+          }
+        : category,
+    ),
+  };
+}
+
+function applyOpenLobby(state: GameState): GameState {
+  if (state.phase !== "setup") return state;
+  if (!isContentComplete(state.content)) return state;
+
+  return { ...state, phase: "lobby", board: buildBoard(state.content) };
+}
+
 function applyStartGame(state: GameState): GameState {
   if (state.phase !== "lobby") return state;
   if (state.players.length < 2) return state;
@@ -79,12 +179,12 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   const tile = state.board[categoryIndex]?.tiles[tileIndex];
   if (!tile || tile.used) return state;
 
-  // The reducer always copies the true Clue text and Answer onto the Active Clue
-  // (today from the bundled CATS fixture, which `board` mirrors 1:1, so the guard
+  // The reducer always copies the true Clue text and Answer onto the Active Clue,
+  // read from the authored `content` (which `board` is built from 1:1, so the guard
   // above covers these indices too). Withholding the Answer from Board/Player sockets
   // before Reveal is a transmission concern handled by viewForRole (ADR-0006), not a
   // reducer rule.
-  const clue = CATS[categoryIndex].clues[tileIndex];
+  const clue = state.content[categoryIndex].clues[tileIndex];
   const activeClue: ActiveClue = {
     categoryIndex,
     tileIndex,
@@ -154,6 +254,26 @@ function applyCloseClue(state: GameState): GameState {
   if (!canCloseClue(clue, state.players)) return state;
 
   return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
+}
+
+// Back to Board Setup from Game Over with the same `content` pre-loaded for editing;
+// the roster and any derived Board are dropped, to be rebuilt when the Lobby reopens.
+function applyReturnToSetup(state: GameState): GameState {
+  if (state.phase !== "gameOver") return state;
+
+  return { ...state, phase: "setup", players: [], board: [], activeClue: null };
+}
+
+// The "reuse the same Board" replay path: keep `content` as-is, rebuild `board` with
+// fresh Tiles, clear the roster and any Active Clue, and drop back to the Lobby.
+function applyResetGame(state: GameState): GameState {
+  return {
+    phase: "lobby",
+    players: [],
+    content: state.content,
+    board: buildBoard(state.content),
+    activeClue: null,
+  };
 }
 
 // Nobody is currently buzzed in, and one of: nobody has attempted this Clue yet, every

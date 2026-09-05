@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { viewForRole } from "./gameView.js";
+import type { CategoryData } from "./trivia.js";
 import type { ActiveClue, GameState } from "./types.js";
 
 function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
@@ -16,10 +17,15 @@ function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
   };
 }
 
+const content: CategoryData[] = [
+  { name: "World Capitals", clues: [{ text: "This Baltic capital sits on the Vilnia River", answer: "Vilnius" }] },
+];
+
 function state(overrides: Partial<GameState> = {}): GameState {
   return {
     phase: "playing",
     players: [],
+    content,
     board: [],
     activeClue: activeClue(),
     ...overrides,
@@ -27,12 +33,13 @@ function state(overrides: Partial<GameState> = {}): GameState {
 }
 
 describe("viewForRole", () => {
-  it("returns the Host view unchanged, including the true Answer, before Reveal", () => {
+  it("returns the Host view unchanged, including content and the true Answer, before Reveal", () => {
     const input = state();
 
     const view = viewForRole(input, "host");
 
     expect(view).toBe(input);
+    expect(view.content).toBe(content);
     expect(view.activeClue?.answer).toBe("Vilnius");
   });
 
@@ -40,6 +47,14 @@ describe("viewForRole", () => {
     const input = state({ activeClue: activeClue({ revealed: true }) });
 
     expect(viewForRole(input, "host").activeClue?.answer).toBe("Vilnius");
+  });
+
+  it("strips the authored content from the Board view", () => {
+    expect(viewForRole(state(), "board").content).toEqual([]);
+  });
+
+  it("strips the authored content from the Player view", () => {
+    expect(viewForRole(state(), "player").content).toEqual([]);
   });
 
   it("redacts the Answer from the Board view while the Clue is unrevealed", () => {
@@ -50,9 +65,7 @@ describe("viewForRole", () => {
   });
 
   it("redacts the Answer from the Player view while the Clue is unrevealed", () => {
-    const view = viewForRole(state(), "player");
-
-    expect(view.activeClue?.answer).toBe("");
+    expect(viewForRole(state(), "player").activeClue?.answer).toBe("");
   });
 
   it("gives the Board view the true Answer once the Clue is revealed", () => {
@@ -67,11 +80,14 @@ describe("viewForRole", () => {
     expect(viewForRole(input, "player").activeClue?.answer).toBe("Vilnius");
   });
 
-  it("leaves a Board/Player view untouched when there is no Active Clue", () => {
+  it("still strips content for a Board/Player view when there is no Active Clue", () => {
     const input = state({ activeClue: null });
 
-    expect(viewForRole(input, "board")).toBe(input);
-    expect(viewForRole(input, "player")).toBe(input);
+    const view = viewForRole(input, "board");
+    expect(view.content).toEqual([]);
+    expect(view.activeClue).toBeNull();
+    expect(view.players).toBe(input.players);
+    expect(view.board).toBe(input.board);
   });
 
   it("does not mutate the input state when redacting", () => {
@@ -79,6 +95,7 @@ describe("viewForRole", () => {
 
     viewForRole(input, "player");
 
+    expect(input.content).toBe(content);
     expect(input.activeClue?.answer).toBe("Vilnius");
   });
 });

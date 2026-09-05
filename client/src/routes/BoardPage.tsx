@@ -17,6 +17,8 @@ export function BoardPage() {
       <Header />
       {!state ? (
         <div>Connecting…</div>
+      ) : state.phase === "setup" ? (
+        <div>The Host is setting up the Board…</div>
       ) : state.phase === "lobby" ? (
         <Lobby players={state.players} />
       ) : state.phase === "gameOver" ? (

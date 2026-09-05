@@ -54,6 +54,8 @@ describe("socket.io wiring", () => {
 
   // Drives a fresh Game to the point where (0, 0) is the Active Clue, unrevealed.
   // Returns the post-selectTile "state" payload each connection received, driver first.
+  // The server now boots into "setup", so the Lobby has to be opened first (the seeded
+  // example Board is complete, so openLobby succeeds immediately).
   async function selectFirstClue(
     driver: { socket: Socket; nextState: () => Promise<GameState> },
     listeners: Array<{ nextState: () => Promise<GameState> }>,
@@ -61,6 +63,8 @@ describe("socket.io wiring", () => {
     const all = [driver, ...listeners];
     const drain = () => Promise.all(all.map((c) => c.nextState()));
 
+    driver.socket.emit("openLobby");
+    await drain();
     driver.socket.emit("join", "Dana");
     await drain();
     driver.socket.emit("join", "Marcus");
@@ -73,7 +77,10 @@ describe("socket.io wiring", () => {
 
   it("broadcasts resulting state to every connected socket as actions are dispatched", async () => {
     const dana = await connect();
-    await dana.nextState(); // initial state pushed on connect
+    expect((await dana.nextState()).phase).toBe("setup"); // initial state pushed on connect
+
+    dana.socket.emit("openLobby");
+    expect((await dana.nextState()).phase).toBe("lobby");
 
     dana.socket.emit("join", "Dana");
     expect((await dana.nextState()).players.map((p) => p.name)).toEqual(["Dana"]);
@@ -107,6 +114,8 @@ describe("socket.io wiring", () => {
 
   it("reopens a Clue after an incorrect judgement and lets the Host close it once everyone is excluded", async () => {
     const dana = await connect();
+    await dana.nextState();
+    dana.socket.emit("openLobby");
     await dana.nextState();
     dana.socket.emit("join", "Dana");
     await dana.nextState();
@@ -144,6 +153,8 @@ describe("socket.io wiring", () => {
   it("reattaches a known Player id to a fresh socket connection, and rejects an unknown one", async () => {
     const dana = await connect();
     await dana.nextState();
+    dana.socket.emit("openLobby");
+    await dana.nextState();
     const joinAck = await new Promise<JoinResult>((resolve) => {
       dana.socket.emit("join", "Dana", resolve);
     });
@@ -169,6 +180,8 @@ describe("socket.io wiring", () => {
   it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
     const dana = await connect();
     await dana.nextState();
+    dana.socket.emit("openLobby");
+    await dana.nextState();
     dana.socket.emit("join", "Dana");
     await dana.nextState();
     dana.socket.emit("join", "Marcus");
@@ -182,6 +195,48 @@ describe("socket.io wiring", () => {
     expect(reset.phase).toBe("lobby");
     expect(reset.players).toEqual([]);
     expect(reset.activeClue).toBeNull();
+  });
+
+  it("wires the Board Setup authoring events through to the reducer", async () => {
+    const host = await connect("host");
+    await host.nextState(); // raw-connect view
+    const seeded = await host.nextState(); // post-identify view
+    expect(seeded.phase).toBe("setup");
+    expect(seeded.content).toHaveLength(5);
+
+    host.socket.emit("newBoard", 3);
+    expect((await host.nextState()).content).toHaveLength(3);
+
+    host.socket.emit("editCategoryName", 0, "History");
+    expect((await host.nextState()).content[0].name).toBe("History");
+
+    host.socket.emit("editClue", 0, 0, "text", "A clue");
+    expect((await host.nextState()).content[0].clues[0].text).toBe("A clue");
+
+    // Still incomplete, so openLobby produces no state change; the next broadcast the
+    // socket sees is the following newBoard, still in "setup".
+    host.socket.emit("openLobby");
+    host.socket.emit("newBoard", 4);
+    const afterNewBoard = await host.nextState();
+    expect(afterNewBoard.content).toHaveLength(4);
+    expect(afterNewBoard.phase).toBe("setup");
+  });
+
+  it("has a returnToSetup handler that the reducer rejects outside Game Over", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+
+    host.socket.emit("openLobby");
+    expect((await host.nextState()).phase).toBe("lobby");
+
+    // returnToSetup is invalid from the Lobby, so it produces no broadcast; the very
+    // next state the socket sees is the join that follows, still in "lobby".
+    host.socket.emit("returnToSetup");
+    host.socket.emit("join", "Dana");
+    const next = await host.nextState();
+    expect(next.phase).toBe("lobby");
+    expect(next.players.map((p) => p.name)).toEqual(["Dana"]);
   });
 
   describe("Answer redaction by socket role (ADR-0006)", () => {
@@ -217,6 +272,10 @@ describe("socket.io wiring", () => {
       // The Clue text itself still travels to everyone before Reveal.
       expect(boardSel.activeClue?.clueText).toBe(trueClueText);
       expect(playerSel.activeClue?.clueText).toBe(trueClueText);
+      // The authored content never reaches Board or Player sockets at all.
+      expect(hostSel.content.length).toBeGreaterThan(0);
+      expect(boardSel.content).toEqual([]);
+      expect(playerSel.content).toEqual([]);
 
       host.socket.emit("reveal");
       const [hostRev, boardRev, playerRev] = await Promise.all([

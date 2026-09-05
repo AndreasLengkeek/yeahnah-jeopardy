@@ -75,11 +75,12 @@ export function JoinPage() {
     });
   }, []);
 
-  // A reset clears the roster and returns the Game to the Lobby — once that happens, a
-  // Player who had joined the prior Game no longer appears in it, so send them back to
-  // the join form to rejoin fresh.
+  // A reset (→ Lobby) or the Host returning to Board Setup clears the roster — once a
+  // Player who had joined no longer appears in the Game, send them back to the join
+  // form to rejoin fresh.
   useEffect(() => {
-    if (state && playerId && state.phase === "lobby" && !state.players.some((player) => player.id === playerId)) {
+    const rosterCleared = state?.phase === "lobby" || state?.phase === "setup";
+    if (state && playerId && rosterCleared && !state.players.some((player) => player.id === playerId)) {
       setJoinedName(null);
       setPlayerId(null);
       clearStoredPlayerId();
@@ -105,7 +106,8 @@ export function JoinPage() {
     });
   }
 
-  const gameStarted = state !== null && state.phase !== "lobby";
+  const inSetup = state?.phase === "setup";
+  const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
   // A fresh join already knows the typed name before the state broadcast confirming it
   // arrives; a reconnect has no local name to fall back on, so it waits on `me`.
@@ -133,6 +135,8 @@ export function JoinPage() {
       >
         {reconnecting ? (
           <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
+        ) : inSetup ? (
+          <div style={{ color: "#c9d2f5" }}>The Host is still setting up the Board…</div>
         ) : playerId ? (
           state?.phase === "gameOver" ? (
             <GameOver players={state.players} />

@@ -2,6 +2,7 @@ import { canCloseClue } from "@yeahnah/shared";
 import type { ActiveClue as ActiveClueState, Player } from "@yeahnah/shared";
 import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
+import { BoardSetup } from "../components/BoardSetup";
 import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
@@ -48,6 +49,21 @@ function resetGameButton(): ReactNode {
     <div style={centeredRowStyle}>
       <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
         Reset Game
+      </button>
+    </div>
+  );
+}
+
+// After Game Over the Host can replay the same Board as-is (Reset Game → Lobby) or
+// take it back into Board Setup to edit it first (Edit Board → setup).
+function gameOverControls(): ReactNode {
+  return (
+    <div style={centeredRowWithGapStyle}>
+      <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
+        Reset Game
+      </button>
+      <button onClick={() => socket.emit("returnToSetup")} style={resetButtonStyle}>
+        Edit Board
       </button>
     </div>
   );
@@ -107,7 +123,17 @@ export function HostPage() {
   return (
     <div style={shellStyle}>
       <Header subtitle="Host view" />
-      {state.phase === "lobby" ? (
+      {state.phase === "setup" ? (
+        <BoardSetup
+          content={state.content}
+          onEditCategoryName={(categoryIndex, name) => socket.emit("editCategoryName", categoryIndex, name)}
+          onEditClue={(categoryIndex, tileIndex, field, value) =>
+            socket.emit("editClue", categoryIndex, tileIndex, field, value)
+          }
+          onNewBoard={(categoryCount) => socket.emit("newBoard", categoryCount)}
+          onOpenLobby={() => socket.emit("openLobby")}
+        />
+      ) : state.phase === "lobby" ? (
         <>
           <Lobby players={state.players} />
           <div style={centeredRowStyle}>
@@ -119,7 +145,7 @@ export function HostPage() {
       ) : state.phase === "gameOver" ? (
         <>
           <GameOver players={state.players} />
-          {resetGameButton()}
+          {gameOverControls()}
         </>
       ) : (
         <>

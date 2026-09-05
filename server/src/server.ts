@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
-import type { GameAction, GameState, JoinResult, SocketRole } from "@yeahnah/shared";
+import type { ClueField, GameAction, GameState, JoinResult, SocketRole } from "@yeahnah/shared";
 
 export function createGameServer() {
   let state: GameState = initialState();
@@ -74,6 +74,22 @@ export function createGameServer() {
       ack?.({ ok: true, playerId });
     });
 
+    socket.on("newBoard", (categoryCount: number) => {
+      dispatch({ type: "newBoard", categoryCount });
+    });
+
+    socket.on("editCategoryName", (categoryIndex: number, name: string) => {
+      dispatch({ type: "editCategoryName", categoryIndex, name });
+    });
+
+    socket.on("editClue", (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
+      dispatch({ type: "editClue", categoryIndex, tileIndex, field, value });
+    });
+
+    socket.on("openLobby", () => {
+      dispatch({ type: "openLobby" });
+    });
+
     socket.on("startGame", () => {
       dispatch({ type: "startGame" });
     });
@@ -96,6 +112,10 @@ export function createGameServer() {
 
     socket.on("closeClue", () => {
       dispatch({ type: "closeClue" });
+    });
+
+    socket.on("returnToSetup", () => {
+      dispatch({ type: "returnToSetup" });
     });
 
     socket.on("resetGame", () => {
