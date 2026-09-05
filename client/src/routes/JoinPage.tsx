@@ -1,7 +1,8 @@
 import type { JoinResult } from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveActiveClue } from "../activeClue";
+import { GameOver } from "../components/GameOver";
 import { formatScore } from "../format";
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
@@ -53,6 +54,16 @@ export function JoinPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // A reset clears the roster and returns the Game to the Lobby — once that happens, a
+  // Player who had joined the prior Game no longer appears in it, so send them back to
+  // the join form to rejoin fresh.
+  useEffect(() => {
+    if (state && playerId && state.phase === "lobby" && !state.players.some((player) => player.id === playerId)) {
+      setJoinedName(null);
+      setPlayerId(null);
+    }
+  }, [state, playerId]);
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
@@ -95,36 +106,40 @@ export function JoinPage() {
         }}
       >
         {joinedName && playerId ? (
-          <>
-            <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
-              {joinedName}
-              {me && <span style={{ color: accent }}> — {formatScore(me.score)}</span>}
-            </div>
-            {!gameStarted ? (
-              <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
-            ) : (
-              <>
-                <button
-                  disabled={!canBuzz}
-                  onClick={() => socket.emit("buzz", playerId)}
-                  style={buzzButtonStyle(canBuzz)}
-                >
-                  Buzz
-                </button>
-                <div style={{ color: "#c9d2f5" }}>
-                  {iHaveTheBuzz
-                    ? "You have the buzz!"
-                    : otherBuzzedPlayer
-                      ? `${otherBuzzedPlayer.name} has the buzz`
-                      : iAmExcluded
-                        ? "You already answered — waiting for someone else…"
-                        : activeClue
-                          ? "Buzz in!"
-                          : "Waiting for the Host to select a Clue…"}
-                </div>
-              </>
-            )}
-          </>
+          state?.phase === "gameOver" ? (
+            <GameOver players={state.players} />
+          ) : (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
+                {joinedName}
+                {me && <span style={{ color: accent }}> — {formatScore(me.score)}</span>}
+              </div>
+              {!gameStarted ? (
+                <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
+              ) : (
+                <>
+                  <button
+                    disabled={!canBuzz}
+                    onClick={() => socket.emit("buzz", playerId)}
+                    style={buzzButtonStyle(canBuzz)}
+                  >
+                    Buzz
+                  </button>
+                  <div style={{ color: "#c9d2f5" }}>
+                    {iHaveTheBuzz
+                      ? "You have the buzz!"
+                      : otherBuzzedPlayer
+                        ? `${otherBuzzedPlayer.name} has the buzz`
+                        : iAmExcluded
+                          ? "You already answered — waiting for someone else…"
+                          : activeClue
+                            ? "Buzz in!"
+                            : "Waiting for the Host to select a Clue…"}
+                  </div>
+                </>
+              )}
+            </>
+          )
         ) : gameStarted ? (
           <div style={{ color: "#c9d2f5" }}>Joining has closed — the Game has already started.</div>
         ) : (

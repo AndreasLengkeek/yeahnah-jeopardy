@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
 import { ActiveClue } from "../components/ActiveClue";
 import { Board } from "../components/Board";
+import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
 import { Scoreboard } from "../components/Scoreboard";
@@ -24,6 +25,29 @@ function pillButtonStyle(enabled: boolean): CSSProperties {
     color: enabled ? "#07103f" : "rgba(255,255,255,.5)",
     cursor: enabled ? "pointer" : "default",
   };
+}
+
+const resetButtonStyle: CSSProperties = {
+  padding: "14px 28px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,.3)",
+  fontWeight: 800,
+  fontSize: 14,
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  background: "transparent",
+  color: "rgba(255,255,255,.8)",
+  cursor: "pointer",
+};
+
+function resetGameButton(): ReactNode {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", flex: "none" }}>
+      <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
+        Reset Game
+      </button>
+    </div>
+  );
 }
 
 function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
@@ -85,6 +109,11 @@ export function HostPage() {
             </button>
           </div>
         </>
+      ) : state.phase === "gameOver" ? (
+        <>
+          <GameOver players={state.players} />
+          {resetGameButton()}
+        </>
       ) : (
         <>
           <Scoreboard players={state.players} />
@@ -96,6 +125,7 @@ export function HostPage() {
           ) : (
             <Board board={state.board} onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)} />
           )}
+          {resetGameButton()}
         </>
       )}
     </div>

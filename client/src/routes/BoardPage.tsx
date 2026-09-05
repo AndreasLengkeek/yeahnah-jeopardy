@@ -1,6 +1,7 @@
 import { resolveActiveClue } from "../activeClue";
 import { ActiveClue } from "../components/ActiveClue";
 import { Board } from "../components/Board";
+import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
 import { Scoreboard } from "../components/Scoreboard";
@@ -17,6 +18,8 @@ export function BoardPage() {
         <div>Connecting…</div>
       ) : state.phase === "lobby" ? (
         <Lobby players={state.players} />
+      ) : state.phase === "gameOver" ? (
+        <GameOver players={state.players} />
       ) : (
         <>
           <Scoreboard players={state.players} />

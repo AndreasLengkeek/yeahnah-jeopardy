@@ -33,6 +33,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyJudge(state, action.correct);
     case "closeClue":
       return applyCloseClue(state);
+    case "resetGame":
+      return initialState();
     default:
       return state;
   }
@@ -96,7 +98,7 @@ function applyJudge(state: GameState, correct: boolean): GameState {
   );
 
   if (correct) {
-    return { ...state, players, board: markTileUsed(state.board, clue), activeClue: null };
+    return { ...state, players, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
   }
 
   return {
@@ -116,7 +118,7 @@ function applyCloseClue(state: GameState): GameState {
   if (!clue) return state;
   if (!canCloseClue(clue, state.players)) return state;
 
-  return { ...state, board: markTileUsed(state.board, clue), activeClue: null };
+  return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
 }
 
 // Nobody is currently buzzed in, and either nobody has attempted this Clue yet or every
@@ -128,6 +130,16 @@ export function canCloseClue(clue: ActiveClue, players: Player[]): boolean {
   const noneBuzzed = clue.excludedPlayerIds.length === 0;
   const allExcluded = clue.excludedPlayerIds.length >= players.length;
   return noneBuzzed || allExcluded;
+}
+
+function isBoardComplete(board: Category[]): boolean {
+  return board.every((category) => category.tiles.every((tile) => tile.used));
+}
+
+// A Tile resolving (judged correct, or closed) always marks it used and checks whether that
+// was the Board's last remaining Tile — the two call sites share this transition.
+function resolveBoard(state: GameState, board: Category[]): Pick<GameState, "board" | "phase"> {
+  return { board, phase: isBoardComplete(board) ? "gameOver" : state.phase };
 }
 
 function markTileUsed(board: Category[], clue: ActiveClue): Category[] {

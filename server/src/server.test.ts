@@ -118,4 +118,22 @@ describe("socket.io wiring", () => {
     expect(closed.activeClue).toBeNull();
     expect(closed.board[0].tiles[0].used).toBe(true);
   });
+
+  it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
+    const dana = await connect();
+    await dana.nextState();
+    dana.socket.emit("join", "Dana");
+    await dana.nextState();
+    dana.socket.emit("join", "Marcus");
+    await dana.nextState();
+    dana.socket.emit("startGame");
+    await dana.nextState();
+
+    dana.socket.emit("resetGame");
+    const reset = await dana.nextState();
+
+    expect(reset.phase).toBe("lobby");
+    expect(reset.players).toEqual([]);
+    expect(reset.activeClue).toBeNull();
+  });
 });

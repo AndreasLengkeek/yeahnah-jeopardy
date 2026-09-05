@@ -39,6 +39,7 @@ export type GameAction =
   | { type: "buzz"; playerId: string }
   | { type: "reveal" }
   | { type: "judge"; correct: boolean }
-  | { type: "closeClue" };
+  | { type: "closeClue" }
+  | { type: "resetGame" };
 
 export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };

@@ -64,6 +64,10 @@ export function createGameServer() {
     socket.on("closeClue", () => {
       dispatch({ type: "closeClue" });
     });
+
+    socket.on("resetGame", () => {
+      dispatch({ type: "resetGame" });
+    });
   });
 
   return { app, httpServer, io };

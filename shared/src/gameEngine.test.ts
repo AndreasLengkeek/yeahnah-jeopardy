@@ -316,6 +316,107 @@ describe("gameEngine: closeClue", () => {
   });
 });
 
+// Marks every Tile used except the one at (categoryIndex, tileIndex), so a single
+// remaining action (judge or closeClue) can be the one that completes the Board.
+function markAllUsedExcept(state: ReturnType<typeof initialState>, categoryIndex: number, tileIndex: number): ReturnType<typeof initialState> {
+  return {
+    ...state,
+    board: state.board.map((category, i) => ({
+      ...category,
+      tiles: category.tiles.map((tile, j) => (i === categoryIndex && j === tileIndex ? tile : { ...tile, used: true })),
+    })),
+  };
+}
+
+describe("gameEngine: game over", () => {
+  it("transitions to gameOver when a correct judge marks the 25th and final Tile used", () => {
+    let state = startedGame();
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+    state = applyAction(state, { type: "buzz", playerId: state.players[0].id });
+    state = applyAction(state, { type: "reveal" });
+
+    const next = applyAction(state, { type: "judge", correct: true });
+
+    expect(next.phase).toBe("gameOver");
+    expect(next.board.every((category) => category.tiles.every((tile) => tile.used))).toBe(true);
+  });
+
+  it("transitions to gameOver when closeClue marks the 25th and final Tile used", () => {
+    let state = startedGame();
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.phase).toBe("gameOver");
+  });
+
+  it("stays in playing when a Tile is resolved but Tiles remain unused", () => {
+    let state = startedGame();
+    state = markAllUsedExcept(state, 4, 4);
+    // Leave one other Tile unused too, so resolving (4,4) does not complete the Board.
+    state = {
+      ...state,
+      board: state.board.map((category, i) =>
+        i === 0 ? { ...category, tiles: category.tiles.map((tile, j) => (j === 0 ? { ...tile, used: false } : tile)) } : category,
+      ),
+    };
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.phase).toBe("playing");
+  });
+});
+
+describe("gameEngine: resetGame", () => {
+  it("resets from the lobby phase to a fresh, empty-roster lobby", () => {
+    let state = initialState();
+    state = applyAction(state, { type: "join", name: "Dana" });
+
+    const next = applyAction(state, { type: "resetGame" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.players).toEqual([]);
+    expect(next.activeClue).toBeNull();
+    expect(next.board.every((category) => category.tiles.every((tile) => !tile.used))).toBe(true);
+  });
+
+  it("resets from the playing phase to a fresh, empty-roster lobby", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+
+    const next = applyAction(state, { type: "resetGame" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.players).toEqual([]);
+    expect(next.activeClue).toBeNull();
+  });
+
+  it("resets from the gameOver phase to a fresh, empty-roster lobby", () => {
+    let state = startedGame();
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+    state = applyAction(state, { type: "closeClue" });
+    expect(state.phase).toBe("gameOver");
+
+    const next = applyAction(state, { type: "resetGame" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.players).toEqual([]);
+  });
+
+  it("a Player who rejoins after a reset starts at $0", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "resetGame" });
+
+    state = applyAction(state, { type: "join", name: "Dana" });
+
+    expect(state.players[0]).toMatchObject({ name: "Dana", score: 0 });
+  });
+});
+
 describe("gameEngine: initialState board", () => {
   it("has 5 categories of 5 unused tiles matching the ported CATS/VALUES data", () => {
     const state = initialState();
