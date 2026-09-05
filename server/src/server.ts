@@ -44,6 +44,18 @@ export function createGameServer() {
     socket.on("startGame", () => {
       dispatch({ type: "startGame" });
     });
+
+    socket.on("selectTile", (categoryIndex: number, tileIndex: number) => {
+      dispatch({ type: "selectTile", categoryIndex, tileIndex });
+    });
+
+    socket.on("buzz", (playerId: string) => {
+      dispatch({ type: "buzz", playerId });
+    });
+
+    socket.on("reveal", () => {
+      dispatch({ type: "reveal" });
+    });
   });
 
   return { app, httpServer, io };

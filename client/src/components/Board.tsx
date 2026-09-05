@@ -18,7 +18,7 @@ const headerStyle: CSSProperties = {
   color: palette.headerFg,
 };
 
-function tileStyle(used: boolean): CSSProperties {
+function tileStyle(used: boolean, interactive: boolean): CSSProperties {
   return {
     border: 0,
     borderRadius: 14,
@@ -32,10 +32,17 @@ function tileStyle(used: boolean): CSSProperties {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    cursor: interactive ? "pointer" : "default",
   };
 }
 
-export function Board({ board }: { board: Category[] }) {
+export function Board({
+  board,
+  onSelectTile,
+}: {
+  board: Category[];
+  onSelectTile?: (categoryIndex: number, tileIndex: number) => void;
+}) {
   const rows = board[0]?.tiles.length ?? 0;
 
   return (
@@ -55,10 +62,15 @@ export function Board({ board }: { board: Category[] }) {
         </div>
       ))}
       {Array.from({ length: rows }, (_, row) =>
-        board.map((category) => {
+        board.map((category, categoryIndex) => {
           const tile = category.tiles[row];
+          const interactive = !!onSelectTile && !tile.used;
           return (
-            <div key={`${category.name}-${row}`} style={tileStyle(tile.used)}>
+            <div
+              key={`${category.name}-${row}`}
+              style={tileStyle(tile.used, interactive)}
+              onClick={interactive ? () => onSelectTile(categoryIndex, row) : undefined}
+            >
               {tile.used ? "" : `$${tile.value.toLocaleString("en-US")}`}
             </div>
           );

@@ -1,3 +1,5 @@
+import { resolveActiveClue } from "../activeClue";
+import { ActiveClue } from "../components/ActiveClue";
 import { Board } from "../components/Board";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
@@ -14,6 +16,8 @@ export function BoardPage() {
         <div>Connecting…</div>
       ) : state.phase === "lobby" ? (
         <Lobby players={state.players} />
+      ) : state.activeClue ? (
+        <ActiveClue details={resolveActiveClue(state.activeClue, state.board, state.players)} />
       ) : (
         <Board board={state.board} />
       )}

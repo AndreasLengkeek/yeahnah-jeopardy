@@ -1,6 +1,7 @@
 import type { JoinResult } from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useState } from "react";
+import { resolveActiveClue } from "../activeClue";
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
@@ -27,10 +28,27 @@ const submitButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+function buzzButtonStyle(enabled: boolean): CSSProperties {
+  return {
+    width: 200,
+    height: 200,
+    borderRadius: "50%",
+    border: 0,
+    fontWeight: 800,
+    fontSize: 22,
+    letterSpacing: ".12em",
+    textTransform: "uppercase",
+    background: enabled ? accent : "rgba(255,255,255,.12)",
+    color: enabled ? "#07103f" : "rgba(255,255,255,.5)",
+    cursor: enabled ? "pointer" : "default",
+  };
+}
+
 export function JoinPage() {
   const state = useGameState();
   const [name, setName] = useState("");
   const [joinedName, setJoinedName] = useState<string | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +63,7 @@ export function JoinPage() {
       setSubmitting(false);
       if (result.ok) {
         setJoinedName(trimmed);
+        setPlayerId(result.playerId);
       } else {
         setError(result.error);
       }
@@ -52,6 +71,12 @@ export function JoinPage() {
   }
 
   const gameStarted = state !== null && state.phase !== "lobby";
+  const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
+  const activeClue = state?.activeClue ?? null;
+  const clueDetails = state && activeClue ? resolveActiveClue(activeClue, state.board, state.players) : null;
+  const iHaveTheBuzz = activeClue?.buzzedPlayerId === playerId;
+  const otherBuzzedPlayer = iHaveTheBuzz ? undefined : clueDetails?.buzzedPlayer;
+  const canBuzz = gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null;
 
   return (
     <div style={shellStyle}>
@@ -67,12 +92,34 @@ export function JoinPage() {
           textAlign: "center",
         }}
       >
-        {joinedName ? (
+        {joinedName && playerId ? (
           <>
-            <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>You're in, {joinedName}!</div>
-            <div style={{ color: "#c9d2f5" }}>
-              {gameStarted ? "The game has started — check the Board!" : "Waiting for the Host to start the Game…"}
+            <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
+              {joinedName}
+              {me && <span style={{ color: accent }}> — ${me.score.toLocaleString("en-US")}</span>}
             </div>
+            {!gameStarted ? (
+              <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
+            ) : (
+              <>
+                <button
+                  disabled={!canBuzz}
+                  onClick={() => socket.emit("buzz", playerId)}
+                  style={buzzButtonStyle(canBuzz)}
+                >
+                  Buzz
+                </button>
+                <div style={{ color: "#c9d2f5" }}>
+                  {iHaveTheBuzz
+                    ? "You have the buzz!"
+                    : otherBuzzedPlayer
+                      ? `${otherBuzzedPlayer.name} has the buzz`
+                      : activeClue
+                        ? "Buzz in!"
+                        : "Waiting for the Host to select a Clue…"}
+                </div>
+              </>
+            )}
           </>
         ) : gameStarted ? (
           <div style={{ color: "#c9d2f5" }}>Joining has closed — the Game has already started.</div>

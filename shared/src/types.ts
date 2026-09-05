@@ -17,14 +17,25 @@ export interface Category {
   tiles: Tile[];
 }
 
+export interface ActiveClue {
+  categoryIndex: number;
+  tileIndex: number;
+  revealed: boolean;
+  buzzedPlayerId: string | null;
+}
+
 export interface GameState {
   phase: GamePhase;
   players: Player[];
   board: Category[];
+  activeClue: ActiveClue | null;
 }
 
 export type GameAction =
   | { type: "join"; name: string }
-  | { type: "startGame" };
+  | { type: "startGame" }
+  | { type: "selectTile"; categoryIndex: number; tileIndex: number }
+  | { type: "buzz"; playerId: string }
+  | { type: "reveal" };
 
 export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };

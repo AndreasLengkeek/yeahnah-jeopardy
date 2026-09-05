@@ -60,6 +60,17 @@ describe("socket.io wiring", () => {
     expect((await dana.nextState()).players).toHaveLength(2);
 
     dana.socket.emit("startGame");
-    expect((await dana.nextState()).phase).toBe("playing");
+    const started = await dana.nextState();
+    expect(started.phase).toBe("playing");
+    const danaId = started.players.find((p) => p.name === "Dana")!.id;
+
+    dana.socket.emit("selectTile", 0, 0);
+    expect((await dana.nextState()).activeClue).toMatchObject({ categoryIndex: 0, tileIndex: 0 });
+
+    dana.socket.emit("buzz", danaId);
+    expect((await dana.nextState()).activeClue?.buzzedPlayerId).toBe(danaId);
+
+    dana.socket.emit("reveal");
+    expect((await dana.nextState()).activeClue?.revealed).toBe(true);
   });
 });
