@@ -39,9 +39,11 @@ function tileStyle(used: boolean, interactive: boolean): CSSProperties {
 export function Board({
   board,
   onSelectTile,
+  registerTile,
 }: {
   board: Category[];
   onSelectTile?: (categoryIndex: number, tileIndex: number) => void;
+  registerTile?: (categoryIndex: number, tileIndex: number, el: HTMLDivElement | null) => void;
 }) {
   const rows = board[0]?.tiles.length ?? 0;
 
@@ -68,6 +70,7 @@ export function Board({
           return (
             <div
               key={`${category.name}-${row}`}
+              ref={registerTile ? (el) => registerTile(categoryIndex, row, el) : undefined}
               style={tileStyle(tile.used, interactive)}
               onClick={interactive ? () => onSelectTile(categoryIndex, row) : undefined}
             >

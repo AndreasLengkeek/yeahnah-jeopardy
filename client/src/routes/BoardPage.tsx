@@ -1,6 +1,5 @@
 import { resolveActiveClue } from "../activeClue";
-import { ActiveClue } from "../components/ActiveClue";
-import { Board } from "../components/Board";
+import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
@@ -23,11 +22,11 @@ export function BoardPage() {
       ) : (
         <>
           <Scoreboard players={state.players} />
-          {state.activeClue ? (
-            <ActiveClue details={resolveActiveClue(state.activeClue, state.board, state.players)} />
-          ) : (
-            <Board board={state.board} />
-          )}
+          <ClueCardStage
+            board={state.board}
+            activeClue={state.activeClue}
+            details={state.activeClue ? resolveActiveClue(state.activeClue, state.board, state.players) : null}
+          />
         </>
       )}
     </div>

@@ -2,8 +2,7 @@ import { canCloseClue } from "@yeahnah/shared";
 import type { ActiveClue as ActiveClueState, Player } from "@yeahnah/shared";
 import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
-import { ActiveClue } from "../components/ActiveClue";
-import { Board } from "../components/Board";
+import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
@@ -124,14 +123,13 @@ export function HostPage() {
       ) : (
         <>
           <Scoreboard players={state.players} />
-          {state.activeClue ? (
-            <ActiveClue
-              details={resolveActiveClue(state.activeClue, state.board, state.players)}
-              footer={hostFooter(state.activeClue, state.players)}
-            />
-          ) : (
-            <Board board={state.board} onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)} />
-          )}
+          <ClueCardStage
+            board={state.board}
+            activeClue={state.activeClue}
+            details={state.activeClue ? resolveActiveClue(state.activeClue, state.board, state.players) : null}
+            onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)}
+            footer={state.activeClue ? hostFooter(state.activeClue, state.players) : undefined}
+          />
           {resetGameButton()}
         </>
       )}
