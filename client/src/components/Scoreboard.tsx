@@ -2,8 +2,14 @@ import type { Player } from "@yeahnah/shared";
 import { useState } from "react";
 import { formatScore } from "../format";
 import { accent, palette } from "../theme";
+import { PlayerIdentity } from "./PlayerIdentity";
 
 const scoreColor = (score: number) => (score < 0 ? "#ff8a7a" : accent);
+
+// A text identity labels controls (e.g. the editable score's aria-label) by name; a
+// drawn Signature carries no text, so it falls back to a fixed label.
+const identityLabel = (identity: Player["identity"]) =>
+  identity.kind === "text" ? identity.name : "Signature";
 
 type ScoreboardProps = {
   players: Player[];
@@ -28,7 +34,9 @@ export function Scoreboard({ players, onEditScore }: ScoreboardProps) {
             background: palette.card,
           }}
         >
-          <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>{player.name}</span>
+          <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>
+            <PlayerIdentity identity={player.identity} />
+          </span>
           {onEditScore ? (
             <EditableScore player={player} onCommit={(score) => onEditScore(player.id, score)} />
           ) : (
@@ -60,7 +68,7 @@ function EditableScore({ player, onCommit }: { player: Player; onCommit: (score:
     <input
       type="text"
       inputMode="numeric"
-      aria-label={`${player.name} score`}
+      aria-label={`${identityLabel(player.identity)} score`}
       value={draft ?? String(player.score)}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}

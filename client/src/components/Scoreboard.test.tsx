@@ -7,8 +7,8 @@ import { Scoreboard } from "./Scoreboard";
 describe("Scoreboard", () => {
   it("renders a negative score in a different color from a non-negative score", () => {
     const players: Player[] = [
-      { id: "p1", name: "Dana", score: 400, connected: true },
-      { id: "p2", name: "Marcus", score: -200, connected: true },
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+      { id: "p2", identity: { kind: "text", name: "Marcus" }, score: -200, connected: true },
     ];
 
     render(<Scoreboard players={players} />);
@@ -21,8 +21,8 @@ describe("Scoreboard", () => {
 
   it("renders scores read-only with no edit control when onEditScore is omitted", () => {
     const players: Player[] = [
-      { id: "p1", name: "Dana", score: 400, connected: true },
-      { id: "p2", name: "Marcus", score: -200, connected: true },
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+      { id: "p2", identity: { kind: "text", name: "Marcus" }, score: -200, connected: true },
     ];
 
     render(<Scoreboard players={players} />);
@@ -36,8 +36,8 @@ describe("Scoreboard", () => {
     const user = userEvent.setup();
     const onEditScore = vi.fn();
     const players: Player[] = [
-      { id: "p1", name: "Dana", score: 400, connected: true },
-      { id: "p2", name: "Marcus", score: -200, connected: true },
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+      { id: "p2", identity: { kind: "text", name: "Marcus" }, score: -200, connected: true },
     ];
 
     render(<Scoreboard players={players} onEditScore={onEditScore} />);
@@ -53,7 +53,9 @@ describe("Scoreboard", () => {
   it("does not call onEditScore when the field is focused and blurred without an edit", async () => {
     const user = userEvent.setup();
     const onEditScore = vi.fn();
-    const players: Player[] = [{ id: "p1", name: "Dana", score: 400, connected: true }];
+    const players: Player[] = [
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+    ];
 
     render(<Scoreboard players={players} onEditScore={onEditScore} />);
 
@@ -67,7 +69,9 @@ describe("Scoreboard", () => {
   it("discards a non-integer entry without calling onEditScore", async () => {
     const user = userEvent.setup();
     const onEditScore = vi.fn();
-    const players: Player[] = [{ id: "p1", name: "Dana", score: 400, connected: true }];
+    const players: Player[] = [
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+    ];
 
     render(<Scoreboard players={players} onEditScore={onEditScore} />);
 

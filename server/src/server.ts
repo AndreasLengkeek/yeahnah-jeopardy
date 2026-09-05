@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
 import { applyAction, initialState } from "@yeahnah/shared";
-import type { GameAction, GameState, JoinResult } from "@yeahnah/shared";
+import type { GameAction, GameState, JoinResult, PlayerIdentity } from "@yeahnah/shared";
 
 export function createGameServer() {
   let state: GameState = initialState();
@@ -29,10 +29,14 @@ export function createGameServer() {
   io.on("connection", (socket) => {
     socket.emit("state", state);
 
-    socket.on("join", (name: string, ack?: (result: JoinResult) => void) => {
+    socket.on("join", (identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
       const wasLobby = state.phase === "lobby";
-      if (!dispatch({ type: "join", name })) {
-        const error = wasLobby ? "That name is already taken." : "The game has already started.";
+      if (!dispatch({ type: "join", identity })) {
+        const error = !wasLobby
+          ? "The game has already started."
+          : identity.kind === "signature"
+            ? "That signature didn't come through — try drawing again."
+            : "That name is already taken.";
         ack?.({ ok: false, error });
         return;
       }

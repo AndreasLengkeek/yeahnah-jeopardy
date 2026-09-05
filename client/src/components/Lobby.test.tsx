@@ -12,7 +12,7 @@ describe("Lobby", () => {
   });
 
   it("renders one player's name and score", () => {
-    const players: Player[] = [{ id: "p1", name: "Dana", score: 400, connected: true }];
+    const players: Player[] = [{ id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true }];
 
     render(<Lobby players={players} />);
 
@@ -24,8 +24,8 @@ describe("Lobby", () => {
 
   it("renders every player's name and score when there are multiple", () => {
     const players: Player[] = [
-      { id: "p1", name: "Dana", score: 400, connected: true },
-      { id: "p2", name: "Marcus", score: -200, connected: true },
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+      { id: "p2", identity: { kind: "text", name: "Marcus" }, score: -200, connected: true },
     ];
 
     render(<Lobby players={players} />);

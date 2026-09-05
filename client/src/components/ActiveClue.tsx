@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ActiveClueDetails } from "../activeClue";
 import { accent, palette } from "../theme";
+import { PlayerIdentity } from "./PlayerIdentity";
 
 const FLIP_TRANSITION_MS = 320;
 const FLIP_PERSPECTIVE_PX = 1600;
@@ -101,11 +102,17 @@ export function ActiveClue({
   alwaysShowAnswer?: boolean;
 }) {
   const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer } = details;
-  const statusText = buzzedPlayer
-    ? `${buzzedPlayer.name} has the buzz`
-    : correctPlayer
-      ? `${correctPlayer.name} got it right`
-      : "Waiting for a buzz…";
+  const statusText: ReactNode = buzzedPlayer ? (
+    <>
+      <PlayerIdentity identity={buzzedPlayer.identity} /> has the buzz
+    </>
+  ) : correctPlayer ? (
+    <>
+      <PlayerIdentity identity={correctPlayer.identity} /> got it right
+    </>
+  ) : (
+    "Waiting for a buzz…"
+  );
 
   return (
     <div style={cardStyle}>

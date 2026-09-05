@@ -12,8 +12,8 @@ function board(): Category[] {
 
 function players(): Player[] {
   return [
-    { id: "p1", name: "Dana", score: 0, connected: true },
-    { id: "p2", name: "Marcus", score: 0, connected: true },
+    { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
+    { id: "p2", identity: { kind: "text", name: "Marcus" }, score: 0, connected: true },
   ];
 }
 
@@ -49,7 +49,7 @@ describe("resolveActiveClue", () => {
 
     const details = resolveActiveClue(activeClue, board(), players());
 
-    expect(details.buzzedPlayer).toEqual({ id: "p2", name: "Marcus", score: 0, connected: true });
+    expect(details.buzzedPlayer).toEqual({ id: "p2", identity: { kind: "text", name: "Marcus" }, score: 0, connected: true });
   });
 
   it("resolves buzzedPlayer to null when buzzedPlayerId is null", () => {
@@ -94,7 +94,7 @@ describe("resolveActiveClue", () => {
 
     const details = resolveActiveClue(activeClue, board(), players());
 
-    expect(details.correctPlayer).toEqual({ id: "p1", name: "Dana", score: 0, connected: true });
+    expect(details.correctPlayer).toEqual({ id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true });
   });
 
   it("resolves correctPlayer to null when correctPlayerId is null", () => {
