@@ -44,3 +44,7 @@ _Avoid_: buzz in (as a noun), ring in
 
 **Active Clue**:
 The single Clue currently selected and on display. Only one Clue can be Active at a time; it must resolve (get judged, or be abandoned) before another Tile can be selected.
+
+**Clue Card**:
+The fullscreen display of the Active Clue, on the Board and Host screens. Zooms in from the selected Tile's position on the Board when selected, and zooms back out when the Clue resolves. Has a Clue face (Category, Value, Clue text) and an Answer face it flips to when the Host reveals.
+_Avoid_: tile (a Clue Card isn't a Board Tile — it doesn't hold a Value or get marked used; it's a separate fullscreen view of whichever Tile is Active)

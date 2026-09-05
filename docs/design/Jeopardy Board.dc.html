@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Zilla+Slab:wght@600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07103f;font-family:Archivo,Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#f2c14e}a:hover{color:#ffd977}
+@keyframes buzzpulse{0%,100%{box-shadow:0 0 0 0 rgba(242,193,78,.9)}50%{box-shadow:0 0 0 10px rgba(242,193,78,0)}}
+</style>
+</helmet>
+
+<div style="{{ shellStyle }}">
+
+  <div style="display:flex;align-items:baseline;justify-content:space-between;flex:none">
+    <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:22px;letter-spacing:.16em;text-transform:uppercase;color:#f2c14e">{{ gameTitle }}</div>
+    <div style="display:flex;gap:20px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#c9d2f5">
+      <span>Round 1</span>
+      <span>Host view</span>
+    </div>
+  </div>
+
+  <sc-if value="{{ onBoard }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:auto repeat(5,1fr);gap:7px;min-height:0">
+      <sc-for list="{{ categories }}" as="cat" hint-placeholder-count="5">
+        <div style="{{ headerStyle }}">{{ cat.name }}</div>
+      </sc-for>
+      <sc-for list="{{ tiles }}" as="tile" hint-placeholder-count="25">
+        <button onClick="{{ tile.onSelect }}" style="{{ tile.style }}" style-hover="{{ tile.hoverStyle }}">{{ tile.label }}</button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ activeClue }}" hint-placeholder-val="{{ false }}">
+    <div style="{{ cluePanelStyle }}">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;flex:none;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#dfe4ff">
+        <span>{{ activeCategory }}</span>
+        <span style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:26px;letter-spacing:0;color:#f2c14e">{{ activeValue }}</span>
+      </div>
+
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;min-height:0;text-align:center">
+        <div style="font-weight:700;font-size:40px;line-height:1.2;letter-spacing:.02em;text-transform:uppercase;max-width:24ch;text-wrap:pretty">{{ activeClueText }}</div>
+        <sc-if value="{{ revealed }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:32px;line-height:1.2;color:#f2c14e;border-top:2px solid rgba(242,193,78,.4);padding-top:18px">{{ activeAnswer }}</div>
+        </sc-if>
+        <sc-if value="{{ awaitingBuzz }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:#dfe4ff">Waiting for a buzz — tap a player below to simulate</div>
+        </sc-if>
+        <sc-if value="{{ buzzedName }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;background:#f2c14e;color:#07103f;border-radius:999px;font-weight:800;font-size:15px;letter-spacing:.1em;text-transform:uppercase;animation:buzzpulse 1.4s ease-out infinite">{{ buzzedName }} buzzed in</div>
+        </sc-if>
+      </div>
+
+      <div style="flex:none;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button onClick="{{ onReveal }}" style="{{ revealBtnStyle }}">{{ revealBtnLabel }}</button>
+        <sc-if value="{{ canScore }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:10px">
+            <button onClick="{{ onCorrect }}" style="padding:12px 22px;border:0;border-radius:999px;background:#f2c14e;color:#07103f;font-family:Archivo,sans-serif;font-weight:800;font-size:13px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer">Correct {{ activeValue }}</button>
+            <button onClick="{{ onWrong }}" style="padding:12px 22px;border:1px solid #b9c0d8;border-radius:999px;background:transparent;color:#fff;font-family:Archivo,sans-serif;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer">Incorrect</button>
+          </div>
+        </sc-if>
+        <button onClick="{{ onBack }}" style="padding:12px 22px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:transparent;color:rgba(255,255,255,.7);font-family:Archivo,sans-serif;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer">Back to board</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+    <sc-for list="{{ players }}" as="p" hint-placeholder-count="4">
+      <button onClick="{{ p.onBuzz }}" style="{{ p.style }}">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0">
+          <div style="{{ p.dotStyle }}"></div>
+          <div style="font-weight:700;font-size:15px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+        </div>
+        <div style="{{ p.scoreStyle }}">{{ p.score }}</div>
+      </button>
+    </sc-for>
+  </div>
+</div>
+
+<div style="{{ phoneSectionStyle }}">
+  <div style="text-align:center;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:18px;letter-spacing:.16em;text-transform:uppercase;color:#f2c14e">Player screens</div>
+    <div style="font-size:13px;color:#c9d2f5">Phone view, three states</div>
+  </div>
+  <div style="display:flex;gap:34px;flex-wrap:wrap;justify-content:center">
+
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="width:290px;height:590px;box-sizing:border-box;border-radius:42px;border:9px solid #10163a;background:#0a1a8f;padding:26px 22px;display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(0,0,0,.45)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;color:#dfe4ff;flex:none">
+          <span>9:41</span><span>Buzzer connected</span>
+        </div>
+        <div style="flex:none;margin-top:34px;text-align:center;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:800;font-size:24px;letter-spacing:.06em;text-transform:uppercase">Dana</div>
+          <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:40px;color:#f2c14e">$1,400</div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center">
+          <div style="width:190px;height:190px;border-radius:50%;background:#f2c14e;color:#07103f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;letter-spacing:.1em;text-transform:uppercase;box-shadow:0 10px 0 #b78d22">Buzz</div>
+        </div>
+        <div style="flex:none;text-align:center;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#c9d2f5">Ready</div>
+      </div>
+      <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#c9d2f5">Ready</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="width:290px;height:590px;box-sizing:border-box;border-radius:42px;border:9px solid #10163a;background:#f2c14e;color:#07103f;padding:26px 22px;display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(0,0,0,.45)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;color:#2b3563;flex:none">
+          <span>9:41</span><span>You're in</span>
+        </div>
+        <div style="flex:none;margin-top:34px;text-align:center;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:800;font-size:24px;letter-spacing:.06em;text-transform:uppercase">Dana</div>
+          <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:40px">$1,400</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+          <div style="width:190px;height:190px;border-radius:50%;background:#07103f;color:#f2c14e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;animation:buzzpulse 1.4s ease-out infinite">
+            <span style="font-size:44px">1st</span>
+            <span style="font-size:13px;color:rgba(255,255,255,.7)">Answer now</span>
+          </div>
+        </div>
+        <div style="flex:none;text-align:center;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#2b3563">Buzzed at 0.42s</div>
+      </div>
+      <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#c9d2f5">Buzzed in first</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="width:290px;height:590px;box-sizing:border-box;border-radius:42px;border:9px solid #10163a;background:#050c26;padding:26px 22px;display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(0,0,0,.45)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;color:#b9c0d8;flex:none">
+          <span>9:41</span><span>Locked out</span>
+        </div>
+        <div style="flex:none;margin-top:34px;text-align:center;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:800;font-size:24px;letter-spacing:.06em;text-transform:uppercase;color:#c9d2f5">Marcus</div>
+          <div style="font-family:'Zilla Slab',Georgia,serif;font-weight:700;font-size:40px;color:rgba(242,193,78,.5)">$800</div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center">
+          <div style="width:190px;height:190px;border-radius:50%;background:#0d1332;color:#b9c0d8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(255,255,255,.08)">
+            <span style="font-size:17px">Dana</span>
+            <span style="font-size:12px;font-weight:600">has the buzz</span>
+          </div>
+        </div>
+        <div style="flex:none;text-align:center;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b9c0d8">Wait for the next clue</div>
+      </div>
+      <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#c9d2f5">Another player buzzed</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;boardTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Classic Navy&quot;,&quot;Studio Teal&quot;,&quot;Deep Plum&quot;,&quot;Ink &amp; Coral&quot;,&quot;Cobalt &amp; Mint&quot;,&quot;Sunset Brick&quot;],&quot;default&quot;:&quot;Classic Navy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#f2c14e&quot;,&quot;options&quot;:[&quot;#f2c14e&quot;,&quot;#ff7a5c&quot;,&quot;#8ff0c8&quot;,&quot;#f6c9ff&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;tileStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Embossed&quot;,&quot;Flat&quot;],&quot;default&quot;:&quot;Embossed&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;gameTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Category Board&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const CATS = [
+  { name: "World Capitals", clues: [
+    ["This Baltic capital sits on the Vilnia River", "Vilnius"],
+    ["Africa's highest capital city, at 2,355 m", "Addis Ababa"],
+    ["Its old town is called Gamla stan", "Stockholm"],
+    ["Purpose-built in 1960 to replace Rio", "Brasilia"],
+    ["The seat of government of Bolivia", "La Paz"]] },
+  { name: "The Periodic Table", clues: [
+    ["Symbol Fe, atomic number 26", "Iron"],
+    ["The only metal liquid at room temperature", "Mercury"],
+    ["Named for the Greek word for 'lazy'", "Argon"],
+    ["Element 79, and the standard of wealth", "Gold"],
+    ["The lightest of the halogens", "Fluorine"]] },
+  { name: "Silent Film", clues: [
+    ["1927's 'Metropolis' was directed by this man", "Fritz Lang"],
+    ["This comic hung from a clock face in 'Safety Last!'", "Harold Lloyd"],
+    ["The 1925 film that made a shipboard staircase famous", "Battleship Potemkin"],
+    ["Nickname of Buster Keaton, for his unmoving face", "The Great Stone Face"],
+    ["This 1922 vampire film was an unlicensed Dracula", "Nosferatu"]] },
+  { name: "Deep Water", clues: [
+    ["The deepest point in the ocean bears this name", "Challenger Deep"],
+    ["This whale dives past 2,000 m hunting squid", "The sperm whale"],
+    ["The zone from 200 to 1,000 m, or 'twilight'", "The mesopelagic"],
+    ["Chemical process powering hydrothermal vent life", "Chemosynthesis"],
+    ["The 1960 sub that reached the Mariana Trench", "The Trieste"]] },
+  { name: "Idioms & Phrases", clues: [
+    ["To do this to the bullet is to endure pain", "Bite it"],
+    ["This colour of herring is a misleading clue", "Red"],
+    ["Nautical origin phrase for barely enough room", "By and large"],
+    ["To 'pull out all' of these is to give full effort", "The stops"],
+    ["This baked good, when taken, means something is easy", "Cake"]] }
+];
+const VALUES = [100, 200, 300, 400, 500];
+
+const THEMES = {
+  "Classic Navy": { shell: "#050a2a", header: "#0d1442", headerFg: "#fff", tile: ["#2a52f0", "#1735c4"], tileFlat: "#1e42e0", hover: "#3d63ff", used: "#0a0f30", panel: "#1638d8", card: "#0d1442", accent: "#f2c14e" },
+  "Studio Teal": { shell: "#04211f", header: "#0a3230", headerFg: "#fff", tile: ["#0e7c72", "#08574f"], tileFlat: "#0b6b62", hover: "#149a8d", used: "#062724", panel: "#0b6b62", card: "#0a3230", accent: "#ffd166" },
+  "Deep Plum": { shell: "#1d0a2b", header: "#2c1140", headerFg: "#fff", tile: ["#6f2bb0", "#4d1c7d", ], tileFlat: "#5e2496", hover: "#8a3ad3", used: "#250f36", panel: "#5e2496", card: "#2c1140", accent: "#f6c9ff" },
+  "Ink & Coral": { shell: "#14161c", header: "#22252e", headerFg: "#fff", tile: ["#2f3542", "#232833"], tileFlat: "#2a303c", hover: "#3d4553", used: "#1a1d24", panel: "#2a303c", card: "#22252e", accent: "#ff7a5c" },
+  "Cobalt & Mint": { shell: "#071a33", header: "#0c2647", headerFg: "#fff", tile: ["#1c62c9", "#12459a"], tileFlat: "#1755b3", hover: "#2a7ae8", used: "#0a1f3b", panel: "#1755b3", card: "#0c2647", accent: "#8ff0c8" },
+  "Sunset Brick": { shell: "#26100c", header: "#3a1a13", headerFg: "#fff", tile: ["#b8442a", "#8c3120"], tileFlat: "#a63b25", hover: "#d65535", used: "#2e130e", panel: "#a63b25", card: "#3a1a13", accent: "#ffd9a0" }
+};
+
+class Component extends DCLogic {
+  state = {
+    used: {},
+    active: null,
+    revealed: false,
+    buzzed: null,
+    players: [
+      { name: "Dana", score: 1400 },
+      { name: "Marcus", score: 800 },
+      { name: "Priya", score: 2100 },
+      { name: "Owen", score: -200 }
+    ]
+  };
+
+  money(n) {
+    const s = "$" + Math.abs(n).toLocaleString("en-US");
+    return n < 0 ? "-" + s : s;
+  }
+
+  select(c, r) {
+    if (this.state.used[c + "-" + r]) return;
+    this.setState({ active: { c, r }, revealed: false, buzzed: null });
+  }
+
+  buzz(i) {
+    if (!this.state.active || this.state.buzzed !== null) return;
+    this.setState({ buzzed: i });
+  }
+
+  score(correct) {
+    const { active, buzzed, players, used } = this.state;
+    const val = VALUES[active.r];
+    const next = players.map((p, i) => i === buzzed ? { ...p, score: p.score + (correct ? val : -val) } : p);
+    if (correct) {
+      this.setState({ players: next, used: { ...used, [active.c + "-" + active.r]: true }, active: null, revealed: false, buzzed: null });
+    } else {
+      this.setState({ players: next, buzzed: null, revealed: false });
+    }
+  }
+
+  renderVals() {
+    const th = THEMES[this.props.boardTheme ?? "Classic Navy"] || THEMES["Classic Navy"];
+    const accent = this.props.accentColor ?? th.accent;
+    const { active, revealed, buzzed, used, players } = this.state;
+    const embossed = (this.props.tileStyle ?? "Embossed") === "Embossed";
+
+    const tiles = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const isUsed = !!used[c + "-" + r];
+        tiles.push({
+          label: isUsed ? "" : this.money(VALUES[r]),
+          onSelect: () => this.select(c, r),
+          style: {
+            border: 0, borderRadius: 14, cursor: isUsed ? "default" : "pointer",
+            background: isUsed ? th.used : (embossed ? "linear-gradient(" + th.tile[0] + "," + th.tile[1] + ")" : th.tileFlat),
+            boxShadow: isUsed || !embossed ? "none" : "inset 0 1px 0 rgba(255,255,255,.28), 0 3px 0 rgba(0,0,0,.3)",
+            color: accent, fontFamily: "'Zilla Slab', Georgia, serif", fontWeight: 700,
+            fontSize: "clamp(22px, 3.2vh, 42px)", letterSpacing: ".01em",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background .12s ease"
+          },
+          hoverStyle: isUsed ? {} : { background: th.hover }
+        });
+      }
+    }
+
+    const playerVals = players.map((p, i) => {
+      const isBuzzed = buzzed === i;
+      return {
+        name: p.name,
+        score: this.money(p.score),
+        onBuzz: () => this.buzz(i),
+        style: {
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          padding: "13px 16px", borderRadius: 12, textAlign: "left", cursor: "pointer",
+          background: isBuzzed ? accent : th.card,
+          color: isBuzzed ? th.shell : "#fff",
+          border: isBuzzed ? "1px solid " + accent : "1px solid rgba(255,255,255,.09)",
+          fontFamily: "Archivo, sans-serif",
+          animation: isBuzzed ? "buzzpulse 1.4s ease-out infinite" : "none"
+        },
+        dotStyle: {
+          width: 9, height: 9, borderRadius: "50%", flex: "none",
+          background: isBuzzed ? th.shell : "rgba(255,255,255,.22)"
+        },
+        scoreStyle: {
+          fontFamily: "'Zilla Slab', Georgia, serif", fontWeight: 700, fontSize: 22,
+          color: isBuzzed ? th.shell : (p.score < 0 ? "#ff8a7a" : accent)
+        }
+      };
+    });
+
+    const clue = active ? CATS[active.c].clues[active.r] : null;
+    const shellStyle = { display: "flex", flexDirection: "column", height: "100vh", padding: "18px 20px 16px", boxSizing: "border-box", gap: 14, color: "#fff", overflow: "hidden", background: th.shell };
+    return {
+      shellStyle,
+      phoneSectionStyle: { padding: "52px 20px 64px", color: "#fff", background: th.shell, display: "flex", flexDirection: "column", gap: 28, alignItems: "center" },
+      headerStyle: { display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "13px 9px", borderRadius: 12, fontWeight: 800, fontSize: 15, lineHeight: 1.15, letterSpacing: ".06em", textTransform: "uppercase", background: th.header, color: th.headerFg },
+      cluePanelStyle: { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, borderRadius: 18, padding: "26px 34px 22px", boxSizing: "border-box", gap: 18, background: th.panel },
+      gameTitle: this.props.gameTitle ?? "Category Board",
+      tiles, categories: CATS.map(c => ({ name: c.name })), players: playerVals,
+      onBoard: !active, activeClue: !!active,
+      activeCategory: active ? CATS[active.c].name : "",
+      activeValue: active ? this.money(VALUES[active.r]) : "",
+      activeClueText: clue ? clue[0] : "",
+      activeAnswer: clue ? clue[1] : "",
+      revealed, awaitingBuzz: !!active && buzzed === null,
+      buzzedName: buzzed !== null ? players[buzzed].name : "",
+      canScore: revealed && buzzed !== null,
+      revealBtnLabel: revealed ? "Answer shown" : "Flip tile — show answer",
+      revealBtnStyle: {
+        padding: "12px 22px", borderRadius: 999, fontFamily: "Archivo, sans-serif",
+        fontWeight: 800, fontSize: 13, letterSpacing: ".12em", textTransform: "uppercase",
+        border: "1px solid " + (buzzed === null || revealed ? "rgba(255,255,255,.18)" : accent),
+        background: buzzed === null || revealed ? "transparent" : accent,
+        color: buzzed === null || revealed ? "#b9c0d8" : th.shell,
+        cursor: buzzed === null || revealed ? "default" : "pointer"
+      },
+      onReveal: () => { if (buzzed !== null) this.setState({ revealed: true }); },
+      onCorrect: () => this.score(true),
+      onWrong: () => this.score(false),
+      onBack: () => this.setState({ active: null, revealed: false, buzzed: null })
+    };
+  }
+}
+</script>
+</body>
+</html>
