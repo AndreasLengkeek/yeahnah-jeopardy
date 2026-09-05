@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Running the server locally serves a Board display route, a Host control panel route, and a Player join route.
 - [x] A Player visiting the join route can enter a name and appear in the Lobby on the Board display and Host control panel.

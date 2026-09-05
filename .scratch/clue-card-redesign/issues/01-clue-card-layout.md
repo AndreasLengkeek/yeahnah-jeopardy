@@ -8,11 +8,11 @@ Structure the header so it's naturally separable from the Clue-text content regi
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Category and Value appear in a header row at the top of the Clue Card (Category left, Value right).
-- [ ] Clue text is larger than today and fills most of the remaining space below the header.
-- [ ] Layout applies identically on the Board (read-only) and Host views.
-- [ ] The Answer still renders inline below the Clue text once revealed (unchanged for this ticket).
-- [ ] The Board's Tile grid, when no Clue is Active, is visually unchanged.
-- [ ] Verified manually in a browser; no automated test required (per the spec's Testing Decisions).
+- [x] Category and Value appear in a header row at the top of the Clue Card (Category left, Value right).
+- [x] Clue text is larger than today and fills most of the remaining space below the header.
+- [x] Layout applies identically on the Board (read-only) and Host views.
+- [x] The Answer still renders inline below the Clue text once revealed (unchanged for this ticket).
+- [x] The Board's Tile grid, when no Clue is Active, is visually unchanged.
+- [x] Verified manually in a browser; no automated test required (per the spec's Testing Decisions).

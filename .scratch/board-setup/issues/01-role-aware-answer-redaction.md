@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `ActiveClue` gains `clueText: string` and `answer: string`, populated from the existing `CATS` fixture (by `categoryIndex`/`tileIndex`) at `selectTile` time — the reducer always stores the true Answer here.
 - [x] A new pure function (e.g. `viewForRole(state, role)`) returns `state` unchanged for the `"host"` role; for `"board"` or `"player"`, it redacts `activeClue.answer` whenever `activeClue` exists and `revealed` is `false`.

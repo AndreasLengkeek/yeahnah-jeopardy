@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A new `setScore { playerId, score }` `GameAction` is handled by the reducer (`applyAction` in `shared/src/gameEngine.ts`), overwriting the target Player's `score` with the given integer verbatim (no delta math, no clamping).
 - [x] `setScore` is a no-op (state unchanged) when `playerId` doesn't match any Player in the roster.
@@ -23,6 +23,7 @@
 **Implemented** (commit `71379db`, branch `score-correction`). Full suite green: 53 shared / 5 server / 49 client. Typecheck clean.
 
 Two-axis `/code-review` findings addressed:
+
 - Extracted a `scoreColor(score)` helper in `Scoreboard.tsx` (was duplicated across the read-only and editable branches).
 - `EditableScore.commit()` now only commits on a strict `/^-?\d+$/` match, so `"3.9"`, `"12x"`, `""`, `"-"` are discarded rather than silently coerced by `parseInt` — closer to the spec's "exact integer".
 - Dropped the unspecified `parsed !== player.score` guard (scope creep); a re-typed identical value just flows through as a normal (idempotent) score write.
