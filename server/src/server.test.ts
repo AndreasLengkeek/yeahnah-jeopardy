@@ -278,6 +278,10 @@ describe("socket.io wiring", () => {
     const afterNewBoard = await host.nextState();
     expect(afterNewBoard.content).toHaveLength(4);
     expect(afterNewBoard.phase).toBe("setup");
+
+    host.socket.emit("importBoardConfig", CATS);
+    const afterImport = await host.nextState();
+    expect(afterImport.content).toEqual(CATS);
   });
 
   it("has a returnToSetup handler that the reducer rejects outside Game Over", async () => {

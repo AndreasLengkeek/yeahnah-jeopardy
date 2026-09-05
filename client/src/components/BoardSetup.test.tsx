@@ -23,6 +23,7 @@ function noopHandlers() {
     onEditCategoryName: vi.fn(),
     onEditClue: vi.fn(),
     onNewBoard: vi.fn(),
+    onImportBoardConfig: vi.fn(),
     onOpenLobby: vi.fn(),
   };
 }

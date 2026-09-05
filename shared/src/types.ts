@@ -61,6 +61,7 @@ export type GameAction =
   | { type: 'newBoard'; categoryCount: number }
   | { type: 'editCategoryName'; categoryIndex: number; name: string }
   | { type: 'editClue'; categoryIndex: number; tileIndex: number; field: ClueField; value: string }
+  | { type: 'importBoardConfig'; content: CategoryData[] }
   | { type: 'openLobby' }
   | { type: 'startGame' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }

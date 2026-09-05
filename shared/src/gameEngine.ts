@@ -73,6 +73,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyEditCategoryName(state, action.categoryIndex, action.name);
     case 'editClue':
       return applyEditClue(state, action.categoryIndex, action.tileIndex, action.field, action.value);
+    case 'importBoardConfig':
+      return applyImportBoardConfig(state, action.content);
     case 'openLobby':
       return applyOpenLobby(state);
     case 'startGame':
@@ -167,6 +169,16 @@ function applyEditClue(
         : category,
     ),
   };
+}
+
+// Replaces `content` wholesale with an already-parsed, already-validated payload (see
+// parseBoardConfig in boardConfig.ts) — a Board Config Import. Blank fields are
+// tolerated here too, surfaced via the same isContentComplete check openLobby uses,
+// not a separate error state.
+function applyImportBoardConfig(state: GameState, content: CategoryData[]): GameState {
+  if (state.phase !== 'setup') return state;
+
+  return { ...state, content };
 }
 
 function applyOpenLobby(state: GameState): GameState {

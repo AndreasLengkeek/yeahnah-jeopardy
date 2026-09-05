@@ -131,6 +131,7 @@ export function HostPage() {
             socket.emit("editClue", categoryIndex, tileIndex, field, value)
           }
           onNewBoard={(categoryCount) => socket.emit("newBoard", categoryCount)}
+          onImportBoardConfig={(content) => socket.emit("importBoardConfig", content)}
           onOpenLobby={() => socket.emit("openLobby")}
         />
       ) : state.phase === "lobby" ? (

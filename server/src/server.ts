@@ -4,6 +4,7 @@ import express from "express";
 import { Server } from "socket.io";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
 import type {
+  CategoryData,
   ClueField,
   GameAction,
   GameState,
@@ -95,6 +96,10 @@ export function createGameServer() {
 
     socket.on("editClue", (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
       dispatch({ type: "editClue", categoryIndex, tileIndex, field, value });
+    });
+
+    socket.on("importBoardConfig", (content: CategoryData[]) => {
+      dispatch({ type: "importBoardConfig", content });
     });
 
     socket.on("openLobby", () => {

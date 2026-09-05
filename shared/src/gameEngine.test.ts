@@ -875,6 +875,32 @@ describe("gameEngine: Board Setup", () => {
     });
   });
 
+  describe("importBoardConfig", () => {
+    it("replaces content wholesale with the imported payload", () => {
+      const imported = filledContent(4).content;
+
+      const state = applyAction(initialState(), { type: "importBoardConfig", content: imported });
+
+      expect(state.content).toEqual(imported);
+    });
+
+    it("accepts a payload with blank fields, surfaced later via isContentComplete rather than a separate error", () => {
+      const withBlanks = applyAction(initialState(), { type: "newBoard", categoryCount: 3 }).content;
+
+      const state = applyAction(initialState(), { type: "importBoardConfig", content: withBlanks });
+
+      expect(state.content).toEqual(withBlanks);
+      expect(isContentComplete(state.content)).toBe(false);
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+      const imported = filledContent(4).content;
+
+      expect(applyAction(lobby, { type: "importBoardConfig", content: imported })).toBe(lobby);
+    });
+  });
+
   describe("returnToSetup", () => {
     it("returns from gameOver to setup with content still pre-loaded", () => {
       let state = startedGame();

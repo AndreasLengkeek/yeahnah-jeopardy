@@ -1,7 +1,7 @@
-import { MAX_CATEGORIES, MIN_CATEGORIES, isBlank, isContentComplete } from "@yeahnah/shared";
+import { MAX_CATEGORIES, MIN_CATEGORIES, isBlank, isContentComplete, parseBoardConfig, serializeBoardConfig } from "@yeahnah/shared";
 import type { CategoryData, ClueField } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { accent, palette } from "../theme";
 
 const CATEGORY_COUNT_OPTIONS = Array.from(
@@ -77,26 +77,69 @@ function pillButtonStyle(enabled: boolean): CSSProperties {
   };
 }
 
+const outlineButtonStyle: CSSProperties = {
+  padding: "12px 24px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,.3)",
+  fontWeight: 800,
+  fontSize: 13,
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  background: "transparent",
+  color: "rgba(255,255,255,.8)",
+  cursor: "pointer",
+};
+
 const selectStyle: CSSProperties = {
   ...inputStyle,
   width: "auto",
 };
+
+// Browser-API glue only: triggers a download of the serialized Board Config. Thin and
+// untested, matching the precedent of socket.ts and playerIdentity.ts's localStorage calls.
+function downloadBoardConfig(content: CategoryData[]): void {
+  const blob = new Blob([serializeBoardConfig(content)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "board-config.json";
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export function BoardSetup({
   content,
   onEditCategoryName,
   onEditClue,
   onNewBoard,
+  onImportBoardConfig,
   onOpenLobby,
 }: {
   content: CategoryData[];
   onEditCategoryName: (categoryIndex: number, name: string) => void;
   onEditClue: (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => void;
   onNewBoard: (categoryCount: number) => void;
+  onImportBoardConfig: (content: CategoryData[]) => void;
   onOpenLobby: () => void;
 }) {
   const [newCount, setNewCount] = useState(4);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const complete = isContentComplete(content);
+
+  // Browser-API glue only: reads the chosen file's text. Thin and untested, matching
+  // the precedent of socket.ts and playerIdentity.ts's localStorage calls.
+  async function handleImportFile(file: File): Promise<void> {
+    const raw = await file.text();
+    const result = parseBoardConfig(raw);
+    if (!result.ok) {
+      setImportError(result.error);
+      return;
+    }
+
+    setImportError(null);
+    onImportBoardConfig(result.content);
+  }
 
   return (
     <div style={panelStyle}>
@@ -119,11 +162,34 @@ export function BoardSetup({
         <button type="button" onClick={() => onNewBoard(newCount)} style={pillButtonStyle(true)}>
           Start New Board
         </button>
+        <button type="button" onClick={() => downloadBoardConfig(content)} style={outlineButtonStyle}>
+          Export Board
+        </button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} style={outlineButtonStyle}>
+          Import Board
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void handleImportFile(file);
+          }}
+        />
         <div style={{ flex: 1 }} />
         <button type="button" disabled={!complete} onClick={onOpenLobby} style={pillButtonStyle(complete)}>
           Open Lobby
         </button>
       </div>
+
+      {importError && (
+        <div style={flagStyle} role="alert">
+          {importError}
+        </div>
+      )}
 
       {!complete && (
         <div style={flagStyle} role="status">
