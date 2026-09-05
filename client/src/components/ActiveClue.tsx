@@ -1,63 +1,105 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { ActiveClueDetails } from "../activeClue";
 import { accent, palette } from "../theme";
+
+const FLIP_TRANSITION_MS = 320;
+const FLIP_PERSPECTIVE_PX = 1600;
+
+const cardStyle: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  gap: 20,
+  padding: 24,
+  borderRadius: 18,
+  background: palette.panel,
+  minHeight: 0,
+};
+
+const headerStyle: CSSProperties = {
+  flex: "none",
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  fontSize: 13,
+  letterSpacing: ".16em",
+  textTransform: "uppercase",
+  color: "#dfe4ff",
+};
+
+const valueStyle: CSSProperties = {
+  fontFamily: "'Zilla Slab', Georgia, serif",
+  fontWeight: 700,
+  fontSize: 26,
+  letterSpacing: 0,
+  color: accent,
+};
+
+const flipStageStyle: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  position: "relative",
+  perspective: FLIP_PERSPECTIVE_PX,
+};
+
+const faceStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  backfaceVisibility: "hidden",
+  WebkitBackfaceVisibility: "hidden",
+  fontFamily: "'Zilla Slab', Georgia, serif",
+  fontWeight: 700,
+  fontSize: "clamp(28px, 5vh, 52px)",
+};
+
+const backFaceStyle: CSSProperties = {
+  ...faceStyle,
+  transform: "rotateY(180deg)",
+  color: accent,
+  fontWeight: 800,
+  fontSize: "clamp(18px, 2.8vh, 30px)",
+};
+
+const statusStyle: CSSProperties = {
+  flex: "none",
+  textAlign: "center",
+  fontSize: 14,
+  color: "#c9d2f5",
+};
+
+function flipCardStyle(revealed: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    transformStyle: "preserve-3d",
+    WebkitTransformStyle: "preserve-3d",
+    transition: `transform ${FLIP_TRANSITION_MS}ms ease`,
+    transform: revealed ? "rotateY(180deg)" : "rotateY(0deg)",
+  };
+}
 
 export function ActiveClue({ details, footer }: { details: ActiveClueDetails; footer?: ReactNode }) {
   const { category, value, clueText, revealed, answer, buzzedPlayer } = details;
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        padding: 24,
-        borderRadius: 18,
-        background: palette.panel,
-        minHeight: 0,
-      }}
-    >
-      <div
-        style={{
-          flex: "none",
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          fontSize: 13,
-          letterSpacing: ".16em",
-          textTransform: "uppercase",
-          color: "#dfe4ff",
-        }}
-      >
+    <div style={cardStyle}>
+      <div style={headerStyle}>
         <span>{category}</span>
-        <span style={{ fontFamily: "'Zilla Slab', Georgia, serif", fontWeight: 700, fontSize: 26, letterSpacing: 0, color: accent }}>
-          ${value.toLocaleString("en-US")}
-        </span>
+        <span style={valueStyle}>${value.toLocaleString("en-US")}</span>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          alignItems: "center",
-          justifyContent: "center",
-          textAlign: "center",
-          minHeight: 0,
-        }}
-      >
-        <div style={{ fontFamily: "'Zilla Slab', Georgia, serif", fontWeight: 700, fontSize: "clamp(28px, 5vh, 52px)" }}>
-          {clueText}
-        </div>
-        {revealed && (
-          <div style={{ fontSize: "clamp(18px, 2.8vh, 30px)", fontWeight: 800, color: accent }}>{answer}</div>
-        )}
-        <div style={{ fontSize: 14, color: "#c9d2f5" }}>
-          {buzzedPlayer ? `${buzzedPlayer.name} has the buzz` : "Waiting for a buzz…"}
+      <div style={flipStageStyle}>
+        <div style={flipCardStyle(revealed)}>
+          <div style={faceStyle}>{clueText}</div>
+          <div style={backFaceStyle}>{revealed && answer}</div>
         </div>
       </div>
+
+      <div style={statusStyle}>{buzzedPlayer ? `${buzzedPlayer.name} has the buzz` : "Waiting for a buzz…"}</div>
 
       {footer}
     </div>
