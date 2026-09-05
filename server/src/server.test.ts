@@ -1,8 +1,12 @@
 import type { AddressInfo } from "node:net";
-import type { GameState, JoinResult } from "@yeahnah/shared";
+import type { GameState, JoinResult, PlayerIdentity } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameServer } from "./server.js";
+
+const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
+const byName = (players: GameState["players"], name: string) =>
+  players.find((player) => player.identity.kind === "text" && player.identity.name === name)!;
 
 describe("socket.io wiring", () => {
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
@@ -50,19 +54,19 @@ describe("socket.io wiring", () => {
     const dana = await connect();
     await dana.nextState(); // initial state pushed on connect
 
-    dana.socket.emit("join", "Dana");
-    expect((await dana.nextState()).players.map((p) => p.name)).toEqual(["Dana"]);
+    dana.socket.emit("join", textIdentity("Dana"));
+    expect((await dana.nextState()).players.map((p) => p.identity)).toEqual([textIdentity("Dana")]);
 
     const marcus = await connect();
     await marcus.nextState(); // initial state, already includes Dana
 
-    marcus.socket.emit("join", "Marcus");
+    marcus.socket.emit("join", textIdentity("Marcus"));
     expect((await dana.nextState()).players).toHaveLength(2);
 
     dana.socket.emit("startGame");
     const started = await dana.nextState();
     expect(started.phase).toBe("playing");
-    const danaId = started.players.find((p) => p.name === "Dana")!.id;
+    const danaId = byName(started.players, "Dana").id;
 
     dana.socket.emit("selectTile", 0, 0);
     expect((await dana.nextState()).activeClue).toMatchObject({ categoryIndex: 0, tileIndex: 0 });
@@ -80,15 +84,41 @@ describe("socket.io wiring", () => {
     expect(closed.activeClue).toBeNull();
   });
 
+  it("carries a drawn signature identity through a join round-trip to the broadcast state", async () => {
+    const dana = await connect();
+    await dana.nextState();
+
+    const signature: PlayerIdentity = {
+      kind: "signature",
+      image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    };
+    const ack = await new Promise<JoinResult>((resolve) => {
+      dana.socket.emit("join", signature, resolve);
+    });
+    expect(ack.ok).toBe(true);
+
+    const broadcast = await dana.nextState();
+    expect(broadcast.players).toHaveLength(1);
+    expect(broadcast.players[0].identity).toEqual(signature);
+
+    // A reconnect is playerId-keyed, so the drawn Signature comes back unchanged just
+    // like a typed name would.
+    const danaId = (ack as Extract<JoinResult, { ok: true }>).playerId;
+    const reconnected = await connect();
+    await reconnected.nextState();
+    reconnected.socket.emit("reconnect", danaId);
+    expect((await reconnected.nextState()).players[0].identity).toEqual(signature);
+  });
+
   it("reopens a Clue after an incorrect judgement and lets the Host close it once everyone is excluded", async () => {
     const dana = await connect();
     await dana.nextState();
-    dana.socket.emit("join", "Dana");
+    dana.socket.emit("join", textIdentity("Dana"));
     await dana.nextState();
-    dana.socket.emit("join", "Marcus");
+    dana.socket.emit("join", textIdentity("Marcus"));
     const withMarcus = await dana.nextState();
-    const danaId = withMarcus.players.find((p) => p.name === "Dana")!.id;
-    const marcusId = withMarcus.players.find((p) => p.name === "Marcus")!.id;
+    const danaId = byName(withMarcus.players, "Dana").id;
+    const marcusId = byName(withMarcus.players, "Marcus").id;
 
     dana.socket.emit("startGame");
     await dana.nextState();
@@ -120,7 +150,7 @@ describe("socket.io wiring", () => {
     const dana = await connect();
     await dana.nextState();
     const joinAck = await new Promise<JoinResult>((resolve) => {
-      dana.socket.emit("join", "Dana", resolve);
+      dana.socket.emit("join", textIdentity("Dana"), resolve);
     });
     await dana.nextState();
     const danaId = (joinAck as Extract<JoinResult, { ok: true }>).playerId;
@@ -144,9 +174,9 @@ describe("socket.io wiring", () => {
   it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
     const dana = await connect();
     await dana.nextState();
-    dana.socket.emit("join", "Dana");
+    dana.socket.emit("join", textIdentity("Dana"));
     await dana.nextState();
-    dana.socket.emit("join", "Marcus");
+    dana.socket.emit("join", textIdentity("Marcus"));
     await dana.nextState();
     dana.socket.emit("startGame");
     await dana.nextState();

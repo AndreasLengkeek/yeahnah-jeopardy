@@ -1,6 +1,7 @@
 import type { Player } from "@yeahnah/shared";
 import { formatScore } from "../format";
 import { accent, palette } from "../theme";
+import { PlayerIdentity } from "./PlayerIdentity";
 
 export function Scoreboard({ players }: { players: Player[] }) {
   return (
@@ -17,7 +18,9 @@ export function Scoreboard({ players }: { players: Player[] }) {
             background: palette.card,
           }}
         >
-          <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>{player.name}</span>
+          <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>
+            <PlayerIdentity identity={player.identity} />
+          </span>
           <span style={{ fontWeight: 800, color: player.score < 0 ? "#ff8a7a" : accent }}>
             {formatScore(player.score)}
           </span>

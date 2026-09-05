@@ -1,6 +1,7 @@
 import type { Player } from "@yeahnah/shared";
 import { formatScore } from "../format";
 import { accent, palette } from "../theme";
+import { PlayerIdentity } from "./PlayerIdentity";
 
 export function Lobby({ players }: { players: Player[] }) {
   return (
@@ -34,7 +35,7 @@ export function Lobby({ players }: { players: Player[] }) {
               letterSpacing: ".06em",
             }}
           >
-            {player.name}
+            <PlayerIdentity identity={player.identity} />
             <span style={{ color: accent }}>{formatScore(player.score)}</span>
           </div>
         ))}

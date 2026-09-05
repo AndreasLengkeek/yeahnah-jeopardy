@@ -1,8 +1,16 @@
 export type GamePhase = "lobby" | "playing" | "gameOver";
 
+// How a Player identifies themselves, chosen once at join time and never both: a typed
+// name carries the trimmed string; a drawn Signature carries a small raster image as a
+// data URL. Rendered everywhere a Player's identity is shown via the shared
+// PlayerIdentity component.
+export type PlayerIdentity =
+  | { kind: "text"; name: string }
+  | { kind: "signature"; image: string };
+
 export interface Player {
   id: string;
-  name: string;
+  identity: PlayerIdentity;
   score: number;
   connected: boolean;
 }
@@ -34,7 +42,7 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: "join"; name: string }
+  | { type: "join"; identity: PlayerIdentity }
   | { type: "reconnect"; playerId: string }
   | { type: "startGame" }
   | { type: "selectTile"; categoryIndex: number; tileIndex: number }

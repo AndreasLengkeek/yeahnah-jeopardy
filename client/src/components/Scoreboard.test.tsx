@@ -6,8 +6,8 @@ import { Scoreboard } from "./Scoreboard";
 describe("Scoreboard", () => {
   it("renders a negative score in a different color from a non-negative score", () => {
     const players: Player[] = [
-      { id: "p1", name: "Dana", score: 400, connected: true },
-      { id: "p2", name: "Marcus", score: -200, connected: true },
+      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
+      { id: "p2", identity: { kind: "text", name: "Marcus" }, score: -200, connected: true },
     ];
 
     render(<Scoreboard players={players} />);

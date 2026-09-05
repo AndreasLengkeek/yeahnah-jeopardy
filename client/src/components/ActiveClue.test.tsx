@@ -38,34 +38,51 @@ describe("ActiveClue", () => {
   it("shows the buzzed player's name when someone has the buzz", () => {
     render(
       <ActiveClue
-        details={details({ buzzedPlayer: { id: "p1", name: "Dana", score: 0, connected: true } })}
+        details={details({ buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true } })}
       />,
     );
 
-    expect(screen.getByText("Dana has the buzz")).toBeInTheDocument();
+    expect(screen.getByText(/has the buzz/).textContent).toBe("Dana has the buzz");
+  });
+
+  it("renders a buzzed player's Signature as an image in the status line", () => {
+    render(
+      <ActiveClue
+        details={details({
+          buzzedPlayer: { id: "p1", identity: { kind: "signature", image: "data:image/png;base64,AAAA" }, score: 0, connected: true },
+        })}
+      />,
+    );
+
+    const status = screen.getByText(/has the buzz/);
+    expect(status.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,AAAA");
+    expect(status.textContent).toBe(" has the buzz");
   });
 
   it("shows the correct player's name once they've answered correctly, even with no one currently buzzed", () => {
     render(
       <ActiveClue
-        details={details({ buzzedPlayer: null, correctPlayer: { id: "p1", name: "Dana", score: 300, connected: true } })}
+        details={details({
+          buzzedPlayer: null,
+          correctPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 300, connected: true },
+        })}
       />,
     );
 
-    expect(screen.getByText("Dana got it right")).toBeInTheDocument();
+    expect(screen.getByText(/got it right/).textContent).toBe("Dana got it right");
   });
 
   it("prefers the buzzed player's status over a lingering correct player", () => {
     render(
       <ActiveClue
         details={details({
-          buzzedPlayer: { id: "p2", name: "Marcus", score: 0, connected: true },
-          correctPlayer: { id: "p1", name: "Dana", score: 300, connected: true },
+          buzzedPlayer: { id: "p2", identity: { kind: "text", name: "Marcus" }, score: 0, connected: true },
+          correctPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 300, connected: true },
         })}
       />,
     );
 
-    expect(screen.getByText("Marcus has the buzz")).toBeInTheDocument();
+    expect(screen.getByText(/has the buzz/).textContent).toBe("Marcus has the buzz");
   });
 
   it("omits the footer when none is supplied", () => {

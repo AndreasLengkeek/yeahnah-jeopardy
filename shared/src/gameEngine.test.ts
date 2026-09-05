@@ -1,48 +1,94 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initialState } from "./gameEngine.js";
 import { CATS, VALUES } from "./trivia.js";
+import type { PlayerIdentity } from "./types.js";
+
+const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
+const signatureIdentity = (image: string): PlayerIdentity => ({ kind: "signature", image });
+const joinText = (name: string) => ({ type: "join" as const, identity: textIdentity(name) });
+const joinSignature = (image: string) => ({ type: "join" as const, identity: signatureIdentity(image) });
+
+// A stand-in for a real captured Signature — any non-blank string counts as drawn content.
+const A_SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 describe("gameEngine: join", () => {
   it("accepts a valid join and adds the player at $0", () => {
-    const state = applyAction(initialState(), { type: "join", name: "Dana" });
+    const state = applyAction(initialState(), joinText("Dana"));
 
     expect(state.players).toHaveLength(1);
-    expect(state.players[0]).toMatchObject({ name: "Dana", score: 0, connected: true });
+    expect(state.players[0]).toMatchObject({ identity: textIdentity("Dana"), score: 0, connected: true });
     expect(state.players[0].id).toBeTruthy();
   });
 
   it("rejects a duplicate name in the lobby", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Dana"));
 
     expect(state.players).toHaveLength(1);
   });
 
   it("trims whitespace from a name and still catches duplicates", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "  Dana  " });
-    expect(state.players[0].name).toBe("Dana");
+    state = applyAction(state, joinText("  Dana  "));
+    expect(state.players[0].identity).toEqual(textIdentity("Dana"));
 
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
     expect(state.players).toHaveLength(1);
   });
 
   it("rejects a blank or whitespace-only name", () => {
-    const state = applyAction(initialState(), { type: "join", name: "   " });
+    const state = applyAction(initialState(), joinText("   "));
     expect(state.players).toHaveLength(0);
   });
 
   it("rejects a join once the game has started", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
-    state = applyAction(state, { type: "join", name: "Marcus" });
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Marcus"));
     state = applyAction(state, { type: "startGame" });
 
-    state = applyAction(state, { type: "join", name: "Priya" });
+    state = applyAction(state, joinText("Priya"));
 
     expect(state.players).toHaveLength(2);
-    expect(state.players.some((p) => p.name === "Priya")).toBe(false);
+    expect(state.players.some((p) => p.identity.kind === "text" && p.identity.name === "Priya")).toBe(false);
+  });
+
+  it("accepts a signature identity, storing its image unchanged", () => {
+    const state = applyAction(initialState(), joinSignature(A_SIGNATURE));
+
+    expect(state.players).toHaveLength(1);
+    expect(state.players[0]).toMatchObject({ identity: signatureIdentity(A_SIGNATURE), score: 0, connected: true });
+  });
+
+  it("rejects a signature identity captured from a blank canvas (no image data)", () => {
+    const state = applyAction(initialState(), joinSignature(""));
+
+    expect(state.players).toHaveLength(0);
+  });
+
+  it("lets a signature join succeed even when another Player already holds a pixel-identical image", () => {
+    let state = initialState();
+    state = applyAction(state, joinSignature(A_SIGNATURE));
+    state = applyAction(state, joinSignature(A_SIGNATURE));
+
+    expect(state.players).toHaveLength(2);
+  });
+
+  it("never blocks two Players from holding visually identical signatures", () => {
+    let state = initialState();
+    state = applyAction(state, joinSignature(A_SIGNATURE));
+    state = applyAction(state, joinSignature(A_SIGNATURE));
+
+    expect(state.players.map((p) => p.identity)).toEqual([signatureIdentity(A_SIGNATURE), signatureIdentity(A_SIGNATURE)]);
+  });
+
+  it("does not check a signature identity against a matching typed name for uniqueness", () => {
+    let state = initialState();
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinSignature(A_SIGNATURE));
+
+    expect(state.players).toHaveLength(2);
   });
 });
 
@@ -72,6 +118,16 @@ describe("gameEngine: reconnect", () => {
     expect(next).toBe(state);
   });
 
+  it("returns a signature identity unchanged on reconnect, the same way a typed name comes back", () => {
+    let state = applyAction(initialState(), joinSignature(A_SIGNATURE));
+    const [player] = state.players;
+
+    const next = applyAction(state, { type: "reconnect", playerId: player.id });
+
+    expect(next.players[0].identity).toEqual(signatureIdentity(A_SIGNATURE));
+    expect(next.players[0].connected).toBe(true);
+  });
+
   it("rejects a reconnect once the roster has been cleared by a reset", () => {
     let state = startedGame();
     const [dana] = state.players;
@@ -86,7 +142,7 @@ describe("gameEngine: reconnect", () => {
 describe("gameEngine: startGame", () => {
   it("rejects starting with fewer than 2 players", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
 
     state = applyAction(state, { type: "startGame" });
 
@@ -95,8 +151,8 @@ describe("gameEngine: startGame", () => {
 
   it("starts the game once at least 2 players have joined", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
-    state = applyAction(state, { type: "join", name: "Marcus" });
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Marcus"));
 
     state = applyAction(state, { type: "startGame" });
 
@@ -106,8 +162,8 @@ describe("gameEngine: startGame", () => {
 
 function startedGame(): ReturnType<typeof initialState> {
   let state = initialState();
-  state = applyAction(state, { type: "join", name: "Dana" });
-  state = applyAction(state, { type: "join", name: "Marcus" });
+  state = applyAction(state, joinText("Dana"));
+  state = applyAction(state, joinText("Marcus"));
   state = applyAction(state, { type: "startGame" });
   return state;
 }
@@ -151,7 +207,7 @@ describe("gameEngine: selectTile", () => {
 
   it("rejects selecting a tile before the game has started", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
 
     const next = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
 
@@ -532,7 +588,7 @@ describe("gameEngine: game over", () => {
 describe("gameEngine: resetGame", () => {
   it("resets from the lobby phase to a fresh, empty-roster lobby", () => {
     let state = initialState();
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
 
     const next = applyAction(state, { type: "resetGame" });
 
@@ -570,9 +626,9 @@ describe("gameEngine: resetGame", () => {
     let state = startedGame();
     state = applyAction(state, { type: "resetGame" });
 
-    state = applyAction(state, { type: "join", name: "Dana" });
+    state = applyAction(state, joinText("Dana"));
 
-    expect(state.players[0]).toMatchObject({ name: "Dana", score: 0 });
+    expect(state.players[0]).toMatchObject({ identity: textIdentity("Dana"), score: 0 });
   });
 });
 

@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./playerIdentity.js";
 export * from "./trivia.js";
 export * from "./theme.js";
 export * from "./gameEngine.js";

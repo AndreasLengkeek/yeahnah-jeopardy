@@ -1,5 +1,6 @@
+import { identitiesMatch, isBlankIdentity, normalizeIdentity } from "./playerIdentity.js";
 import { CATS, VALUES } from "./trivia.js";
-import type { ActiveClue, Category, GameAction, GameState, Player } from "./types.js";
+import type { ActiveClue, Category, GameAction, GameState, Player, PlayerIdentity } from "./types.js";
 
 function buildBoard(): Category[] {
   return CATS.map((category) => ({
@@ -20,7 +21,7 @@ export function initialState(): GameState {
 export function applyAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "join":
-      return applyJoin(state, action.name);
+      return applyJoin(state, action.identity);
     case "reconnect":
       return applyReconnect(state, action.playerId);
     case "startGame":
@@ -42,13 +43,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   }
 }
 
-function applyJoin(state: GameState, name: string): GameState {
-  const trimmedName = name.trim();
-  if (!trimmedName) return state;
+function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
+  const normalized = normalizeIdentity(identity);
+  if (isBlankIdentity(normalized)) return state;
   if (state.phase !== "lobby") return state;
-  if (state.players.some((player) => player.name === trimmedName)) return state;
+  if (state.players.some((player) => identitiesMatch(player.identity, normalized))) return state;
 
-  const player: Player = { id: crypto.randomUUID(), name: trimmedName, score: 0, connected: true };
+  const player: Player = { id: crypto.randomUUID(), identity: normalized, score: 0, connected: true };
   return { ...state, players: [...state.players, player] };
 }
 
