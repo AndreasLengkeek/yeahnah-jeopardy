@@ -56,6 +56,14 @@ export function createGameServer() {
     socket.on("reveal", () => {
       dispatch({ type: "reveal" });
     });
+
+    socket.on("judge", (correct: boolean) => {
+      dispatch({ type: "judge", correct });
+    });
+
+    socket.on("closeClue", () => {
+      dispatch({ type: "closeClue" });
+    });
   });
 
   return { app, httpServer, io };

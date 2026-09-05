@@ -1,9 +1,12 @@
-import type { CSSProperties } from "react";
+import { canCloseClue } from "@yeahnah/shared";
+import type { ActiveClue as ActiveClueState, Player } from "@yeahnah/shared";
+import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
 import { ActiveClue } from "../components/ActiveClue";
 import { Board } from "../components/Board";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
+import { Scoreboard } from "../components/Scoreboard";
 import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
@@ -21,6 +24,39 @@ function pillButtonStyle(enabled: boolean): CSSProperties {
     color: enabled ? "#07103f" : "rgba(255,255,255,.5)",
     cursor: enabled ? "pointer" : "default",
   };
+}
+
+function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
+  if (activeClue.buzzedPlayerId && !activeClue.revealed) {
+    return (
+      <button onClick={() => socket.emit("reveal")} style={pillButtonStyle(true)}>
+        Reveal
+      </button>
+    );
+  }
+
+  if (activeClue.buzzedPlayerId && activeClue.revealed) {
+    return (
+      <div style={{ display: "flex", gap: 16 }}>
+        <button onClick={() => socket.emit("judge", true)} style={pillButtonStyle(true)}>
+          Correct
+        </button>
+        <button onClick={() => socket.emit("judge", false)} style={pillButtonStyle(true)}>
+          Incorrect
+        </button>
+      </div>
+    );
+  }
+
+  if (canCloseClue(activeClue, players)) {
+    return (
+      <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
+        Close Clue
+      </button>
+    );
+  }
+
+  return null;
 }
 
 export function HostPage() {
@@ -49,21 +85,18 @@ export function HostPage() {
             </button>
           </div>
         </>
-      ) : state.activeClue ? (
-        <ActiveClue
-          details={resolveActiveClue(state.activeClue, state.board, state.players)}
-          footer={
-            <button
-              disabled={!state.activeClue.buzzedPlayerId || state.activeClue.revealed}
-              onClick={() => socket.emit("reveal")}
-              style={pillButtonStyle(!!state.activeClue.buzzedPlayerId && !state.activeClue.revealed)}
-            >
-              Reveal
-            </button>
-          }
-        />
       ) : (
-        <Board board={state.board} onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)} />
+        <>
+          <Scoreboard players={state.players} />
+          {state.activeClue ? (
+            <ActiveClue
+              details={resolveActiveClue(state.activeClue, state.board, state.players)}
+              footer={hostFooter(state.activeClue, state.players)}
+            />
+          ) : (
+            <Board board={state.board} onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)} />
+          )}
+        </>
       )}
     </div>
   );

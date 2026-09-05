@@ -1,5 +1,6 @@
 import type { Player } from "@yeahnah/shared";
-import { palette } from "../theme";
+import { formatScore } from "../format";
+import { accent, palette } from "../theme";
 
 export function Lobby({ players }: { players: Player[] }) {
   return (
@@ -22,6 +23,9 @@ export function Lobby({ players }: { players: Player[] }) {
           <div
             key={player.id}
             style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 8,
               padding: "10px 18px",
               borderRadius: 999,
               background: palette.card,
@@ -31,6 +35,7 @@ export function Lobby({ players }: { players: Player[] }) {
             }}
           >
             {player.name}
+            <span style={{ color: accent }}>{formatScore(player.score)}</span>
           </div>
         ))}
       </div>

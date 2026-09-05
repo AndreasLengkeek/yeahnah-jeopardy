@@ -2,6 +2,7 @@ import type { JoinResult } from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useState } from "react";
 import { resolveActiveClue } from "../activeClue";
+import { formatScore } from "../format";
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
@@ -76,7 +77,8 @@ export function JoinPage() {
   const clueDetails = state && activeClue ? resolveActiveClue(activeClue, state.board, state.players) : null;
   const iHaveTheBuzz = activeClue?.buzzedPlayerId === playerId;
   const otherBuzzedPlayer = iHaveTheBuzz ? undefined : clueDetails?.buzzedPlayer;
-  const canBuzz = gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null;
+  const iAmExcluded = !!(playerId && activeClue?.excludedPlayerIds.includes(playerId));
+  const canBuzz = gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null && !iAmExcluded;
 
   return (
     <div style={shellStyle}>
@@ -96,7 +98,7 @@ export function JoinPage() {
           <>
             <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
               {joinedName}
-              {me && <span style={{ color: accent }}> — ${me.score.toLocaleString("en-US")}</span>}
+              {me && <span style={{ color: accent }}> — {formatScore(me.score)}</span>}
             </div>
             {!gameStarted ? (
               <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
@@ -114,9 +116,11 @@ export function JoinPage() {
                     ? "You have the buzz!"
                     : otherBuzzedPlayer
                       ? `${otherBuzzedPlayer.name} has the buzz`
-                      : activeClue
-                        ? "Buzz in!"
-                        : "Waiting for the Host to select a Clue…"}
+                      : iAmExcluded
+                        ? "You already answered — waiting for someone else…"
+                        : activeClue
+                          ? "Buzz in!"
+                          : "Waiting for the Host to select a Clue…"}
                 </div>
               </>
             )}

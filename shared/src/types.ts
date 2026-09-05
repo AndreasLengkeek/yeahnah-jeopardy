@@ -22,6 +22,7 @@ export interface ActiveClue {
   tileIndex: number;
   revealed: boolean;
   buzzedPlayerId: string | null;
+  excludedPlayerIds: string[];
 }
 
 export interface GameState {
@@ -36,6 +37,8 @@ export type GameAction =
   | { type: "startGame" }
   | { type: "selectTile"; categoryIndex: number; tileIndex: number }
   | { type: "buzz"; playerId: string }
-  | { type: "reveal" };
+  | { type: "reveal" }
+  | { type: "judge"; correct: boolean }
+  | { type: "closeClue" };
 
 export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };

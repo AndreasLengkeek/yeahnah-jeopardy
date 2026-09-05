@@ -72,5 +72,50 @@ describe("socket.io wiring", () => {
 
     dana.socket.emit("reveal");
     expect((await dana.nextState()).activeClue?.revealed).toBe(true);
+
+    dana.socket.emit("judge", true);
+    const judged = await dana.nextState();
+    expect(judged.activeClue).toBeNull();
+    expect(judged.players.find((p) => p.id === danaId)?.score).toBeGreaterThan(0);
+  });
+
+  it("reopens a Clue after an incorrect judgement and lets the Host close it once everyone is excluded", async () => {
+    const dana = await connect();
+    await dana.nextState();
+    dana.socket.emit("join", "Dana");
+    await dana.nextState();
+    dana.socket.emit("join", "Marcus");
+    const withMarcus = await dana.nextState();
+    const danaId = withMarcus.players.find((p) => p.name === "Dana")!.id;
+    const marcusId = withMarcus.players.find((p) => p.name === "Marcus")!.id;
+
+    dana.socket.emit("startGame");
+    await dana.nextState();
+
+    dana.socket.emit("selectTile", 0, 0);
+    await dana.nextState();
+
+    dana.socket.emit("buzz", danaId);
+    await dana.nextState();
+    dana.socket.emit("reveal");
+    await dana.nextState();
+
+    dana.socket.emit("judge", false);
+    const afterDana = await dana.nextState();
+    expect(afterDana.activeClue?.buzzedPlayerId).toBeNull();
+    expect(afterDana.activeClue?.excludedPlayerIds).toEqual([danaId]);
+    expect(afterDana.players.find((p) => p.id === danaId)?.score).toBeLessThan(0);
+
+    dana.socket.emit("buzz", marcusId);
+    await dana.nextState();
+    dana.socket.emit("reveal");
+    await dana.nextState();
+    dana.socket.emit("judge", false);
+    await dana.nextState();
+
+    dana.socket.emit("closeClue");
+    const closed = await dana.nextState();
+    expect(closed.activeClue).toBeNull();
+    expect(closed.board[0].tiles[0].used).toBe(true);
   });
 });
