@@ -1,0 +1,3 @@
+# Buzz resolution: first server-received wins, no latency compensation
+
+When multiple Players buzz on the same Active Clue, the server resolves the race by arrival order of the Buzz message it receives — whichever Player's Buzz reaches the server first wins, with no attempt to compensate for differing network latency between Players' devices. This is a deliberate simplicity-over-fairness trade-off for v1: true latency-fair resolution needs client-side timestamps and clock-offset reconciliation, which is real engineering effort with no v1 requirement driving it. Revisit if playtesting surfaces the same Player structurally winning close buzzes due to a faster connection.
