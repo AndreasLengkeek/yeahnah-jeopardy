@@ -1,10 +1,13 @@
-import { isContentComplete } from "@yeahnah/shared";
+import { MAX_CATEGORIES, MIN_CATEGORIES, isBlank, isContentComplete } from "@yeahnah/shared";
 import type { CategoryData, ClueField } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import { accent, palette } from "../theme";
 
-const CATEGORY_COUNT_OPTIONS = [3, 4, 5, 6];
+const CATEGORY_COUNT_OPTIONS = Array.from(
+  { length: MAX_CATEGORIES - MIN_CATEGORIES + 1 },
+  (_, index) => MIN_CATEGORIES + index,
+);
 
 const panelStyle: CSSProperties = {
   flex: 1,
@@ -79,10 +82,6 @@ const selectStyle: CSSProperties = {
   width: "auto",
 };
 
-function blank(value: string): boolean {
-  return value.trim() === "";
-}
-
 export function BoardSetup({
   content,
   onEditCategoryName,
@@ -140,9 +139,9 @@ export function BoardSetup({
               value={category.name}
               placeholder="Category name"
               onChange={(event) => onEditCategoryName(categoryIndex, event.target.value)}
-              style={blank(category.name) ? invalidInputStyle : inputStyle}
+              style={isBlank(category.name) ? invalidInputStyle : inputStyle}
             />
-            {blank(category.name) && <span style={flagStyle}>Category name required</span>}
+            {isBlank(category.name) && <span style={flagStyle}>Category name required</span>}
 
             {category.clues.map((clue, tileIndex) => (
               <div key={tileIndex} style={clueRowStyle}>
@@ -151,20 +150,20 @@ export function BoardSetup({
                   value={clue.text}
                   placeholder={`Clue ${tileIndex + 1} text`}
                   onChange={(event) => onEditClue(categoryIndex, tileIndex, "text", event.target.value)}
-                  style={blank(clue.text) ? invalidInputStyle : inputStyle}
+                  style={isBlank(clue.text) ? invalidInputStyle : inputStyle}
                 />
                 <input
                   aria-label={`Category ${categoryIndex + 1} clue ${tileIndex + 1} answer`}
                   value={clue.answer}
                   placeholder={`Clue ${tileIndex + 1} answer`}
                   onChange={(event) => onEditClue(categoryIndex, tileIndex, "answer", event.target.value)}
-                  style={blank(clue.answer) ? invalidInputStyle : inputStyle}
+                  style={isBlank(clue.answer) ? invalidInputStyle : inputStyle}
                 />
-                {(blank(clue.text) || blank(clue.answer)) && (
+                {(isBlank(clue.text) || isBlank(clue.answer)) && (
                   <span style={flagStyle}>
-                    {blank(clue.text) && blank(clue.answer)
+                    {isBlank(clue.text) && isBlank(clue.answer)
                       ? "Clue text and answer required"
-                      : blank(clue.text)
+                      : isBlank(clue.text)
                         ? "Clue text required"
                         : "Answer required"}
                   </span>

@@ -581,6 +581,15 @@ describe("gameEngine: resetGame", () => {
     expect(next.players).toEqual([]);
   });
 
+  it("is a no-op during Board Setup, so it can't skip the openLobby completeness gate", () => {
+    const setup = applyAction(initialState(), { type: "newBoard", categoryCount: 3 });
+
+    const next = applyAction(setup, { type: "resetGame" });
+
+    expect(next).toBe(setup);
+    expect(next.phase).toBe("setup");
+  });
+
   it("a Player who rejoins after a reset starts at $0", () => {
     let state = startedGame();
     state = applyAction(state, { type: "resetGame" });

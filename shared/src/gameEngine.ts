@@ -3,8 +3,11 @@ import type { CategoryData } from "./trivia.js";
 import type { ActiveClue, Category, ClueField, GameAction, GameState, Player } from "./types.js";
 
 const CLUES_PER_CATEGORY = VALUES.length;
-const MIN_CATEGORIES = 3;
-const MAX_CATEGORIES = 6;
+
+// The Host-authored Category count is fixed once chosen, anywhere in this range. Shared
+// with the client so the editor's count picker and the reducer agree on one range.
+export const MIN_CATEGORIES = 3;
+export const MAX_CATEGORIES = 6;
 
 // A deep copy of the bundled example, so edits during Board Setup never mutate the
 // shared fixture module.
@@ -32,13 +35,19 @@ function buildBoard(content: CategoryData[]): Category[] {
   }));
 }
 
+// A field counts as filled only once it holds non-whitespace content. Shared by the
+// Lobby gate below and the editor's per-field blank flags, so both agree on "blank".
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
 // Every Category has a non-blank name and every Clue non-blank text and answer — the
 // gate for opening the Lobby, and the same check the editor uses to flag blank fields.
 export function isContentComplete(content: CategoryData[]): boolean {
   return content.every(
     (category) =>
-      category.name.trim() !== "" &&
-      category.clues.every((clue) => clue.text.trim() !== "" && clue.answer.trim() !== ""),
+      !isBlank(category.name) &&
+      category.clues.every((clue) => !isBlank(clue.text) && !isBlank(clue.answer)),
   );
 }
 
@@ -265,8 +274,12 @@ function applyReturnToSetup(state: GameState): GameState {
 }
 
 // The "reuse the same Board" replay path: keep `content` as-is, rebuild `board` with
-// fresh Tiles, clear the roster and any Active Clue, and drop back to the Lobby.
+// fresh Tiles, clear the roster and any Active Clue, and drop back to the Lobby. Not a
+// way out of Board Setup — `openLobby`'s completeness gate is the only sanctioned
+// `setup` → `lobby` transition — so it's a no-op while still in `setup`.
 function applyResetGame(state: GameState): GameState {
+  if (state.phase === "setup") return state;
+
   return {
     phase: "lobby",
     players: [],
