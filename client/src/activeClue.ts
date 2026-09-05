@@ -1,4 +1,3 @@
-import { CATS } from "@yeahnah/shared";
 import type { ActiveClue, Category, Player } from "@yeahnah/shared";
 
 export interface ActiveClueDetails {
@@ -16,15 +15,17 @@ function resolvePlayer(playerId: string | null, players: Player[]): Player | nul
 }
 
 export function resolveActiveClue(activeClue: ActiveClue, board: Category[], players: Player[]): ActiveClueDetails {
-  const category = CATS[activeClue.categoryIndex];
-  const clue = category.clues[activeClue.tileIndex];
-  const value = board[activeClue.categoryIndex].tiles[activeClue.tileIndex].value;
+  const category = board[activeClue.categoryIndex];
+  const value = category.tiles[activeClue.tileIndex].value;
 
+  // Clue text and Answer come straight off the ActiveClue as delivered by the server —
+  // which, for a Board or Player socket, has the Answer redacted until the Host Reveals
+  // (see viewForRole / ADR-0006).
   return {
     category: category.name,
     value,
-    clueText: clue.text,
-    answer: clue.answer,
+    clueText: activeClue.clueText,
+    answer: activeClue.answer,
     revealed: activeClue.revealed,
     buzzedPlayer: resolvePlayer(activeClue.buzzedPlayerId, players),
     correctPlayer: resolvePlayer(activeClue.correctPlayerId, players),

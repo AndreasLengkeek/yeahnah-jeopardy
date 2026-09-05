@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, initialState } from "./gameEngine.js";
+import { applyAction, initialState, isContentComplete } from "./gameEngine.js";
 import { CATS, VALUES } from "./trivia.js";
 import type { PlayerIdentity } from "./types.js";
 
@@ -11,9 +11,15 @@ const joinSignature = (image: string) => ({ type: "join" as const, identity: sig
 // A stand-in for a real captured Signature — any non-blank string counts as drawn content.
 const A_SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
+// initialState() now starts in "setup". Most pre-Game tests want the Lobby that used
+// to be the starting point, reached by accepting the seeded (complete) example Board.
+function lobbyState(): ReturnType<typeof initialState> {
+  return applyAction(initialState(), { type: "openLobby" });
+}
+
 describe("gameEngine: join", () => {
   it("accepts a valid join and adds the player at $0", () => {
-    const state = applyAction(initialState(), joinText("Dana"));
+    const state = applyAction(lobbyState(), joinText("Dana"));
 
     expect(state.players).toHaveLength(1);
     expect(state.players[0]).toMatchObject({ identity: textIdentity("Dana"), score: 0, connected: true });
@@ -21,7 +27,7 @@ describe("gameEngine: join", () => {
   });
 
   it("rejects a duplicate name in the lobby", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
     state = applyAction(state, joinText("Dana"));
 
@@ -29,7 +35,7 @@ describe("gameEngine: join", () => {
   });
 
   it("trims whitespace from a name and still catches duplicates", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("  Dana  "));
     expect(state.players[0].identity).toEqual(textIdentity("Dana"));
 
@@ -38,12 +44,12 @@ describe("gameEngine: join", () => {
   });
 
   it("rejects a blank or whitespace-only name", () => {
-    const state = applyAction(initialState(), joinText("   "));
+    const state = applyAction(lobbyState(), joinText("   "));
     expect(state.players).toHaveLength(0);
   });
 
   it("rejects a join once the game has started", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
     state = applyAction(state, joinText("Marcus"));
     state = applyAction(state, { type: "startGame" });
@@ -55,7 +61,7 @@ describe("gameEngine: join", () => {
   });
 
   it("accepts a signature identity, storing its image unchanged", () => {
-    const state = applyAction(initialState(), joinSignature(A_SIGNATURE));
+    const state = applyAction(lobbyState(), joinSignature(A_SIGNATURE));
 
     expect(state.players).toHaveLength(1);
     expect(state.players[0]).toMatchObject({ identity: signatureIdentity(A_SIGNATURE), score: 0, connected: true });
@@ -68,7 +74,7 @@ describe("gameEngine: join", () => {
   });
 
   it("lets a signature join succeed even when another Player already holds a pixel-identical image", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinSignature(A_SIGNATURE));
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
@@ -76,7 +82,7 @@ describe("gameEngine: join", () => {
   });
 
   it("never blocks two Players from holding visually identical signatures", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinSignature(A_SIGNATURE));
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
@@ -84,7 +90,7 @@ describe("gameEngine: join", () => {
   });
 
   it("does not check a signature identity against a matching typed name for uniqueness", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
@@ -119,7 +125,7 @@ describe("gameEngine: reconnect", () => {
   });
 
   it("returns a signature identity unchanged on reconnect, the same way a typed name comes back", () => {
-    let state = applyAction(initialState(), joinSignature(A_SIGNATURE));
+    let state = applyAction(lobbyState(), joinSignature(A_SIGNATURE));
     const [player] = state.players;
 
     const next = applyAction(state, { type: "reconnect", playerId: player.id });
@@ -141,7 +147,7 @@ describe("gameEngine: reconnect", () => {
 
 describe("gameEngine: startGame", () => {
   it("rejects starting with fewer than 2 players", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
 
     state = applyAction(state, { type: "startGame" });
@@ -150,7 +156,7 @@ describe("gameEngine: startGame", () => {
   });
 
   it("starts the game once at least 2 players have joined", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
     state = applyAction(state, joinText("Marcus"));
 
@@ -161,7 +167,7 @@ describe("gameEngine: startGame", () => {
 });
 
 function startedGame(): ReturnType<typeof initialState> {
-  let state = initialState();
+  let state = lobbyState();
   state = applyAction(state, joinText("Dana"));
   state = applyAction(state, joinText("Marcus"));
   state = applyAction(state, { type: "startGame" });
@@ -175,11 +181,20 @@ describe("gameEngine: selectTile", () => {
     expect(state.activeClue).toEqual({
       categoryIndex: 0,
       tileIndex: 2,
+      clueText: CATS[0].clues[2].text,
+      answer: CATS[0].clues[2].answer,
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
       correctPlayerId: null,
     });
+  });
+
+  it("stores the true Clue text and Answer from the authored content on the active clue", () => {
+    const state = applyAction(startedGame(), { type: "selectTile", categoryIndex: 2, tileIndex: 3 });
+
+    expect(state.activeClue?.clueText).toBe(CATS[2].clues[3].text);
+    expect(state.activeClue?.answer).toBe(CATS[2].clues[3].answer);
   });
 
   it("rejects selecting an already-used tile", () => {
@@ -206,7 +221,7 @@ describe("gameEngine: selectTile", () => {
   });
 
   it("rejects selecting a tile before the game has started", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
 
     const next = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
@@ -644,7 +659,7 @@ describe("gameEngine: setScore", () => {
 
 describe("gameEngine: resetGame", () => {
   it("resets from the lobby phase to a fresh, empty-roster lobby", () => {
-    let state = initialState();
+    let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
 
     const next = applyAction(state, { type: "resetGame" });
@@ -679,6 +694,15 @@ describe("gameEngine: resetGame", () => {
     expect(next.players).toEqual([]);
   });
 
+  it("is a no-op during Board Setup, so it can't skip the openLobby completeness gate", () => {
+    const setup = applyAction(initialState(), { type: "newBoard", categoryCount: 3 });
+
+    const next = applyAction(setup, { type: "resetGame" });
+
+    expect(next).toBe(setup);
+    expect(next.phase).toBe("setup");
+  });
+
   it("a Player who rejoins after a reset starts at $0", () => {
     let state = startedGame();
     state = applyAction(state, { type: "resetGame" });
@@ -689,9 +713,40 @@ describe("gameEngine: resetGame", () => {
   });
 });
 
-describe("gameEngine: initialState board", () => {
-  it("has 5 categories of 5 unused tiles matching the ported CATS/VALUES data", () => {
+describe("gameEngine: initialState", () => {
+  it("starts in the setup phase with no board yet", () => {
     const state = initialState();
+
+    expect(state.phase).toBe("setup");
+    expect(state.board).toEqual([]);
+    expect(state.players).toEqual([]);
+    expect(state.activeClue).toBeNull();
+  });
+
+  it("seeds content from the ported CATS fixture (5 categories, 5 clues each)", () => {
+    const { content } = initialState();
+
+    expect(content).toHaveLength(5);
+    content.forEach((category, i) => {
+      expect(category.name).toBe(CATS[i].name);
+      expect(category.clues).toHaveLength(5);
+      category.clues.forEach((clue, j) => {
+        expect(clue.text).toBe(CATS[i].clues[j].text);
+        expect(clue.answer).toBe(CATS[i].clues[j].answer);
+      });
+    });
+  });
+
+  it("seeds content as a deep copy that editing does not write back to the fixture", () => {
+    let state = initialState();
+    state = applyAction(state, { type: "editCategoryName", categoryIndex: 0, name: "Changed" });
+
+    expect(state.content[0].name).toBe("Changed");
+    expect(CATS[0].name).not.toBe("Changed");
+  });
+
+  it("builds 5 columns of 5 unused Value tiles from the seeded content when the Lobby opens", () => {
+    const state = lobbyState();
 
     expect(state.board).toHaveLength(5);
     state.board.forEach((category, i) => {
@@ -702,5 +757,183 @@ describe("gameEngine: initialState board", () => {
         expect(tile.used).toBe(false);
       });
     });
+  });
+});
+
+// A complete authored Board of `categoryCount` categories, filled with placeholder
+// text so isContentComplete passes and the Lobby can open.
+function filledContent(categoryCount: number) {
+  let state = applyAction(initialState(), { type: "newBoard", categoryCount });
+  for (let c = 0; c < categoryCount; c++) {
+    state = applyAction(state, { type: "editCategoryName", categoryIndex: c, name: `Category ${c}` });
+    for (let t = 0; t < 5; t++) {
+      state = applyAction(state, { type: "editClue", categoryIndex: c, tileIndex: t, field: "text", value: `Clue ${c}-${t}` });
+      state = applyAction(state, { type: "editClue", categoryIndex: c, tileIndex: t, field: "answer", value: `Answer ${c}-${t}` });
+    }
+  }
+  return state;
+}
+
+describe("gameEngine: Board Setup", () => {
+  describe("newBoard", () => {
+    it.each([3, 4, 5, 6])("replaces content with a blank board of %i categories, 5 blank clues each", (count) => {
+      const state = applyAction(initialState(), { type: "newBoard", categoryCount: count });
+
+      expect(state.content).toHaveLength(count);
+      state.content.forEach((category) => {
+        expect(category.name).toBe("");
+        expect(category.clues).toHaveLength(5);
+        category.clues.forEach((clue) => {
+          expect(clue).toEqual({ text: "", answer: "" });
+        });
+      });
+    });
+
+    it.each([2, 7, 0, -1, 3.5])("rejects a category count of %s, leaving content unchanged", (count) => {
+      const before = initialState();
+      const after = applyAction(before, { type: "newBoard", categoryCount: count });
+
+      expect(after).toBe(before);
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+      const next = applyAction(lobby, { type: "newBoard", categoryCount: 3 });
+
+      expect(next).toBe(lobby);
+      expect(next.content).toHaveLength(5);
+    });
+  });
+
+  describe("editCategoryName / editClue", () => {
+    it("updates a category name in place", () => {
+      const state = applyAction(initialState(), { type: "editCategoryName", categoryIndex: 1, name: "My Category" });
+
+      expect(state.content[1].name).toBe("My Category");
+      expect(state.content[0].name).toBe(CATS[0].name);
+    });
+
+    it("updates a clue's text and answer independently", () => {
+      let state = applyAction(initialState(), {
+        type: "editClue",
+        categoryIndex: 0,
+        tileIndex: 2,
+        field: "text",
+        value: "New clue text",
+      });
+      state = applyAction(state, { type: "editClue", categoryIndex: 0, tileIndex: 2, field: "answer", value: "New answer" });
+
+      expect(state.content[0].clues[2]).toEqual({ text: "New clue text", answer: "New answer" });
+      expect(state.content[0].clues[1]).toEqual(CATS[0].clues[1]);
+    });
+
+    it("ignores an out-of-range category or tile index", () => {
+      const before = initialState();
+
+      expect(applyAction(before, { type: "editCategoryName", categoryIndex: 9, name: "x" })).toBe(before);
+      expect(applyAction(before, { type: "editClue", categoryIndex: 0, tileIndex: 9, field: "text", value: "x" })).toBe(before);
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+
+      expect(applyAction(lobby, { type: "editCategoryName", categoryIndex: 0, name: "x" })).toBe(lobby);
+      expect(applyAction(lobby, { type: "editClue", categoryIndex: 0, tileIndex: 0, field: "text", value: "x" })).toBe(lobby);
+    });
+  });
+
+  describe("openLobby", () => {
+    it("is rejected while any field is still blank", () => {
+      let state = applyAction(initialState(), { type: "newBoard", categoryCount: 3 });
+      state = applyAction(state, { type: "editCategoryName", categoryIndex: 0, name: "Only one name" });
+
+      const next = applyAction(state, { type: "openLobby" });
+
+      expect(next).toBe(state);
+      expect(next.phase).toBe("setup");
+    });
+
+    it("transitions to the Lobby and builds the board once every field is filled", () => {
+      const state = applyAction(filledContent(4), { type: "openLobby" });
+
+      expect(state.phase).toBe("lobby");
+      expect(state.board).toHaveLength(4);
+      state.board.forEach((category, i) => {
+        expect(category.name).toBe(`Category ${i}`);
+        expect(category.tiles.map((tile) => tile.value)).toEqual(VALUES);
+        expect(category.tiles.every((tile) => !tile.used)).toBe(true);
+      });
+    });
+
+    it("accepts the seeded example board as-is", () => {
+      expect(applyAction(initialState(), { type: "openLobby" }).phase).toBe("lobby");
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+      expect(applyAction(lobby, { type: "openLobby" })).toBe(lobby);
+    });
+  });
+
+  describe("returnToSetup", () => {
+    it("returns from gameOver to setup with content still pre-loaded", () => {
+      let state = startedGame();
+      state = markAllUsedExcept(state, 4, 4);
+      state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+      state = applyAction(state, { type: "closeClue" });
+      expect(state.phase).toBe("gameOver");
+      const contentBefore = state.content;
+
+      const next = applyAction(state, { type: "returnToSetup" });
+
+      expect(next.phase).toBe("setup");
+      expect(next.content).toEqual(contentBefore);
+      expect(next.players).toEqual([]);
+      expect(next.board).toEqual([]);
+      expect(next.activeClue).toBeNull();
+    });
+
+    it.each(["setup", "lobby", "playing"] as const)("is a no-op from the %s phase", (_phase) => {
+      const states = { setup: initialState(), lobby: lobbyState(), playing: startedGame() };
+      const before = states[_phase];
+
+      expect(applyAction(before, { type: "returnToSetup" })).toBe(before);
+    });
+  });
+
+  describe("resetGame", () => {
+    it("after gameOver drops to the Lobby, reusing content unchanged with a fresh board", () => {
+      let state = startedGame();
+      state = markAllUsedExcept(state, 4, 4);
+      state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+      state = applyAction(state, { type: "closeClue" });
+      expect(state.phase).toBe("gameOver");
+      const contentBefore = state.content;
+
+      const next = applyAction(state, { type: "resetGame" });
+
+      expect(next.phase).toBe("lobby");
+      expect(next.content).toEqual(contentBefore);
+      expect(next.board.map((c) => c.name)).toEqual(contentBefore.map((c) => c.name));
+      expect(next.board.every((c) => c.tiles.every((tile) => !tile.used))).toBe(true);
+      expect(next.players).toEqual([]);
+      expect(next.activeClue).toBeNull();
+    });
+  });
+});
+
+describe("isContentComplete", () => {
+  it("is false when any category name or clue field is blank or whitespace", () => {
+    expect(isContentComplete(applyAction(initialState(), { type: "newBoard", categoryCount: 3 }).content)).toBe(false);
+
+    let state = applyAction(initialState(), { type: "editCategoryName", categoryIndex: 0, name: "   " });
+    expect(isContentComplete(state.content)).toBe(false);
+
+    state = applyAction(initialState(), { type: "editClue", categoryIndex: 0, tileIndex: 0, field: "answer", value: "" });
+    expect(isContentComplete(state.content)).toBe(false);
+  });
+
+  it("is true for the seeded example board", () => {
+    expect(isContentComplete(initialState().content)).toBe(true);
   });
 });

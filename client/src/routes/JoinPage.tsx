@@ -10,6 +10,7 @@ import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../player
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
+import { useIdentify } from "../useIdentify";
 
 function buzzButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -28,6 +29,7 @@ function buzzButtonStyle(enabled: boolean): CSSProperties {
 }
 
 export function JoinPage() {
+  useIdentify("player");
   const state = useGameState();
   const [joinedIdentity, setJoinedIdentity] = useState<PlayerIdentityValue | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -52,11 +54,12 @@ export function JoinPage() {
     });
   }, []);
 
-  // A reset clears the roster and returns the Game to the Lobby — once that happens, a
-  // Player who had joined the prior Game no longer appears in it, so send them back to
-  // the join form to rejoin fresh.
+  // A reset (→ Lobby) or the Host returning to Board Setup clears the roster — once a
+  // Player who had joined no longer appears in the Game, send them back to the join
+  // form to rejoin fresh.
   useEffect(() => {
-    if (state && playerId && state.phase === "lobby" && !state.players.some((player) => player.id === playerId)) {
+    const rosterCleared = state?.phase === "lobby" || state?.phase === "setup";
+    if (state && playerId && rosterCleared && !state.players.some((player) => player.id === playerId)) {
       setJoinedIdentity(null);
       setPlayerId(null);
       clearStoredPlayerId();
@@ -78,7 +81,8 @@ export function JoinPage() {
     });
   }
 
-  const gameStarted = state !== null && state.phase !== "lobby";
+  const inSetup = state?.phase === "setup";
+  const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
   // A fresh join already has the identity it submitted before the state broadcast
   // confirming it arrives; a reconnect has no local identity to fall back on, so it
@@ -107,6 +111,8 @@ export function JoinPage() {
       >
         {reconnecting ? (
           <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
+        ) : inSetup ? (
+          <div style={{ color: "#c9d2f5" }}>The Host is still setting up the Board…</div>
         ) : playerId ? (
           state?.phase === "gameOver" ? (
             <GameOver players={state.players} />

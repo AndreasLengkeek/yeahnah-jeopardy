@@ -7,8 +7,10 @@ import { Lobby } from "../components/Lobby";
 import { Scoreboard } from "../components/Scoreboard";
 import { shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
+import { useIdentify } from "../useIdentify";
 
 export function BoardPage() {
+  useIdentify("board");
   const state = useGameState();
 
   // The Board route builds the join URL from wherever it was itself loaded from — so the
@@ -22,6 +24,8 @@ export function BoardPage() {
       <Header />
       {!state ? (
         <div>Connecting…</div>
+      ) : state.phase === "setup" ? (
+        <div>The Host is setting up the Board…</div>
       ) : state.phase === "lobby" ? (
         <>
           <Lobby players={state.players} />

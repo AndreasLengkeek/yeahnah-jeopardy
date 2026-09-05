@@ -3,3 +3,4 @@ export * from "./playerIdentity.js";
 export * from "./trivia.js";
 export * from "./theme.js";
 export * from "./gameEngine.js";
+export * from "./gameView.js";
