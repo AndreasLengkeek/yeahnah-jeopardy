@@ -25,6 +25,7 @@ describe("resolveActiveClue", () => {
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
+      correctPlayerId: null,
     };
 
     const details = resolveActiveClue(activeClue, board(), players());
@@ -43,6 +44,7 @@ describe("resolveActiveClue", () => {
       revealed: false,
       buzzedPlayerId: "p2",
       excludedPlayerIds: [],
+      correctPlayerId: null,
     };
 
     const details = resolveActiveClue(activeClue, board(), players());
@@ -57,6 +59,7 @@ describe("resolveActiveClue", () => {
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
+      correctPlayerId: null,
     };
 
     const details = resolveActiveClue(activeClue, board(), players());
@@ -71,10 +74,41 @@ describe("resolveActiveClue", () => {
       revealed: false,
       buzzedPlayerId: "gone",
       excludedPlayerIds: [],
+      correctPlayerId: null,
     };
 
     const details = resolveActiveClue(activeClue, board(), players());
 
     expect(details.buzzedPlayer).toBeNull();
+  });
+
+  it("resolves correctPlayer to the matching Player when correctPlayerId is set", () => {
+    const activeClue: ActiveClue = {
+      categoryIndex: 1,
+      tileIndex: 0,
+      revealed: false,
+      buzzedPlayerId: null,
+      excludedPlayerIds: [],
+      correctPlayerId: "p1",
+    };
+
+    const details = resolveActiveClue(activeClue, board(), players());
+
+    expect(details.correctPlayer).toEqual({ id: "p1", name: "Dana", score: 0, connected: true });
+  });
+
+  it("resolves correctPlayer to null when correctPlayerId is null", () => {
+    const activeClue: ActiveClue = {
+      categoryIndex: 1,
+      tileIndex: 0,
+      revealed: false,
+      buzzedPlayerId: null,
+      excludedPlayerIds: [],
+      correctPlayerId: null,
+    };
+
+    const details = resolveActiveClue(activeClue, board(), players());
+
+    expect(details.correctPlayer).toBeNull();
   });
 });

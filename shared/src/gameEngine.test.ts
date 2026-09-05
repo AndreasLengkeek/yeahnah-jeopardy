@@ -85,6 +85,7 @@ describe("gameEngine: selectTile", () => {
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
+      correctPlayerId: null,
     });
   });
 
@@ -154,7 +155,6 @@ describe("gameEngine: buzz", () => {
     state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
     const [dana, marcus] = state.players;
     state = applyAction(state, { type: "buzz", playerId: dana.id });
-    state = applyAction(state, { type: "reveal" });
     state = applyAction(state, { type: "judge", correct: false });
 
     const next = applyAction(state, { type: "buzz", playerId: dana.id });
@@ -164,58 +164,105 @@ describe("gameEngine: buzz", () => {
     const afterMarcus = applyAction(state, { type: "buzz", playerId: marcus.id });
     expect(afterMarcus.activeClue?.buzzedPlayerId).toBe(marcus.id);
   });
+
+  it("rejects a buzz once the clue has been revealed", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "reveal" });
+
+    const next = applyAction(state, { type: "buzz", playerId: state.players[0].id });
+
+    expect(next.activeClue?.buzzedPlayerId).toBeNull();
+  });
+
+  it("rejects a buzz once the clue has already been correctly answered", () => {
+    const { state, marcusId } = buzzed();
+    const afterCorrect = applyAction(state, { type: "judge", correct: true });
+
+    const next = applyAction(afterCorrect, { type: "buzz", playerId: marcusId });
+
+    expect(next.activeClue?.buzzedPlayerId).toBeNull();
+  });
 });
 
 describe("gameEngine: reveal", () => {
-  it("rejects reveal before any buzz", () => {
-    let state = startedGame();
-    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
-
-    const next = applyAction(state, { type: "reveal" });
-
-    expect(next.activeClue?.revealed).toBe(false);
-  });
-
   it("rejects reveal with no active clue", () => {
     const state = applyAction(startedGame(), { type: "reveal" });
 
     expect(state.activeClue).toBeNull();
   });
 
-  it("reveals the answer once a player has buzzed", () => {
+  it("succeeds with no buzz and no prior exclusions", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+
+    const next = applyAction(state, { type: "reveal" });
+
+    expect(next.activeClue?.revealed).toBe(true);
+  });
+
+  it("succeeds after some (not all) Players have been excluded, with nobody currently buzzed", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "buzz", playerId: state.players[0].id });
+    state = applyAction(state, { type: "judge", correct: false });
+
+    const next = applyAction(state, { type: "reveal" });
+
+    expect(next.activeClue?.revealed).toBe(true);
+  });
+
+  it("is rejected while a Player is buzzed in", () => {
     let state = startedGame();
     state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
     state = applyAction(state, { type: "buzz", playerId: state.players[0].id });
 
+    const next = applyAction(state, { type: "reveal" });
+
+    expect(next.activeClue?.revealed).toBe(false);
+  });
+
+  it("is rejected once already revealed", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
     state = applyAction(state, { type: "reveal" });
 
-    expect(state.activeClue?.revealed).toBe(true);
+    const next = applyAction(state, { type: "reveal" });
+
+    expect(next).toBe(state);
   });
 });
 
-function buzzedAndRevealed(): { state: ReturnType<typeof initialState>; danaId: string; marcusId: string } {
+function buzzed(): { state: ReturnType<typeof initialState>; danaId: string; marcusId: string } {
   let state = startedGame();
   const [dana, marcus] = state.players;
   state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
   state = applyAction(state, { type: "buzz", playerId: dana.id });
-  state = applyAction(state, { type: "reveal" });
   return { state, danaId: dana.id, marcusId: marcus.id };
 }
 
 describe("gameEngine: judge", () => {
-  it("awards the Clue's Value, marks the Tile used, and clears the Active Clue on a correct answer", () => {
-    const { state, danaId } = buzzedAndRevealed();
+  it("awards the Clue's Value immediately, but leaves the Clue Active, pending an explicit Close, on a correct answer", () => {
+    const { state, danaId } = buzzed();
     const value = state.board[0].tiles[0].value;
+    expect(state.activeClue?.revealed).toBe(false);
 
     const next = applyAction(state, { type: "judge", correct: true });
 
     expect(next.players.find((p) => p.id === danaId)?.score).toBe(value);
-    expect(next.board[0].tiles[0].used).toBe(true);
-    expect(next.activeClue).toBeNull();
+    expect(next.board[0].tiles[0].used).toBe(false);
+    expect(next.activeClue).toMatchObject({
+      categoryIndex: 0,
+      tileIndex: 0,
+      revealed: false,
+      buzzedPlayerId: null,
+      excludedPlayerIds: [],
+      correctPlayerId: danaId,
+    });
   });
 
-  it("deducts the Clue's Value, excludes the Player, and reopens the Clue on an incorrect answer", () => {
-    const { state, danaId } = buzzedAndRevealed();
+  it("deducts the Clue's Value, excludes the Player, and reopens the Clue on an incorrect answer, immediately after a buzz with no reveal", () => {
+    const { state, danaId } = buzzed();
     const value = state.board[0].tiles[0].value;
 
     const next = applyAction(state, { type: "judge", correct: false });
@@ -228,21 +275,12 @@ describe("gameEngine: judge", () => {
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [danaId],
+      correctPlayerId: null,
     });
   });
 
   it("rejects judge with no active clue", () => {
     const state = startedGame();
-
-    const next = applyAction(state, { type: "judge", correct: true });
-
-    expect(next).toBe(state);
-  });
-
-  it("rejects judge before the Answer is revealed", () => {
-    let state = startedGame();
-    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
-    state = applyAction(state, { type: "buzz", playerId: state.players[0].id });
 
     const next = applyAction(state, { type: "judge", correct: true });
 
@@ -256,6 +294,15 @@ describe("gameEngine: judge", () => {
     const next = applyAction(state, { type: "judge", correct: true });
 
     expect(next).toBe(state);
+  });
+
+  it("rejects a second judge once the Clue has already been correctly answered", () => {
+    const { state } = buzzed();
+    const afterCorrect = applyAction(state, { type: "judge", correct: true });
+
+    const next = applyAction(afterCorrect, { type: "judge", correct: false });
+
+    expect(next).toBe(afterCorrect);
   });
 });
 
@@ -273,10 +320,12 @@ describe("gameEngine: closeClue", () => {
   });
 
   it("closes the Clue with no score change once every joined Player has been excluded", () => {
-    const { state: afterDana, danaId, marcusId } = buzzedAndRevealed();
-    let state = applyAction(afterDana, { type: "judge", correct: false });
-    state = applyAction(state, { type: "buzz", playerId: marcusId });
-    state = applyAction(state, { type: "reveal" });
+    let state = startedGame();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "buzz", playerId: dana.id });
+    state = applyAction(state, { type: "judge", correct: false });
+    state = applyAction(state, { type: "buzz", playerId: marcus.id });
     state = applyAction(state, { type: "judge", correct: false });
     const scoresBefore = state.players.map((p) => p.score);
 
@@ -285,7 +334,66 @@ describe("gameEngine: closeClue", () => {
     expect(next.activeClue).toBeNull();
     expect(next.board[0].tiles[0].used).toBe(true);
     expect(next.players.map((p) => p.score)).toEqual(scoresBefore);
-    expect(danaId).toBeTruthy();
+  });
+
+  it("succeeds immediately once revealed is true, even with only one of several eligible Players excluded", () => {
+    const { state: afterBuzz } = buzzed();
+    let state = applyAction(afterBuzz, { type: "judge", correct: false });
+    state = applyAction(state, { type: "reveal" });
+    const scoresBefore = state.players.map((p) => p.score);
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.activeClue).toBeNull();
+    expect(next.board[0].tiles[0].used).toBe(true);
+    expect(next.players.map((p) => p.score)).toEqual(scoresBefore);
+  });
+
+  it("closes the Clue immediately after a correct judge, with no additional score change beyond the award already made at judge time", () => {
+    const { state: afterBuzz, danaId } = buzzed();
+    const state = applyAction(afterBuzz, { type: "judge", correct: true });
+    const value = state.board[0].tiles[0].value;
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.activeClue).toBeNull();
+    expect(next.board[0].tiles[0].used).toBe(true);
+    expect(next.players.find((p) => p.id === danaId)?.score).toBe(value);
+  });
+
+  it("closes the Clue directly (no reveal) after a correct judge that followed an earlier Player's exclusion", () => {
+    let state = startedGame();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "buzz", playerId: dana.id });
+    state = applyAction(state, { type: "judge", correct: false });
+    state = applyAction(state, { type: "buzz", playerId: marcus.id });
+    state = applyAction(state, { type: "judge", correct: true });
+    expect(state.activeClue?.revealed).toBe(false);
+    expect(state.activeClue?.excludedPlayerIds).toEqual([dana.id]);
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.activeClue).toBeNull();
+    expect(next.board[0].tiles[0].used).toBe(true);
+  });
+
+  it("still allows Reveal, then Close, after a correct judge that followed an earlier Player's exclusion", () => {
+    let state = startedGame();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    state = applyAction(state, { type: "buzz", playerId: dana.id });
+    state = applyAction(state, { type: "judge", correct: false });
+    state = applyAction(state, { type: "buzz", playerId: marcus.id });
+    state = applyAction(state, { type: "judge", correct: true });
+
+    const revealed = applyAction(state, { type: "reveal" });
+    expect(revealed.activeClue?.revealed).toBe(true);
+
+    const next = applyAction(revealed, { type: "closeClue" });
+
+    expect(next.activeClue).toBeNull();
+    expect(next.board[0].tiles[0].used).toBe(true);
   });
 
   it("rejects closeClue while a Player is buzzed in", () => {
@@ -299,7 +407,7 @@ describe("gameEngine: closeClue", () => {
   });
 
   it("rejects closeClue while some but not all Players have been excluded", () => {
-    const { state } = buzzedAndRevealed();
+    const { state } = buzzed();
     const afterIncorrect = applyAction(state, { type: "judge", correct: false });
 
     const next = applyAction(afterIncorrect, { type: "closeClue" });
@@ -329,14 +437,17 @@ function markAllUsedExcept(state: ReturnType<typeof initialState>, categoryIndex
 }
 
 describe("gameEngine: game over", () => {
-  it("transitions to gameOver when a correct judge marks the 25th and final Tile used", () => {
+  it("stays in playing immediately after a correct judge, then transitions to gameOver once that Clue is closed", () => {
     let state = startedGame();
     state = markAllUsedExcept(state, 4, 4);
     state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
     state = applyAction(state, { type: "buzz", playerId: state.players[0].id });
-    state = applyAction(state, { type: "reveal" });
 
-    const next = applyAction(state, { type: "judge", correct: true });
+    const afterJudge = applyAction(state, { type: "judge", correct: true });
+    expect(afterJudge.phase).toBe("playing");
+    expect(afterJudge.board[4].tiles[4].used).toBe(false);
+
+    const next = applyAction(afterJudge, { type: "closeClue" });
 
     expect(next.phase).toBe("gameOver");
     expect(next.board.every((category) => category.tiles.every((tile) => tile.used))).toBe(true);
@@ -346,6 +457,17 @@ describe("gameEngine: game over", () => {
     let state = startedGame();
     state = markAllUsedExcept(state, 4, 4);
     state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.phase).toBe("gameOver");
+  });
+
+  it("transitions to gameOver when closeClue reached via reveal-with-no-buzz marks the 25th and final Tile used", () => {
+    let state = startedGame();
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+    state = applyAction(state, { type: "reveal" });
 
     const next = applyAction(state, { type: "closeClue" });
 

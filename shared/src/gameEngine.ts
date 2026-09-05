@@ -64,7 +64,14 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   const tile = state.board[categoryIndex]?.tiles[tileIndex];
   if (!tile || tile.used) return state;
 
-  const activeClue: ActiveClue = { categoryIndex, tileIndex, revealed: false, buzzedPlayerId: null, excludedPlayerIds: [] };
+  const activeClue: ActiveClue = {
+    categoryIndex,
+    tileIndex,
+    revealed: false,
+    buzzedPlayerId: null,
+    excludedPlayerIds: [],
+    correctPlayerId: null,
+  };
   return { ...state, activeClue };
 }
 
@@ -73,13 +80,15 @@ function applyBuzz(state: GameState, playerId: string): GameState {
   if (state.activeClue.buzzedPlayerId !== null) return state;
   if (!state.players.some((player) => player.id === playerId)) return state;
   if (state.activeClue.excludedPlayerIds.includes(playerId)) return state;
+  if (state.activeClue.revealed) return state;
+  if (state.activeClue.correctPlayerId !== null) return state;
 
   return { ...state, activeClue: { ...state.activeClue, buzzedPlayerId: playerId } };
 }
 
 function applyReveal(state: GameState): GameState {
   if (!state.activeClue) return state;
-  if (state.activeClue.buzzedPlayerId === null) return state;
+  if (state.activeClue.buzzedPlayerId !== null) return state;
   if (state.activeClue.revealed) return state;
 
   return { ...state, activeClue: { ...state.activeClue, revealed: true } };
@@ -89,7 +98,6 @@ function applyJudge(state: GameState, correct: boolean): GameState {
   const clue = state.activeClue;
   if (!clue) return state;
   if (clue.buzzedPlayerId === null) return state;
-  if (!clue.revealed) return state;
 
   const buzzedPlayerId = clue.buzzedPlayerId;
   const value = state.board[clue.categoryIndex].tiles[clue.tileIndex].value;
@@ -98,7 +106,11 @@ function applyJudge(state: GameState, correct: boolean): GameState {
   );
 
   if (correct) {
-    return { ...state, players, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
+    return {
+      ...state,
+      players,
+      activeClue: { ...clue, buzzedPlayerId: null, correctPlayerId: buzzedPlayerId },
+    };
   }
 
   return {
@@ -121,11 +133,15 @@ function applyCloseClue(state: GameState): GameState {
   return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
 }
 
-// Nobody is currently buzzed in, and either nobody has attempted this Clue yet or every
-// joined Player has been excluded from it — the two cases where the Host may close it
-// with no score change (see 03-judging-scoring-and-clue-resolution.md).
+// Nobody is currently buzzed in, and one of: nobody has attempted this Clue yet, every
+// joined Player has been excluded from it, it's already been publicly revealed, or someone
+// has already answered it correctly — the cases where the Host may close it (see
+// 03-judging-scoring-and-clue-resolution.md, and ADR-0005 for the revealed case). A correct
+// answer never changes score on Close — that already happened at judge time.
 export function canCloseClue(clue: ActiveClue, players: Player[]): boolean {
   if (clue.buzzedPlayerId !== null) return false;
+  if (clue.revealed) return true;
+  if (clue.correctPlayerId !== null) return true;
 
   const noneBuzzed = clue.excludedPlayerIds.length === 0;
   const allExcluded = clue.excludedPlayerIds.length >= players.length;

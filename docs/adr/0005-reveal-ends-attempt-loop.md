@@ -1,0 +1,5 @@
+# Reveal is a host-triggered public act, separate from Host answer visibility, and ends the attempt loop
+
+The Host always sees a Clue's Answer as soon as it becomes Active — this was already true of the client bundle (every client's JS already ships every Answer, gated only by UI), so there was no confidentiality to preserve, just a display decision. Reveal is redefined as a separate, Host-triggered action that flips the Clue Card to its Answer face for the Board and Players only, and judging a Buzz no longer requires it. Reveal is available only while nobody currently holds the Buzz, and firing it ends that Clue's attempt loop entirely: no further Buzz is accepted, and Close Clue becomes available immediately regardless of how many Players have been excluded so far.
+
+Considered keeping the status quo — one `revealed` flag gating judge, and Close Clue still requiring every eligible Player to have buzzed-and-been-excluded — but that forces the Host to either spoil the Answer to Players who haven't attempted yet, or get stuck unable to close a Clue whose Answer is already on screen.

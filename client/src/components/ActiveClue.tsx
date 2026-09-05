@@ -71,6 +71,15 @@ const statusStyle: CSSProperties = {
   color: "#c9d2f5",
 };
 
+const hostAnswerStyle: CSSProperties = {
+  flex: "none",
+  textAlign: "center",
+  fontFamily: "'Zilla Slab', Georgia, serif",
+  fontWeight: 800,
+  fontSize: "clamp(16px, 2.4vh, 24px)",
+  color: accent,
+};
+
 function flipCardStyle(revealed: boolean): CSSProperties {
   return {
     position: "absolute",
@@ -82,8 +91,21 @@ function flipCardStyle(revealed: boolean): CSSProperties {
   };
 }
 
-export function ActiveClue({ details, footer }: { details: ActiveClueDetails; footer?: ReactNode }) {
-  const { category, value, clueText, revealed, answer, buzzedPlayer } = details;
+export function ActiveClue({
+  details,
+  footer,
+  alwaysShowAnswer,
+}: {
+  details: ActiveClueDetails;
+  footer?: ReactNode;
+  alwaysShowAnswer?: boolean;
+}) {
+  const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer } = details;
+  const statusText = buzzedPlayer
+    ? `${buzzedPlayer.name} has the buzz`
+    : correctPlayer
+      ? `${correctPlayer.name} got it right`
+      : "Waiting for a buzz…";
 
   return (
     <div style={cardStyle}>
@@ -99,7 +121,9 @@ export function ActiveClue({ details, footer }: { details: ActiveClueDetails; fo
         </div>
       </div>
 
-      <div style={statusStyle}>{buzzedPlayer ? `${buzzedPlayer.name} has the buzz` : "Waiting for a buzz…"}</div>
+      {alwaysShowAnswer && !revealed && <div style={hostAnswerStyle}>{answer}</div>}
+
+      <div style={statusStyle}>{statusText}</div>
 
       {footer}
     </div>

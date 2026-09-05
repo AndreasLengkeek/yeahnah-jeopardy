@@ -8,15 +8,25 @@ export interface ActiveClueDetails {
   answer: string;
   revealed: boolean;
   buzzedPlayer: Player | null;
+  correctPlayer: Player | null;
+}
+
+function resolvePlayer(playerId: string | null, players: Player[]): Player | null {
+  return playerId ? (players.find((player) => player.id === playerId) ?? null) : null;
 }
 
 export function resolveActiveClue(activeClue: ActiveClue, board: Category[], players: Player[]): ActiveClueDetails {
   const category = CATS[activeClue.categoryIndex];
   const clue = category.clues[activeClue.tileIndex];
   const value = board[activeClue.categoryIndex].tiles[activeClue.tileIndex].value;
-  const buzzedPlayer = activeClue.buzzedPlayerId
-    ? (players.find((player) => player.id === activeClue.buzzedPlayerId) ?? null)
-    : null;
 
-  return { category: category.name, value, clueText: clue.text, answer: clue.answer, revealed: activeClue.revealed, buzzedPlayer };
+  return {
+    category: category.name,
+    value,
+    clueText: clue.text,
+    answer: clue.answer,
+    revealed: activeClue.revealed,
+    buzzedPlayer: resolvePlayer(activeClue.buzzedPlayerId, players),
+    correctPlayer: resolvePlayer(activeClue.correctPlayerId, players),
+  };
 }

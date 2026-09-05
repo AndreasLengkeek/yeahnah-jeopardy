@@ -23,6 +23,7 @@ export interface ActiveClue {
   revealed: boolean;
   buzzedPlayerId: string | null;
   excludedPlayerIds: string[];
+  correctPlayerId: string | null;
 }
 
 export interface GameState {

@@ -13,3 +13,7 @@
 - [x] The Host can close a Clue with no score change when nobody has buzzed at all.
 - [x] Every Player's current score (including negative scores) is visible on the Board display, the Host control panel, and that Player's own phone at all times.
 - [x] `shared/gameEngine`'s `judge` and `closeClue` actions are unit tested directly: correct scoring + Tile-used + Active Clue cleared; incorrect scoring + exclusion + Clue stays Active; `closeClue` with no Buzz; both actions rejected with no Active Clue.
+
+## Comments
+
+- Checkbox 2 ("Marking correct ... marks the Tile used, and clears the Active Clue, returning all screens to the Board") is superseded: a correct judge now awards the Value immediately but leaves the Clue Active with `correctPlayerId` set, blocking further Buzzes; the Host must separately Reveal (optional) and Close to mark the Tile used and clear it. This lets the Board see the confirmed Answer after a correct Buzz, the same way it already could after a stalled Clue. `canCloseClue` and `applyBuzz` in `shared/gameEngine.ts` gained a `correctPlayerId` case alongside the `revealed` one from `docs/adr/0005-reveal-ends-attempt-loop.md`.

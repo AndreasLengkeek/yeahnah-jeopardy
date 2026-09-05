@@ -52,18 +52,16 @@ function resetGameButton(): ReactNode {
   );
 }
 
-function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
-  if (activeClue.buzzedPlayerId && !activeClue.revealed) {
-    return (
-      <div style={centeredRowStyle}>
-        <button onClick={() => socket.emit("reveal")} style={pillButtonStyle(true)}>
-          Reveal
-        </button>
-      </div>
-    );
-  }
+function closeClueButton(): ReactNode {
+  return (
+    <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
+      Close Clue
+    </button>
+  );
+}
 
-  if (activeClue.buzzedPlayerId && activeClue.revealed) {
+function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
+  if (activeClue.buzzedPlayerId !== null) {
     return (
       <div style={centeredRowWithGapStyle}>
         <button onClick={() => socket.emit("judge", true)} style={pillButtonStyle(true)}>
@@ -76,17 +74,18 @@ function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
     );
   }
 
-  if (canCloseClue(activeClue, players)) {
+  if (!activeClue.revealed) {
     return (
-      <div style={centeredRowStyle}>
-        <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
-          Close Clue
+      <div style={centeredRowWithGapStyle}>
+        <button onClick={() => socket.emit("reveal")} style={pillButtonStyle(true)}>
+          Reveal
         </button>
+        {canCloseClue(activeClue, players) && closeClueButton()}
       </div>
     );
   }
 
-  return null;
+  return <div style={centeredRowStyle}>{closeClueButton()}</div>;
 }
 
 export function HostPage() {
@@ -129,6 +128,7 @@ export function HostPage() {
             details={state.activeClue ? resolveActiveClue(state.activeClue, state.board, state.players) : null}
             onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)}
             footer={state.activeClue ? hostFooter(state.activeClue, state.players) : undefined}
+            alwaysShowAnswer
           />
           {resetGameButton()}
         </>

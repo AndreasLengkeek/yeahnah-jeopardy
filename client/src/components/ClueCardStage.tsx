@@ -46,12 +46,14 @@ export function ClueCardStage({
   details,
   onSelectTile,
   footer,
+  alwaysShowAnswer,
 }: {
   board: Category[];
   activeClue: ActiveClueState | null;
   details: ActiveClueDetails | null;
   onSelectTile?: (categoryIndex: number, tileIndex: number) => void;
   footer?: ReactNode;
+  alwaysShowAnswer?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tileEls = useRef(new Map<string, HTMLDivElement>());
@@ -128,7 +130,7 @@ export function ClueCardStage({
       <Board board={board} onSelectTile={canSelectTile ? onSelectTile : undefined} registerTile={registerTile} />
       {overlay && (
         <div style={{ ...overlayBaseStyle, transform: overlay.transform }}>
-          <ActiveClue details={overlay.details} footer={footer} />
+          <ActiveClue details={overlay.details} footer={footer} alwaysShowAnswer={alwaysShowAnswer} />
         </div>
       )}
     </div>
