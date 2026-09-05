@@ -6,8 +6,10 @@ import { Lobby } from "../components/Lobby";
 import { Scoreboard } from "../components/Scoreboard";
 import { shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
+import { useIdentify } from "../useIdentify";
 
 export function BoardPage() {
+  useIdentify("board");
   const state = useGameState();
 
   return (

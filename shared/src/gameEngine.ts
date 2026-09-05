@@ -79,9 +79,17 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   const tile = state.board[categoryIndex]?.tiles[tileIndex];
   if (!tile || tile.used) return state;
 
+  // The reducer always copies the true Clue text and Answer onto the Active Clue
+  // (today from the bundled CATS fixture, which `board` mirrors 1:1, so the guard
+  // above covers these indices too). Withholding the Answer from Board/Player sockets
+  // before Reveal is a transmission concern handled by viewForRole (ADR-0006), not a
+  // reducer rule.
+  const clue = CATS[categoryIndex].clues[tileIndex];
   const activeClue: ActiveClue = {
     categoryIndex,
     tileIndex,
+    clueText: clue.text,
+    answer: clue.answer,
     revealed: false,
     buzzedPlayerId: null,
     excludedPlayerIds: [],

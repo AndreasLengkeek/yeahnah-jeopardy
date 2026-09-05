@@ -2,8 +2,8 @@ import { createServer } from "node:http";
 import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
-import { applyAction, initialState } from "@yeahnah/shared";
-import type { GameAction, GameState, JoinResult } from "@yeahnah/shared";
+import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
+import type { GameAction, GameState, JoinResult, SocketRole } from "@yeahnah/shared";
 
 export function createGameServer() {
   let state: GameState = initialState();
@@ -15,6 +15,20 @@ export function createGameServer() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, { cors: { origin: "*" } });
 
+  // The view a socket gets until (and unless) it declares something less restrictive.
+  const DEFAULT_ROLE: SocketRole = "player";
+
+  // Each connected socket's self-declared role, set via the `identify` event.
+  const roles = new Map<string, SocketRole>();
+
+  // Sends the current state to every connected socket, redacted per that socket's
+  // declared role (ADR-0006) — replacing the old single io.emit("state", state).
+  function broadcastState(): void {
+    for (const [id, socket] of io.sockets.sockets) {
+      socket.emit("state", viewForRole(state, roles.get(id) ?? DEFAULT_ROLE));
+    }
+  }
+
   // Mirrors the engine's applyAction 1:1: apply, broadcast if it actually changed
   // anything, and report back whether it did.
   function dispatch(action: GameAction): boolean {
@@ -22,12 +36,22 @@ export function createGameServer() {
     if (next === state) return false;
 
     state = next;
-    io.emit("state", state);
+    broadcastState();
     return true;
   }
 
   io.on("connection", (socket) => {
-    socket.emit("state", state);
+    roles.set(socket.id, DEFAULT_ROLE);
+    socket.emit("state", viewForRole(state, DEFAULT_ROLE));
+
+    socket.on("identify", (role: SocketRole) => {
+      roles.set(socket.id, role);
+      socket.emit("state", viewForRole(state, role));
+    });
+
+    socket.on("disconnect", () => {
+      roles.delete(socket.id);
+    });
 
     socket.on("join", (name: string, ack?: (result: JoinResult) => void) => {
       const wasLobby = state.phase === "lobby";

@@ -8,6 +8,7 @@ import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../player
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
+import { useIdentify } from "../useIdentify";
 
 const inputStyle: CSSProperties = {
   padding: "14px 16px",
@@ -48,6 +49,7 @@ function buzzButtonStyle(enabled: boolean): CSSProperties {
 }
 
 export function JoinPage() {
+  useIdentify("player");
   const state = useGameState();
   const [name, setName] = useState("");
   const [joinedName, setJoinedName] = useState<string | null>(null);

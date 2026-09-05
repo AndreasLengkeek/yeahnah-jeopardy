@@ -10,6 +10,7 @@ import { Scoreboard } from "../components/Scoreboard";
 import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
+import { useIdentify } from "../useIdentify";
 
 function pillButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -89,6 +90,7 @@ function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
 }
 
 export function HostPage() {
+  useIdentify("host");
   const state = useGameState();
 
   if (!state) {

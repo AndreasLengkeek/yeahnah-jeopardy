@@ -119,11 +119,20 @@ describe("gameEngine: selectTile", () => {
     expect(state.activeClue).toEqual({
       categoryIndex: 0,
       tileIndex: 2,
+      clueText: CATS[0].clues[2].text,
+      answer: CATS[0].clues[2].answer,
       revealed: false,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
       correctPlayerId: null,
     });
+  });
+
+  it("stores the true Clue text and Answer from the CATS fixture on the active clue", () => {
+    const state = applyAction(startedGame(), { type: "selectTile", categoryIndex: 2, tileIndex: 3 });
+
+    expect(state.activeClue?.clueText).toBe(CATS[2].clues[3].text);
+    expect(state.activeClue?.answer).toBe(CATS[2].clues[3].answer);
   });
 
   it("rejects selecting an already-used tile", () => {

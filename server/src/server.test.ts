@@ -1,5 +1,6 @@
 import type { AddressInfo } from "node:net";
-import type { GameState, JoinResult } from "@yeahnah/shared";
+import { CATS } from "@yeahnah/shared";
+import type { GameState, JoinResult, SocketRole } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameServer } from "./server.js";
@@ -25,7 +26,7 @@ describe("socket.io wiring", () => {
   // Buffers "state" broadcasts from the moment the socket is created, since the
   // server pushes the initial state as soon as the connection handshake completes —
   // a listener attached only after the "connect" event can arrive too late to see it.
-  function connect(): Promise<{ socket: Socket; nextState: () => Promise<GameState> }> {
+  function connect(role?: SocketRole): Promise<{ socket: Socket; nextState: () => Promise<GameState> }> {
     return new Promise((resolve) => {
       const socket = ioClient(url);
       sockets.push(socket);
@@ -42,8 +43,32 @@ describe("socket.io wiring", () => {
           ? Promise.resolve(queue.shift()!)
           : new Promise<GameState>((r) => waiters.push(r));
 
-      socket.on("connect", () => resolve({ socket, nextState }));
+      socket.on("connect", () => {
+        // A socket that declares a role gets a second "state" push in reply (the
+        // now role-appropriate view), on top of the one sent on raw connect.
+        if (role) socket.emit("identify", role);
+        resolve({ socket, nextState });
+      });
     });
+  }
+
+  // Drives a fresh Game to the point where (0, 0) is the Active Clue, unrevealed.
+  // Returns the post-selectTile "state" payload each connection received, driver first.
+  async function selectFirstClue(
+    driver: { socket: Socket; nextState: () => Promise<GameState> },
+    listeners: Array<{ nextState: () => Promise<GameState> }>,
+  ): Promise<GameState[]> {
+    const all = [driver, ...listeners];
+    const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+    driver.socket.emit("join", "Dana");
+    await drain();
+    driver.socket.emit("join", "Marcus");
+    await drain();
+    driver.socket.emit("startGame");
+    await drain();
+    driver.socket.emit("selectTile", 0, 0);
+    return drain();
   }
 
   it("broadcasts resulting state to every connected socket as actions are dispatched", async () => {
@@ -157,5 +182,65 @@ describe("socket.io wiring", () => {
     expect(reset.phase).toBe("lobby");
     expect(reset.players).toEqual([]);
     expect(reset.activeClue).toBeNull();
+  });
+
+  describe("Answer redaction by socket role (ADR-0006)", () => {
+    const trueAnswer = CATS[0].clues[0].answer;
+    const trueClueText = CATS[0].clues[0].text;
+
+    it("sends the Active Clue's Answer to a Host socket the moment it becomes Active", async () => {
+      const host = await connect("host");
+      await host.nextState(); // raw-connect view
+      await host.nextState(); // post-identify view
+
+      const [selected] = await selectFirstClue(host, []);
+
+      expect(selected.activeClue).toMatchObject({ answer: trueAnswer, clueText: trueClueText, revealed: false });
+    });
+
+    it("withholds a pre-Reveal Answer from Board and Player sockets, then releases it to them on Reveal", async () => {
+      const host = await connect("host");
+      await host.nextState();
+      await host.nextState();
+      const board = await connect("board");
+      await board.nextState();
+      await board.nextState();
+      const player = await connect("player");
+      await player.nextState();
+      await player.nextState();
+
+      const [hostSel, boardSel, playerSel] = await selectFirstClue(host, [board, player]);
+
+      expect(hostSel.activeClue?.answer).toBe(trueAnswer);
+      expect(boardSel.activeClue?.answer).toBe("");
+      expect(playerSel.activeClue?.answer).toBe("");
+      // The Clue text itself still travels to everyone before Reveal.
+      expect(boardSel.activeClue?.clueText).toBe(trueClueText);
+      expect(playerSel.activeClue?.clueText).toBe(trueClueText);
+
+      host.socket.emit("reveal");
+      const [hostRev, boardRev, playerRev] = await Promise.all([
+        host.nextState(),
+        board.nextState(),
+        player.nextState(),
+      ]);
+
+      expect(hostRev.activeClue?.answer).toBe(trueAnswer);
+      expect(boardRev.activeClue?.answer).toBe(trueAnswer);
+      expect(playerRev.activeClue?.answer).toBe(trueAnswer);
+    });
+
+    it("treats a socket that never identifies as the most restrictive (Player) view", async () => {
+      const host = await connect("host");
+      await host.nextState();
+      await host.nextState();
+      const anon = await connect();
+      await anon.nextState(); // raw-connect view; no identify follows
+
+      const [hostSel, anonSel] = await selectFirstClue(host, [anon]);
+
+      expect(hostSel.activeClue?.answer).toBe(trueAnswer);
+      expect(anonSel.activeClue?.answer).toBe("");
+    });
   });
 });

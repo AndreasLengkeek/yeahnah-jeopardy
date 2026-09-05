@@ -20,11 +20,18 @@ export interface Category {
 export interface ActiveClue {
   categoryIndex: number;
   tileIndex: number;
+  clueText: string;
+  answer: string;
   revealed: boolean;
   buzzedPlayerId: string | null;
   excludedPlayerIds: string[];
   correctPlayerId: string | null;
 }
+
+// A socket's self-declared role, sent once via the `identify` event at connection.
+// It gates which view of GameState the server sends that socket (see viewForRole /
+// ADR-0006); there is no authentication behind it.
+export type SocketRole = "host" | "board" | "player";
 
 export interface GameState {
   phase: GamePhase;
