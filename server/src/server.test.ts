@@ -141,6 +141,30 @@ describe("socket.io wiring", () => {
     expect(badAck.ok).toBe(false);
   });
 
+  it("broadcasts a corrected score when the Host emits setScore, without touching Clue state", async () => {
+    const dana = await connect();
+    await dana.nextState();
+    dana.socket.emit("join", "Dana");
+    await dana.nextState();
+    dana.socket.emit("join", "Marcus");
+    const withMarcus = await dana.nextState();
+    const danaId = withMarcus.players.find((p) => p.name === "Dana")!.id;
+
+    dana.socket.emit("startGame");
+    await dana.nextState();
+    dana.socket.emit("selectTile", 0, 0);
+    await dana.nextState();
+    dana.socket.emit("buzz", danaId);
+    const buzzed = await dana.nextState();
+    expect(buzzed.activeClue?.buzzedPlayerId).toBe(danaId);
+
+    dana.socket.emit("setScore", danaId, -350);
+    const corrected = await dana.nextState();
+
+    expect(corrected.players.find((p) => p.id === danaId)?.score).toBe(-350);
+    expect(corrected.activeClue?.buzzedPlayerId).toBe(danaId);
+  });
+
   it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
     const dana = await connect();
     await dana.nextState();

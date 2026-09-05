@@ -35,6 +35,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyJudge(state, action.correct);
     case "closeClue":
       return applyCloseClue(state);
+    case "setScore":
+      return applySetScore(state, action.playerId, action.score);
     case "resetGame":
       return initialState();
     default:
@@ -137,6 +139,21 @@ function applyJudge(state: GameState, correct: boolean): GameState {
       revealed: false,
       excludedPlayerIds: [...clue.excludedPlayerIds, buzzedPlayerId],
     },
+  };
+}
+
+// Overwrites one Player's score with the exact value the Host typed on the Scoreboard —
+// no delta math, no clamping, negatives allowed. This is purely a Player.score write:
+// activeClue (buzz, exclusions, correctPlayerId, revealed) and every other slice of state
+// are left untouched, so a correction can never reopen or alter an unrelated Clue, and it
+// behaves identically in "playing" and "gameOver". A playerId matching nobody in the
+// roster is a no-op, consistent with the reducer's handling of other invalid actions.
+function applySetScore(state: GameState, playerId: string, score: number): GameState {
+  if (!state.players.some((player) => player.id === playerId)) return state;
+
+  return {
+    ...state,
+    players: state.players.map((player) => (player.id === playerId ? { ...player, score } : player)),
   };
 }
 

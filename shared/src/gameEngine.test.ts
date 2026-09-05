@@ -529,6 +529,63 @@ describe("gameEngine: game over", () => {
   });
 });
 
+describe("gameEngine: setScore", () => {
+  it("replaces the target Player's score with the given value verbatim", () => {
+    const { state, danaId } = buzzed();
+
+    const next = applyAction(state, { type: "setScore", playerId: danaId, score: 1234 });
+
+    expect(next.players.find((p) => p.id === danaId)?.score).toBe(1234);
+  });
+
+  it("accepts a negative value with no clamping", () => {
+    const { state, danaId } = buzzed();
+
+    const next = applyAction(state, { type: "setScore", playerId: danaId, score: -600 });
+
+    expect(next.players.find((p) => p.id === danaId)?.score).toBe(-600);
+  });
+
+  it("no-ops for a playerId that matches nobody in the roster", () => {
+    const state = startedGame();
+
+    const next = applyAction(state, { type: "setScore", playerId: "not-a-real-player", score: 500 });
+
+    expect(next).toBe(state);
+  });
+
+  it("leaves activeClue untouched when applied mid-Clue with a Player buzzed in", () => {
+    const { state, danaId, marcusId } = buzzed();
+    const withExclusion = applyAction(state, { type: "judge", correct: false });
+    const reBuzzed = applyAction(withExclusion, { type: "buzz", playerId: marcusId });
+    const clueBefore = reBuzzed.activeClue;
+
+    const next = applyAction(reBuzzed, { type: "setScore", playerId: danaId, score: 999 });
+
+    expect(next.activeClue).toEqual(clueBefore);
+    expect(next.activeClue).toMatchObject({
+      buzzedPlayerId: marcusId,
+      excludedPlayerIds: [danaId],
+      correctPlayerId: null,
+      revealed: false,
+    });
+  });
+
+  it("applies the same way in the gameOver phase as in playing", () => {
+    let state = startedGame();
+    const [dana] = state.players;
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+    state = applyAction(state, { type: "closeClue" });
+    expect(state.phase).toBe("gameOver");
+
+    const next = applyAction(state, { type: "setScore", playerId: dana.id, score: 4200 });
+
+    expect(next.phase).toBe("gameOver");
+    expect(next.players.find((p) => p.id === dana.id)?.score).toBe(4200);
+  });
+});
+
 describe("gameEngine: resetGame", () => {
   it("resets from the lobby phase to a fresh, empty-roster lobby", () => {
     let state = initialState();

@@ -74,6 +74,10 @@ export function createGameServer() {
       dispatch({ type: "closeClue" });
     });
 
+    socket.on("setScore", (playerId: string, score: number) => {
+      dispatch({ type: "setScore", playerId, score });
+    });
+
     socket.on("resetGame", () => {
       dispatch({ type: "resetGame" });
     });
