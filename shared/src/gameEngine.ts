@@ -1,4 +1,4 @@
-import { CATS, VALUES } from "./data.js";
+import { CATS, VALUES } from "./trivia.js";
 import type { Category, GameAction, GameState, Player } from "./types.js";
 
 function buildBoard(): Category[] {
@@ -28,10 +28,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 }
 
 function applyJoin(state: GameState, name: string): GameState {
+  const trimmedName = name.trim();
+  if (!trimmedName) return state;
   if (state.phase !== "lobby") return state;
-  if (state.players.some((player) => player.name === name)) return state;
+  if (state.players.some((player) => player.name === trimmedName)) return state;
 
-  const player: Player = { id: crypto.randomUUID(), name, score: 0, connected: true };
+  const player: Player = { id: crypto.randomUUID(), name: trimmedName, score: 0, connected: true };
   return { ...state, players: [...state.players, player] };
 }
 

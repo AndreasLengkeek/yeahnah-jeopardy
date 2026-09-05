@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initialState } from "./gameEngine.js";
-import { CATS, VALUES } from "./data.js";
+import { CATS, VALUES } from "./trivia.js";
 
 describe("gameEngine: join", () => {
   it("accepts a valid join and adds the player at $0", () => {
@@ -17,6 +17,20 @@ describe("gameEngine: join", () => {
     state = applyAction(state, { type: "join", name: "Dana" });
 
     expect(state.players).toHaveLength(1);
+  });
+
+  it("trims whitespace from a name and still catches duplicates", () => {
+    let state = initialState();
+    state = applyAction(state, { type: "join", name: "  Dana  " });
+    expect(state.players[0].name).toBe("Dana");
+
+    state = applyAction(state, { type: "join", name: "Dana" });
+    expect(state.players).toHaveLength(1);
+  });
+
+  it("rejects a blank or whitespace-only name", () => {
+    const state = applyAction(initialState(), { type: "join", name: "   " });
+    expect(state.players).toHaveLength(0);
   });
 
   it("rejects a join once the game has started", () => {

@@ -26,3 +26,5 @@ export interface GameState {
 export type GameAction =
   | { type: "join"; name: string }
   | { type: "startGame" };
+
+export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };

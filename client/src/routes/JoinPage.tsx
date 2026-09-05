@@ -1,3 +1,4 @@
+import type { JoinResult } from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useState } from "react";
 import { socket } from "../socket";
@@ -26,12 +27,6 @@ const submitButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
-interface JoinResult {
-  ok: boolean;
-  playerId?: string;
-  error?: string;
-}
-
 export function JoinPage() {
   const state = useGameState();
   const [name, setName] = useState("");
@@ -51,7 +46,7 @@ export function JoinPage() {
       if (result.ok) {
         setJoinedName(trimmed);
       } else {
-        setError(result.error ?? "Could not join.");
+        setError(result.error);
       }
     });
   }

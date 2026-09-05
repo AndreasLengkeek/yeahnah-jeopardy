@@ -1,3 +1,4 @@
 export * from "./types.js";
-export * from "./data.js";
+export * from "./trivia.js";
+export * from "./theme.js";
 export * from "./gameEngine.js";
