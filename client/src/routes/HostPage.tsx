@@ -40,9 +40,12 @@ const resetButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+const centeredRowStyle: CSSProperties = { display: "flex", justifyContent: "center", flex: "none" };
+const centeredRowWithGapStyle: CSSProperties = { ...centeredRowStyle, gap: 16 };
+
 function resetGameButton(): ReactNode {
   return (
-    <div style={{ display: "flex", justifyContent: "center", flex: "none" }}>
+    <div style={centeredRowStyle}>
       <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
         Reset Game
       </button>
@@ -53,15 +56,17 @@ function resetGameButton(): ReactNode {
 function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
   if (activeClue.buzzedPlayerId && !activeClue.revealed) {
     return (
-      <button onClick={() => socket.emit("reveal")} style={pillButtonStyle(true)}>
-        Reveal
-      </button>
+      <div style={centeredRowStyle}>
+        <button onClick={() => socket.emit("reveal")} style={pillButtonStyle(true)}>
+          Reveal
+        </button>
+      </div>
     );
   }
 
   if (activeClue.buzzedPlayerId && activeClue.revealed) {
     return (
-      <div style={{ display: "flex", gap: 16 }}>
+      <div style={centeredRowWithGapStyle}>
         <button onClick={() => socket.emit("judge", true)} style={pillButtonStyle(true)}>
           Correct
         </button>
@@ -74,9 +79,11 @@ function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
 
   if (canCloseClue(activeClue, players)) {
     return (
-      <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
-        Close Clue
-      </button>
+      <div style={centeredRowStyle}>
+        <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
+          Close Clue
+        </button>
+      </div>
     );
   }
 
@@ -103,7 +110,7 @@ export function HostPage() {
       {state.phase === "lobby" ? (
         <>
           <Lobby players={state.players} />
-          <div style={{ display: "flex", justifyContent: "center", flex: "none" }}>
+          <div style={centeredRowStyle}>
             <button disabled={!canStart} onClick={() => socket.emit("startGame")} style={pillButtonStyle(canStart)}>
               Start Game
             </button>
