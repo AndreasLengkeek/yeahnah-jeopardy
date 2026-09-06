@@ -9,7 +9,7 @@ One playthrough: a single Board played start to finish by whichever Players have
 _Avoid_: Round, session (v1 has no multi-round structure and no concurrent games, so those distinctions don't exist yet)
 
 **Board Setup**:
-The Game's state before the Lobby opens: the Host creates a new Board or imports a Board Config, edits it in-app — including choosing its Category count — until every Tile has a Clue and Answer, and only then may open the Lobby for Players to join. The Category count is fixed once Board Setup ends. Opens pre-loaded with a complete, editable Board (the bundled example on first boot, or whichever Board was last played) rather than starting blank.
+The Game's state before the Lobby opens: the Host creates a new Board or imports a Board Config, edits it in-app — including choosing its Category count — until every Tile has a Clue and Answer, and only then may open the Lobby for Players to join. The Category count is fixed for as long as the Lobby stays open, but not permanently: the Host may resume Board Setup from the Lobby at any time before starting the Game, reopening the Category count and every other field, and already-joined Players stay joined across the round trip. Opens pre-loaded with a complete, editable Board (the bundled example on first boot, or whichever Board was last played) rather than starting blank.
 _Avoid_: create room, room (v1 has exactly one Game at a time — see Game — so this isn't a multi-tenant "room")
 
 **Board Config**:
@@ -17,7 +17,7 @@ The file a Host imports or exports during Board Setup to save a Board's authored
 _Avoid_: save file, board data
 
 **Lobby**:
-The Game's state after Board Setup ends and before the Host starts it: Players join by choosing a name and appear at $0, and the Host starts the Game once at least two have joined. Joining closes the moment the Game starts — a Player who already joined may reconnect after that, but no new Player may.
+The Game's state after Board Setup ends and before the Host starts it: Players join by choosing a name and appear at $0, and the Host starts the Game once at least two have joined. Joining closes the moment the Game starts — a Player who already joined may reconnect after that, but no new Player may. The Host may instead send the Game back into Board Setup from here (see Board Setup) — this is a detour, not the Game starting, so it doesn't touch the roster.
 _Avoid_: waiting room
 
 **Board**:
@@ -67,3 +67,7 @@ _Avoid_: show the answer (the Host always _sees_ the Answer privately; Reveal na
 
 **Close**:
 The Host's action that finalizes the Active Clue: marks its Tile used and clears it, zooming every screen back to the Board. Available whenever every joined Player has been excluded, nobody has attempted the Clue at all, it's been Revealed, or a Player has already answered it correctly. Never itself changes a score — that already happened (or never happens) at judge time; Close just ends the Clue's time on screen, whether or not the Host chose to Reveal first.
+
+**Board Sound**:
+The Board's own audio cues — a looping cue while nobody holds the Buzz, and a one-shot cue for a Buzz landing and for each Judge outcome, one of several variants chosen at random per cue. Silent until the Board's device confirms a user gesture (the browser's autoplay rule), and separately mutable at any time by the Host — one shared switch for the whole Game, the same in every phase, not a per-device or Player setting.
+_Avoid_: sound effects, audio (Board Sound names specifically the Board's cues, not a Host's or Player's own device)
