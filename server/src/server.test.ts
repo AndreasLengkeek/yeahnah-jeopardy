@@ -305,7 +305,7 @@ describe("socket.io wiring", () => {
     expect(afterImport.content).toEqual(CATS);
   });
 
-  it("has a returnToSetup handler that the reducer rejects outside Game Over", async () => {
+  it("returns from the Lobby to Board Setup without dropping already-joined Players", async () => {
     const host = await connect("host");
     await host.nextState();
     await host.nextState();
@@ -313,13 +313,15 @@ describe("socket.io wiring", () => {
     host.socket.emit("openLobby");
     expect((await host.nextState()).phase).toBe("lobby");
 
-    // returnToSetup is invalid from the Lobby, so it produces no broadcast; the very
-    // next state the socket sees is the join that follows, still in "lobby".
-    host.socket.emit("returnToSetup");
     host.socket.emit("join", textIdentity("Dana"));
+    expect((await host.nextState()).players.map((p) => p.identity)).toEqual([textIdentity("Dana")]);
+
+    host.socket.emit("returnToSetup");
     const next = await host.nextState();
-    expect(next.phase).toBe("lobby");
+    expect(next.phase).toBe("setup");
     expect(next.players.map((p) => p.identity)).toEqual([textIdentity("Dana")]);
+    expect(next.board).toEqual([]);
+    expect(next.activeClue).toBeNull();
   });
 
   describe("Answer redaction by socket role (ADR-0006)", () => {

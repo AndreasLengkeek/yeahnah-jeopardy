@@ -1009,6 +1009,35 @@ describe("gameEngine: Board Setup", () => {
   });
 
   describe("returnToSetup", () => {
+    it("returns from the lobby to setup without dropping the roster or authored content", () => {
+      let state = lobbyState();
+      state = applyAction(state, joinText("Dana"));
+      state = applyAction(state, joinText("Marcus"));
+      const playersBefore = state.players;
+      const contentBefore = state.content;
+
+      const next = applyAction(state, { type: "returnToSetup" });
+
+      expect(next.phase).toBe("setup");
+      expect(next.players).toEqual(playersBefore);
+      expect(next.content).toEqual(contentBefore);
+      expect(next.board).toEqual([]);
+      expect(next.activeClue).toBeNull();
+    });
+
+    it("re-enables board authoring actions after returning from the lobby", () => {
+      let state = lobbyState();
+      state = applyAction(state, joinText("Dana"));
+
+      const backInSetup = applyAction(state, { type: "returnToSetup" });
+      const resized = applyAction(backInSetup, { type: "newBoard", categoryCount: 6 });
+      const renamed = applyAction(resized, { type: "editCategoryName", categoryIndex: 5, name: "Final category" });
+
+      expect(backInSetup.phase).toBe("setup");
+      expect(resized.content).toHaveLength(6);
+      expect(renamed.content[5].name).toBe("Final category");
+    });
+
     it("returns from gameOver to setup with content still pre-loaded", () => {
       let state = startedGame();
       state = markAllUsedExcept(state, 4, 4);
@@ -1026,8 +1055,8 @@ describe("gameEngine: Board Setup", () => {
       expect(next.activeClue).toBeNull();
     });
 
-    it.each(["setup", "lobby", "playing"] as const)("is a no-op from the %s phase", (_phase) => {
-      const states = { setup: initialState(), lobby: lobbyState(), playing: startedGame() };
+    it.each(["setup", "playing"] as const)("is a no-op from the %s phase", (_phase) => {
+      const states = { setup: initialState(), playing: startedGame() };
       const before = states[_phase];
 
       expect(applyAction(before, { type: "returnToSetup" })).toBe(before);
