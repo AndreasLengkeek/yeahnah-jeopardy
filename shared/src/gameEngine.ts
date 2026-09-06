@@ -317,12 +317,20 @@ function applyCloseClue(state: GameState): GameState {
   return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
 }
 
-// Back to Board Setup from Game Over with the same `content` pre-loaded for editing;
-// the roster and any derived Board are dropped, to be rebuilt when the Lobby reopens.
+// Back to Board Setup with the same `content` pre-loaded for editing. From the Lobby,
+// the roster stays put (the Host is only resuming Board Setup); from Game Over, the
+// roster is dropped as part of a true replay. In both cases any derived Board and the
+// Active Clue are cleared, to be rebuilt when the Lobby reopens.
 function applyReturnToSetup(state: GameState): GameState {
-  if (state.phase !== 'gameOver') return state;
+  if (state.phase !== 'lobby' && state.phase !== 'gameOver') return state;
 
-  return { ...state, phase: 'setup', players: [], board: [], activeClue: null };
+  return {
+    ...state,
+    phase: 'setup',
+    players: state.phase === 'lobby' ? state.players : [],
+    board: [],
+    activeClue: null,
+  };
 }
 
 // The "reuse the same Board" replay path: keep `content` as-is, rebuild `board` with

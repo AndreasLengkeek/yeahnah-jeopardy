@@ -54,21 +54,6 @@ function resetGameButton(): ReactNode {
   );
 }
 
-// After Game Over the Host can replay the same Board as-is (Reset Game → Lobby) or
-// take it back into Board Setup to edit it first (Edit Board → setup).
-function gameOverControls(): ReactNode {
-  return (
-    <div style={centeredRowWithGapStyle}>
-      <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
-        Reset Game
-      </button>
-      <button onClick={() => socket.emit("returnToSetup")} style={resetButtonStyle}>
-        Edit Board
-      </button>
-    </div>
-  );
-}
-
 function closeClueButton(): ReactNode {
   return (
     <button onClick={() => socket.emit("closeClue")} style={pillButtonStyle(true)}>
@@ -119,10 +104,14 @@ export function HostPage() {
   }
 
   const canStart = state.phase === "lobby" && state.players.length >= 2;
+  const headerAction =
+    state.phase === "lobby" || state.phase === "gameOver"
+      ? { label: "Edit Board", onClick: () => socket.emit("returnToSetup") }
+      : undefined;
 
   return (
     <div style={shellStyle}>
-      <Header subtitle="Host view" />
+      <Header subtitle="Host view" action={headerAction} />
       {state.phase === "setup" ? (
         <BoardSetup
           content={state.content}
@@ -137,16 +126,19 @@ export function HostPage() {
       ) : state.phase === "lobby" ? (
         <>
           <Lobby players={state.players} />
-          <div style={centeredRowStyle}>
+          <div style={centeredRowWithGapStyle}>
             <button disabled={!canStart} onClick={() => socket.emit("startGame")} style={pillButtonStyle(canStart)}>
               Start Game
+            </button>
+            <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
+              Reset Game
             </button>
           </div>
         </>
       ) : state.phase === "gameOver" ? (
         <>
           <GameOver players={state.players} />
-          {gameOverControls()}
+          {resetGameButton()}
         </>
       ) : (
         <>

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { Header } from "./Header";
 
 describe("Header", () => {
@@ -13,5 +14,21 @@ describe("Header", () => {
     render(<Header subtitle="Host view" />);
 
     expect(screen.getByText("Host view")).toBeInTheDocument();
+  });
+
+  it("renders no action button when none is supplied", () => {
+    render(<Header subtitle="Host view" />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("renders the action button with its label and calls its handler", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(<Header subtitle="Host view" action={{ label: "Edit Board", onClick }} />);
+
+    await user.click(screen.getByRole("button", { name: "Edit Board" }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
