@@ -58,6 +58,7 @@ export function initialState(): GameState {
     content: seedContent(),
     board: [],
     activeClue: null,
+    boardSoundMuted: false,
   };
 }
 
@@ -79,6 +80,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyImportBoardConfig(state, action.content);
     case 'openLobby':
       return applyOpenLobby(state);
+    case 'toggleBoardSound':
+      return applyToggleBoardSound(state);
     case 'startGame':
       return applyStartGame(state);
     case 'selectTile':
@@ -100,6 +103,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     default:
       return state;
   }
+}
+
+function applyToggleBoardSound(state: GameState): GameState {
+  return { ...state, boardSoundMuted: !state.boardSoundMuted };
 }
 
 function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
@@ -338,6 +345,7 @@ function applyResetGame(state: GameState): GameState {
     content: state.content,
     board: buildBoard(state.content),
     activeClue: null,
+    boardSoundMuted: state.boardSoundMuted,
   };
 }
 
