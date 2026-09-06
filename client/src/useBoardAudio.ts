@@ -39,8 +39,9 @@ export function useBoardAudio(state: GameState | null) {
   }
 
   const activeClue = state?.activeClue ?? null;
+  const boardSoundEnabled = enabled && !state?.boardSoundMuted;
   const shouldPlayThinking =
-    enabled &&
+    boardSoundEnabled &&
     state?.phase === "playing" &&
     (!activeClue || (activeClue.buzzedPlayerId === null && !activeClue.revealed));
 
@@ -53,7 +54,7 @@ export function useBoardAudio(state: GameState | null) {
   // fields against their previous values — there's no discrete "buzz happened" or "judge
   // happened" event to hook, just the broadcast state before and after it.
   useEffect(() => {
-    if (!enabled || !activeClue) {
+    if (!boardSoundEnabled || !activeClue) {
       prevRef.current = activeClue
         ? {
             buzzedPlayerId: activeClue.buzzedPlayerId,
@@ -78,7 +79,7 @@ export function useBoardAudio(state: GameState | null) {
       excludedCount: activeClue.excludedPlayerIds.length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, activeClue?.buzzedPlayerId, activeClue?.correctPlayerId, activeClue?.excludedPlayerIds.length]);
+  }, [boardSoundEnabled, activeClue?.buzzedPlayerId, activeClue?.correctPlayerId, activeClue?.excludedPlayerIds.length]);
 
   return { enabled, enableSound };
 }

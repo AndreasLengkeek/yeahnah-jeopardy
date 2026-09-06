@@ -31,4 +31,26 @@ describe("Header", () => {
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("renders a mute button whose accessible label reflects an unmuted board", () => {
+    render(<Header isBoardSoundMuted={false} onToggleBoardSound={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Mute Board Sound" })).toBeInTheDocument();
+  });
+
+  it("renders an unmute button whose accessible label reflects a muted board", () => {
+    render(<Header isBoardSoundMuted onToggleBoardSound={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Unmute Board Sound" })).toBeInTheDocument();
+  });
+
+  it("calls the supplied handler when the button is clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleBoardSound = vi.fn();
+    render(<Header isBoardSoundMuted={false} onToggleBoardSound={onToggleBoardSound} />);
+
+    await user.click(screen.getByRole("button", { name: "Mute Board Sound" }));
+
+    expect(onToggleBoardSound).toHaveBeenCalledTimes(1);
+  });
 });

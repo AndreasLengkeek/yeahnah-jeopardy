@@ -248,10 +248,15 @@ describe("gameEngine: startGame", () => {
 });
 
 function startedGame(): ReturnType<typeof initialState> {
+  let state = lobbyWithTwoPlayers();
+  state = applyAction(state, { type: "startGame" });
+  return state;
+}
+
+function lobbyWithTwoPlayers(): ReturnType<typeof initialState> {
   let state = lobbyState();
   state = applyAction(state, joinText("Dana"));
   state = applyAction(state, joinText("Marcus"));
-  state = applyAction(state, { type: "startGame" });
   return state;
 }
 
@@ -798,6 +803,37 @@ describe("gameEngine: resetGame", () => {
   });
 });
 
+describe("gameEngine: toggleBoardSound", () => {
+  it.each(["setup", "lobby", "playing", "gameOver"] as const)("flips boardSoundMuted from the %s phase", (phase) => {
+    const states = {
+      setup: initialState(),
+      lobby: lobbyState(),
+      playing: startedGame(),
+      gameOver: finishedGame(),
+    };
+    const before = states[phase];
+
+    const muted = applyAction(before, { type: "toggleBoardSound" });
+    const unmuted = applyAction(muted, { type: "toggleBoardSound" });
+
+    expect(muted.boardSoundMuted).toBe(true);
+    expect(unmuted.boardSoundMuted).toBe(false);
+  });
+
+  it.each([
+    { actionName: "openLobby", before: initialState(), action: { type: "openLobby" as const } },
+    { actionName: "startGame", before: lobbyWithTwoPlayers(), action: { type: "startGame" as const } },
+    { actionName: "returnToSetup", before: finishedGame(), action: { type: "returnToSetup" as const } },
+    { actionName: "resetGame", before: startedGame(), action: { type: "resetGame" as const } },
+  ])("persists through $actionName", ({ before, action }) => {
+    const muted = applyAction(before, { type: "toggleBoardSound" });
+
+    const next = applyAction(muted, action);
+
+    expect(next.boardSoundMuted).toBe(true);
+  });
+});
+
 describe("gameEngine: initialState", () => {
   it("starts in the setup phase with no board yet", () => {
     const state = initialState();
@@ -806,6 +842,7 @@ describe("gameEngine: initialState", () => {
     expect(state.board).toEqual([]);
     expect(state.players).toEqual([]);
     expect(state.activeClue).toBeNull();
+    expect(state.boardSoundMuted).toBe(false);
   });
 
   it("seeds content from the ported CATS fixture (5 categories, 5 clues each)", () => {
@@ -869,6 +906,13 @@ function filledContent(categoryCount: number) {
     }
   }
   return state;
+}
+
+function finishedGame(): ReturnType<typeof initialState> {
+  let state = startedGame();
+  state = markAllUsedExcept(state, 4, 4);
+  state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+  return applyAction(state, { type: "closeClue" });
 }
 
 describe("gameEngine: Board Setup", () => {

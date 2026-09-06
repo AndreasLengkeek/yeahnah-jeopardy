@@ -51,6 +51,7 @@ export interface GameState {
   content: CategoryData[];
   board: Category[];
   activeClue: ActiveClue | null;
+  boardSoundMuted: boolean;
 }
 
 export type ClueField = 'text' | 'answer';
@@ -64,6 +65,7 @@ export type GameAction =
   | { type: 'editClue'; categoryIndex: number; tileIndex: number; field: ClueField; value: string }
   | { type: 'importBoardConfig'; content: CategoryData[] }
   | { type: 'openLobby' }
+  | { type: 'toggleBoardSound' }
   | { type: 'startGame' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }
   | { type: 'buzz'; playerId: string }

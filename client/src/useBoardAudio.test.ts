@@ -18,7 +18,7 @@ function clue(overrides: Partial<ActiveClue> = {}): ActiveClue {
 }
 
 function state(activeClue: ActiveClue | null): GameState {
-  return { phase: "playing", players: [], content: [], board: [], activeClue };
+  return { phase: "playing", players: [], content: [], board: [], activeClue, boardSoundMuted: false };
 }
 
 describe("useBoardAudio", () => {
@@ -63,5 +63,33 @@ describe("useBoardAudio", () => {
     expect(playSpy.mock.instances.some((audio) => (audio as HTMLAudioElement).src.endsWith("/audio/buzz.mp3"))).toBe(
       true,
     );
+  });
+
+  it("plays no one-shot cue while board sound is muted", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue()), boardSoundMuted: true } },
+    });
+
+    act(() => result.current.enableSound());
+    playSpy.mockClear();
+
+    rerender({ s: { ...state(clue({ buzzedPlayerId: "p1" })), boardSoundMuted: true } });
+    rerender({ s: { ...state(clue({ correctPlayerId: "p1" })), boardSoundMuted: true } });
+    rerender({ s: { ...state(clue({ excludedPlayerIds: ["p1"] })), boardSoundMuted: true } });
+
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not start the thinking loop while board sound is muted", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue({ buzzedPlayerId: "p1" })), boardSoundMuted: true } },
+    });
+
+    act(() => result.current.enableSound());
+    playSpy.mockClear();
+
+    rerender({ s: { ...state(null), boardSoundMuted: true } });
+
+    expect(playSpy).not.toHaveBeenCalled();
   });
 });

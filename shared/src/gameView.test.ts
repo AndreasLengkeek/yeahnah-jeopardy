@@ -28,6 +28,7 @@ function state(overrides: Partial<GameState> = {}): GameState {
     content,
     board: [],
     activeClue: activeClue(),
+    boardSoundMuted: false,
     ...overrides,
   };
 }

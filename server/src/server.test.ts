@@ -114,6 +114,29 @@ describe("socket.io wiring", () => {
     expect(closed.activeClue).toBeNull();
   });
 
+  it("wires toggleBoardSound through to every socket role without redacting it", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+    const board = await connect("board");
+    await board.nextState();
+    await board.nextState();
+    const player = await connect("player");
+    await player.nextState();
+    await player.nextState();
+
+    host.socket.emit("toggleBoardSound");
+    const [hostMuted, boardMuted, playerMuted] = await Promise.all([
+      host.nextState(),
+      board.nextState(),
+      player.nextState(),
+    ]);
+
+    expect(hostMuted.boardSoundMuted).toBe(true);
+    expect(boardMuted.boardSoundMuted).toBe(true);
+    expect(playerMuted.boardSoundMuted).toBe(true);
+  });
+
   it("carries a drawn signature identity through a join round-trip to the broadcast state", async () => {
     const dana = await connect();
     await dana.nextState();
