@@ -1,25 +1,25 @@
 [
   {
-    "name": "Reality TV Ruckus",
+    "name": "Aussie TV Icons",
     "clues": [
       {
-        "text": "Every season, this cooking show reduces its judges to tears over a deconstructed lamington.",
+        "text": "Judges cry over deconstructed lamingtons in this show's 'Mystery Box' and 'Invention Test' rounds.",
         "answer": "What is MasterChef Australia?"
       },
       {
-        "text": "Contestants on this dating experiment call complete strangers 'husband' by lunchtime on day one.",
+        "text": "Strangers wed within days, then face a weekly 'Commitment Ceremony' vote on this show.",
         "answer": "What is Married at First Sight?"
       },
       {
-        "text": "This renovation show has proven that every open-plan kitchen needs its own applause meter.",
+        "text": "Five teams renovate through 'Kitchen Week' and 'Bathroom Week' to a nail-biting live auction.",
         "answer": "What is The Block?"
       },
       {
-        "text": "On this survival show, castaways vote each other out while insisting it's 'just strategy, not personal'.",
+        "text": "Castaways hunt hidden immunity idols and snuff their torch at 'tribal council'.",
         "answer": "What is Survivor Australia?"
       },
       {
-        "text": "This long-running soap has been killing off and resurrecting Ramsay Street residents since 1985.",
+        "text": "This Erinsborough soap was axed, revived, then axed again — Harold Bishop still hasn't had his send-off.",
         "answer": "What is Neighbours?"
       }
     ]
@@ -28,48 +28,48 @@
     "name": "Streaming Straya",
     "clues": [
       {
-        "text": "This blue heeler puppy has convinced grown adults that a game of 'keepy uppy' is a spiritual experience.",
+        "text": "This six-year-old plays 'Keepy Uppy' and 'Magic Xylophone' in seven-minute episodes.",
         "answer": "Who is Bluey?"
       },
       {
-        "text": "This comedy about a hapless ghost has office workers everywhere asking 'what would this dead accountant do'.",
+        "text": "A three-legged dog named Colin sparks the romance in this rom-com.",
         "answer": "What is Colin from Accounts?"
       },
       {
-        "text": "This darkly funny murder-mystery series is set in the fictional Tasmanian town it's named after.",
+        "text": "Grisly deaths plague a Tasmanian town's wellness retreat and folk festival in this black comedy.",
         "answer": "What is Deadloch?"
       },
       {
-        "text": "Based on Trent Dalton's novel, this series follows a Brisbane boy whose stepfather deals drugs and whose babysitter is a convicted murderer.",
+        "text": "A red rotary phone links this saga's narrator to an ex-safecracker named Slim.",
         "answer": "What is Boy Swallows Universe?"
       },
       {
-        "text": "This 1980s-set newsroom drama proves big hair and bigger egos ruled Melbourne television.",
+        "text": "Set in 1986, this Melbourne newsroom drama's season one covers the Russell Street bombing.",
         "answer": "What is The Newsreader?"
       }
     ]
   },
   {
-    "name": "Sporting Shockers",
+    "name": "Sporting Straya",
     "clues": [
       {
-        "text": "This trophy is presented every September to the winner of the AFL Grand Final at the MCG.",
+        "text": "The league chairman hands this trophy to the winning captain on the MCG's members' balcony.",
         "answer": "What is the Premiership Cup?"
       },
       {
-        "text": "Each winter, this rugby league series turns loungerooms into war zones over Queensland vs New South Wales.",
+        "text": "Born from a 1980 eligibility rule, this rugby league series is a best-of-three each June and July.",
         "answer": "What is State of Origin?"
       },
       {
-        "text": "This horse race famously 'stops a nation' for exactly three minutes each November.",
+        "text": "This 3200-metre handicap at Flemington supposedly stops the nation at 3pm each November.",
         "answer": "What is the Melbourne Cup?"
       },
       {
-        "text": "Australia's women's soccer team captured the country's heart at the 2023 World Cup under this nickname.",
+        "text": "Sam Kerr's scissor-kick against England defined this team's fourth-place run at the 2023 World Cup.",
         "answer": "Who are the Matildas?"
       },
       {
-        "text": "This tiny terracotta urn is contested between Australia and England, despite being smaller than a teacup.",
+        "text": "Said to hold a cricket bail's ashes, this tiny trophy has stayed at Lord's since 1927.",
         "answer": "What is the Ashes urn?"
       }
     ]
@@ -78,23 +78,23 @@
     "name": "Weather & Wildlife Woes",
     "clues": [
       {
-        "text": "Cyclists across Australia strap zip ties to their helmets every spring to ward off this feathered menace.",
+        "text": "Nesting males dive-bomb passers-by for about six weeks each spring.",
         "answer": "What is a swooping magpie?"
       },
       {
-        "text": "This mythical marsupial is blamed by parents for every unexplained noise in a gum tree at night.",
+        "text": "Wear Vegemite behind your ears to ward off this mythical cousin of the koala.",
         "answer": "What is a drop bear?"
       },
       {
-        "text": "Introduced in 1935 to control cane beetles, this warty pest instead became public enemy number one.",
+        "text": "Released at Gordonvale to fight beetles, this toxic invader now spreads 50 kilometres a year.",
         "answer": "What is the cane toad?"
       },
       {
-        "text": "This towering, rotating summer storm sends weather presenters sprinting back to the green screen.",
+        "text": "A rotating 'mesocyclone' updraught defines this giant-hailstone-producing storm.",
         "answer": "What is a supercell?"
       },
       {
-        "text": "Sydney's most infamous spider hides in letterboxes and gives this venomous, web-spinning species its name.",
+        "text": "Only males of this deadly spider are venomous enough to kill, and the public still helps milk them.",
         "answer": "What is the Sydney funnel-web spider?"
       }
     ]
@@ -103,23 +103,23 @@
     "name": "Question Time Quips",
     "clues": [
       {
-        "text": "Each sitting day, this raucous session lets MPs yell over each other while pretending to ask genuine questions.",
+        "text": "Ministers face real questions while backbenchers lob soft 'Dorothy Dixers' in this daily session.",
         "answer": "What is Question Time?"
       },
       {
-        "text": "This Canberra building, opened in 1988, is where all the yelling in Question Time actually happens.",
+        "text": "Opened in 1988 into Capital Hill, this building flies a bus-sized flag.",
         "answer": "What is Parliament House?"
       },
       {
-        "text": "This ceremonial officer's main job is shouting 'order!' until everyone politely ignores them.",
+        "text": "This MP-elected officer votes only on ties, and ejects rowdy members under standing order 94(a).",
         "answer": "Who is the Speaker of the House?"
       },
       {
-        "text": "Australia's federal parliament runs on this two-house Westminster system, just with more sunburn.",
+        "text": "Australia's Parliament splits into a 150-seat house and a 76-seat house.",
         "answer": "What is a bicameral parliament?"
       },
       {
-        "text": "Every election night, this psephologist's whiteboard and textas become more famous than the candidates.",
+        "text": "Since the 1989 NSW election, this ABC analyst calls seats before the AEC finishes counting.",
         "answer": "Who is Antony Green?"
       }
     ]
