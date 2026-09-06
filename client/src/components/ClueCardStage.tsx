@@ -112,7 +112,9 @@ export function ClueCardStage({
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        setOverlay((current) => (current && current.phase === "entering" ? { ...current, transform: "none", phase: "settled" } : current));
+        setOverlay((current) =>
+          current && current.phase === "entering" ? { ...current, transform: "none", phase: "settled" } : current,
+        );
       });
     });
     return () => {

@@ -1,4 +1,11 @@
-import { MAX_CATEGORIES, MIN_CATEGORIES, isBlank, isContentComplete, parseBoardConfig, serializeBoardConfig } from "@yeahnah/shared";
+import {
+  MAX_CATEGORIES,
+  MIN_CATEGORIES,
+  isBlank,
+  isContentComplete,
+  parseBoardConfig,
+  serializeBoardConfig,
+} from "@yeahnah/shared";
 import type { CategoryData, ClueField } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useRef, useState } from "react";

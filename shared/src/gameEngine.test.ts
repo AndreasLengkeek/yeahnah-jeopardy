@@ -9,7 +9,8 @@ const joinText = (name: string) => ({ type: "join" as const, identity: textIdent
 const joinSignature = (image: string) => ({ type: "join" as const, identity: signatureIdentity(image) });
 
 // A stand-in for a real captured Signature — any non-blank string counts as drawn content.
-const A_SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const A_SIGNATURE =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 // initialState() now starts in "setup". Most pre-Game tests want the Lobby that used
 // to be the starting point, reached by accepting the seeded (complete) example Board.
@@ -86,7 +87,10 @@ describe("gameEngine: join", () => {
     state = applyAction(state, joinSignature(A_SIGNATURE));
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
-    expect(state.players.map((p) => p.identity)).toEqual([signatureIdentity(A_SIGNATURE), signatureIdentity(A_SIGNATURE)]);
+    expect(state.players.map((p) => p.identity)).toEqual([
+      signatureIdentity(A_SIGNATURE),
+      signatureIdentity(A_SIGNATURE),
+    ]);
   });
 
   it("does not check a signature identity against a matching typed name for uniqueness", () => {
@@ -95,6 +99,83 @@ describe("gameEngine: join", () => {
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
     expect(state.players).toHaveLength(2);
+  });
+});
+
+describe("gameEngine: editIdentity", () => {
+  it("lets a joined Player change their name before the Game starts", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    const [dana] = state.players;
+
+    state = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: textIdentity("Danielle") });
+
+    expect(state.players[0]).toMatchObject({ id: dana.id, identity: textIdentity("Danielle"), score: 0 });
+  });
+
+  it("lets a joined Player switch from a typed name to a drawn Signature", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    const [dana] = state.players;
+
+    state = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: signatureIdentity(A_SIGNATURE) });
+
+    expect(state.players[0].identity).toEqual(signatureIdentity(A_SIGNATURE));
+  });
+
+  it("rejects an edit that collides with another Player's name", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Marcus"));
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: textIdentity("Marcus") });
+
+    expect(next).toBe(state);
+  });
+
+  it("does not reject an edit that collides only with the Player's own current name", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: textIdentity("Dana") });
+
+    expect(next.players[0].identity).toEqual(textIdentity("Dana"));
+  });
+
+  it("rejects a blank edit", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: textIdentity("   ") });
+
+    expect(next).toBe(state);
+  });
+
+  it("rejects an edit from an unknown Player id", () => {
+    const state = applyAction(lobbyState(), joinText("Dana"));
+
+    const next = applyAction(state, {
+      type: "editIdentity",
+      playerId: "not-a-real-player",
+      identity: textIdentity("Whoever"),
+    });
+
+    expect(next).toBe(state);
+  });
+
+  it("rejects an edit once the Game has started", () => {
+    let state = lobbyState();
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Marcus"));
+    state = applyAction(state, { type: "startGame" });
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "editIdentity", playerId: dana.id, identity: textIdentity("Danielle") });
+
+    expect(next).toBe(state);
   });
 });
 
@@ -202,7 +283,9 @@ describe("gameEngine: selectTile", () => {
     state = {
       ...state,
       board: state.board.map((category, i) =>
-        i === 0 ? { ...category, tiles: category.tiles.map((tile, j) => (j === 2 ? { ...tile, used: true } : tile)) } : category,
+        i === 0
+          ? { ...category, tiles: category.tiles.map((tile, j) => (j === 2 ? { ...tile, used: true } : tile)) }
+          : category,
       ),
     };
 
@@ -350,7 +433,7 @@ function buzzed(): { state: ReturnType<typeof initialState>; danaId: string; mar
 }
 
 describe("gameEngine: judge", () => {
-  it("awards the Clue's Value immediately, but leaves the Clue Active, pending an explicit Close, on a correct answer", () => {
+  it("awards the Clue's Value immediately, reveals the Answer, and leaves the Clue Active, pending an explicit Close, on a correct answer", () => {
     const { state, danaId } = buzzed();
     const value = state.board[0].tiles[0].value;
     expect(state.activeClue?.revealed).toBe(false);
@@ -362,7 +445,7 @@ describe("gameEngine: judge", () => {
     expect(next.activeClue).toMatchObject({
       categoryIndex: 0,
       tileIndex: 0,
-      revealed: false,
+      revealed: true,
       buzzedPlayerId: null,
       excludedPlayerIds: [],
       correctPlayerId: danaId,
@@ -469,7 +552,7 @@ describe("gameEngine: closeClue", () => {
     expect(next.players.find((p) => p.id === danaId)?.score).toBe(value);
   });
 
-  it("closes the Clue directly (no reveal) after a correct judge that followed an earlier Player's exclusion", () => {
+  it("closes the Clue after a correct judge that followed an earlier Player's exclusion, already revealed", () => {
     let state = startedGame();
     const [dana, marcus] = state.players;
     state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
@@ -477,7 +560,7 @@ describe("gameEngine: closeClue", () => {
     state = applyAction(state, { type: "judge", correct: false });
     state = applyAction(state, { type: "buzz", playerId: marcus.id });
     state = applyAction(state, { type: "judge", correct: true });
-    expect(state.activeClue?.revealed).toBe(false);
+    expect(state.activeClue?.revealed).toBe(true);
     expect(state.activeClue?.excludedPlayerIds).toEqual([dana.id]);
 
     const next = applyAction(state, { type: "closeClue" });
@@ -486,7 +569,7 @@ describe("gameEngine: closeClue", () => {
     expect(next.board[0].tiles[0].used).toBe(true);
   });
 
-  it("still allows Reveal, then Close, after a correct judge that followed an earlier Player's exclusion", () => {
+  it("treats an explicit reveal as a no-op once a correct judge has already revealed the Clue", () => {
     let state = startedGame();
     const [dana, marcus] = state.players;
     state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
@@ -495,13 +578,9 @@ describe("gameEngine: closeClue", () => {
     state = applyAction(state, { type: "buzz", playerId: marcus.id });
     state = applyAction(state, { type: "judge", correct: true });
 
-    const revealed = applyAction(state, { type: "reveal" });
-    expect(revealed.activeClue?.revealed).toBe(true);
+    const next = applyAction(state, { type: "reveal" });
 
-    const next = applyAction(revealed, { type: "closeClue" });
-
-    expect(next.activeClue).toBeNull();
-    expect(next.board[0].tiles[0].used).toBe(true);
+    expect(next).toBe(state);
   });
 
   it("rejects closeClue while a Player is buzzed in", () => {
@@ -534,7 +613,11 @@ describe("gameEngine: closeClue", () => {
 
 // Marks every Tile used except the one at (categoryIndex, tileIndex), so a single
 // remaining action (judge or closeClue) can be the one that completes the Board.
-function markAllUsedExcept(state: ReturnType<typeof initialState>, categoryIndex: number, tileIndex: number): ReturnType<typeof initialState> {
+function markAllUsedExcept(
+  state: ReturnType<typeof initialState>,
+  categoryIndex: number,
+  tileIndex: number,
+): ReturnType<typeof initialState> {
   return {
     ...state,
     board: state.board.map((category, i) => ({
@@ -589,7 +672,9 @@ describe("gameEngine: game over", () => {
     state = {
       ...state,
       board: state.board.map((category, i) =>
-        i === 0 ? { ...category, tiles: category.tiles.map((tile, j) => (j === 0 ? { ...tile, used: false } : tile)) } : category,
+        i === 0
+          ? { ...category, tiles: category.tiles.map((tile, j) => (j === 0 ? { ...tile, used: false } : tile)) }
+          : category,
       ),
     };
     state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
@@ -767,8 +852,20 @@ function filledContent(categoryCount: number) {
   for (let c = 0; c < categoryCount; c++) {
     state = applyAction(state, { type: "editCategoryName", categoryIndex: c, name: `Category ${c}` });
     for (let t = 0; t < 5; t++) {
-      state = applyAction(state, { type: "editClue", categoryIndex: c, tileIndex: t, field: "text", value: `Clue ${c}-${t}` });
-      state = applyAction(state, { type: "editClue", categoryIndex: c, tileIndex: t, field: "answer", value: `Answer ${c}-${t}` });
+      state = applyAction(state, {
+        type: "editClue",
+        categoryIndex: c,
+        tileIndex: t,
+        field: "text",
+        value: `Clue ${c}-${t}`,
+      });
+      state = applyAction(state, {
+        type: "editClue",
+        categoryIndex: c,
+        tileIndex: t,
+        field: "answer",
+        value: `Answer ${c}-${t}`,
+      });
     }
   }
   return state;
@@ -821,7 +918,13 @@ describe("gameEngine: Board Setup", () => {
         field: "text",
         value: "New clue text",
       });
-      state = applyAction(state, { type: "editClue", categoryIndex: 0, tileIndex: 2, field: "answer", value: "New answer" });
+      state = applyAction(state, {
+        type: "editClue",
+        categoryIndex: 0,
+        tileIndex: 2,
+        field: "answer",
+        value: "New answer",
+      });
 
       expect(state.content[0].clues[2]).toEqual({ text: "New clue text", answer: "New answer" });
       expect(state.content[0].clues[1]).toEqual(CATS[0].clues[1]);
@@ -831,14 +934,18 @@ describe("gameEngine: Board Setup", () => {
       const before = initialState();
 
       expect(applyAction(before, { type: "editCategoryName", categoryIndex: 9, name: "x" })).toBe(before);
-      expect(applyAction(before, { type: "editClue", categoryIndex: 0, tileIndex: 9, field: "text", value: "x" })).toBe(before);
+      expect(applyAction(before, { type: "editClue", categoryIndex: 0, tileIndex: 9, field: "text", value: "x" })).toBe(
+        before,
+      );
     });
 
     it("is a no-op outside the setup phase", () => {
       const lobby = lobbyState();
 
       expect(applyAction(lobby, { type: "editCategoryName", categoryIndex: 0, name: "x" })).toBe(lobby);
-      expect(applyAction(lobby, { type: "editClue", categoryIndex: 0, tileIndex: 0, field: "text", value: "x" })).toBe(lobby);
+      expect(applyAction(lobby, { type: "editClue", categoryIndex: 0, tileIndex: 0, field: "text", value: "x" })).toBe(
+        lobby,
+      );
     });
   });
 
@@ -955,7 +1062,13 @@ describe("isContentComplete", () => {
     let state = applyAction(initialState(), { type: "editCategoryName", categoryIndex: 0, name: "   " });
     expect(isContentComplete(state.content)).toBe(false);
 
-    state = applyAction(initialState(), { type: "editClue", categoryIndex: 0, tileIndex: 0, field: "answer", value: "" });
+    state = applyAction(initialState(), {
+      type: "editClue",
+      categoryIndex: 0,
+      tileIndex: 0,
+      field: "answer",
+      value: "",
+    });
     expect(isContentComplete(state.content)).toBe(false);
   });
 

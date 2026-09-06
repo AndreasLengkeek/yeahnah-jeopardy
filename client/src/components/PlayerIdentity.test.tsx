@@ -11,7 +11,8 @@ describe("PlayerIdentity", () => {
   });
 
   it("renders a signature identity as an image with the drawn data URL as its source", () => {
-    const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const image =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
     const { container } = render(<PlayerIdentity identity={{ kind: "signature", image }} />);
 

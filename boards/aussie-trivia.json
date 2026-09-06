@@ -1,0 +1,127 @@
+[
+  {
+    "name": "Slanguage 101",
+    "clues": [
+      {
+        "text": "Aussie shorthand for 'afternoon', as in a barbie this ___",
+        "answer": "Arvo"
+      },
+      {
+        "text": "Slang for a service station, home of the road-trip meat pie",
+        "answer": "Servo"
+      },
+      {
+        "text": "This word for 'excellent' turns up in 'what a bloody ___ effort'",
+        "answer": "Ripper"
+      },
+      {
+        "text": "Slang for sunglasses, essential kit at the cricket",
+        "answer": "Sunnies"
+      },
+      {
+        "text": "Rhyming slang for 'have a look', as in 'have a Captain Cook'",
+        "answer": "Have a look"
+      }
+    ]
+  },
+  {
+    "name": "Bunnings & Big Things",
+    "clues": [
+      {
+        "text": "The bargain hardware chain famous for its $2 sausage in bread",
+        "answer": "Bunnings"
+      },
+      {
+        "text": "The great sausage sizzle debate: onions on top, or ___ the bread",
+        "answer": "Underneath"
+      },
+      {
+        "text": "This giant fibreglass fruit has towered over Coffs Harbour since 1964",
+        "answer": "The Big Banana"
+      },
+      {
+        "text": "This giant crustacean roadside attraction stands in Ballina, NSW",
+        "answer": "The Big Prawn"
+      },
+      {
+        "text": "The colour scheme of every Bunnings warehouse and its logo",
+        "answer": "Green"
+      }
+    ]
+  },
+  {
+    "name": "Sportsball Straya",
+    "clues": [
+      {
+        "text": "This winter football code packs the MCG for its Grand Final each September",
+        "answer": "AFL (Australian Rules Football)"
+      },
+      {
+        "text": "Cricket's shortest, loudest format, played under lights in coloured kit",
+        "answer": "Twenty20 (T20)"
+      },
+      {
+        "text": "The Melbourne Cup is billed as 'the race that stops the ___'",
+        "answer": "Nation"
+      },
+      {
+        "text": "Australia's women's national soccer team goes by this nickname",
+        "answer": "The Matildas"
+      },
+      {
+        "text": "In State of Origin, Queensland's Maroons face off against this state's Blues",
+        "answer": "New South Wales"
+      }
+    ]
+  },
+  {
+    "name": "Screen Straya",
+    "clues": [
+      {
+        "text": "This Brisbane blue heeler puppy became a global streaming phenomenon",
+        "answer": "Bluey"
+      },
+      {
+        "text": "This comedy duo built a career on prank calls and 'Gap Year' TV specials",
+        "answer": "Hamish and Andy"
+      },
+      {
+        "text": "This 1994 film about a Porpoise Spit girl and ABBA anthems launched Toni Collette",
+        "answer": "Muriel's Wedding"
+      },
+      {
+        "text": "Kath Day-Knight's excited catchphrase to Kel: 'Look at moi, look at ___'",
+        "answer": "Moi"
+      },
+      {
+        "text": "This gritty Melbourne crime drama followed the Cody family and gave Ben Mendelsohn his breakout role",
+        "answer": "Animal Kingdom"
+      }
+    ]
+  },
+  {
+    "name": "Wildlife Whinges",
+    "clues": [
+      {
+        "text": "This spring phenomenon sees cyclists strap zip ties to their helmets for protection",
+        "answer": "Magpie swooping season"
+      },
+      {
+        "text": "Mythical marsupial said to drop from trees onto unsuspecting tourists",
+        "answer": "The drop bear"
+      },
+      {
+        "text": "This invasive amphibian, introduced in 1935 to control beetles, became a national pest",
+        "answer": "The cane toad"
+      },
+      {
+        "text": "Sydney's most notorious spider lurks in burrows as this venomous variety",
+        "answer": "The Sydney funnel-web spider"
+      },
+      {
+        "text": "This deadly tropical jellyfish gives stinger-net beaches their name",
+        "answer": "The box jellyfish"
+      }
+    ]
+  }
+]

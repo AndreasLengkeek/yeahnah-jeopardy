@@ -1,4 +1,4 @@
-import type { GameState, SocketRole } from "./types.js";
+import type { GameState, SocketRole } from './types.js';
 
 // ADR-0006: instead of broadcasting one identical GameState to every socket, the
 // server sends each socket a view appropriate to its declared role.
@@ -8,13 +8,13 @@ import type { GameState, SocketRole } from "./types.js";
 // Clue's `clueText`), and receives the Active Clue's Answer only once the Host has
 // Revealed it.
 export function viewForRole(state: GameState, role: SocketRole): GameState {
-  if (role === "host") return state;
+  if (role === 'host') return state;
 
   const redactAnswer = state.activeClue !== null && !state.activeClue.revealed;
 
   return {
     ...state,
     content: [],
-    activeClue: redactAnswer ? { ...state.activeClue!, answer: "" } : state.activeClue,
+    activeClue: redactAnswer ? { ...state.activeClue!, answer: '' } : state.activeClue,
   };
 }

@@ -8,11 +8,7 @@ import type { PlayerIdentity as PlayerIdentityValue } from "@yeahnah/shared";
 export function PlayerIdentity({ identity }: { identity: PlayerIdentityValue }) {
   if (identity.kind === "signature") {
     return (
-      <img
-        src={identity.image}
-        alt="Signature"
-        style={{ height: "1.2em", width: "auto", verticalAlign: "middle" }}
-      />
+      <img src={identity.image} alt="Signature" style={{ height: "3.6em", width: "auto", verticalAlign: "middle" }} />
     );
   }
 

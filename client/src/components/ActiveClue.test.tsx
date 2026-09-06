@@ -38,7 +38,9 @@ describe("ActiveClue", () => {
   it("shows the buzzed player's name when someone has the buzz", () => {
     render(
       <ActiveClue
-        details={details({ buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true } })}
+        details={details({
+          buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
+        })}
       />,
     );
 
@@ -49,7 +51,12 @@ describe("ActiveClue", () => {
     render(
       <ActiveClue
         details={details({
-          buzzedPlayer: { id: "p1", identity: { kind: "signature", image: "data:image/png;base64,AAAA" }, score: 0, connected: true },
+          buzzedPlayer: {
+            id: "p1",
+            identity: { kind: "signature", image: "data:image/png;base64,AAAA" },
+            score: 0,
+            connected: true,
+          },
         })}
       />,
     );

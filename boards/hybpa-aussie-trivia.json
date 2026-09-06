@@ -1,0 +1,127 @@
+[
+  {
+    "name": "Reality TV Ruckus",
+    "clues": [
+      {
+        "text": "Every season, this cooking show reduces its judges to tears over a deconstructed lamington.",
+        "answer": "What is MasterChef Australia?"
+      },
+      {
+        "text": "Contestants on this dating experiment call complete strangers 'husband' by lunchtime on day one.",
+        "answer": "What is Married at First Sight?"
+      },
+      {
+        "text": "This renovation show has proven that every open-plan kitchen needs its own applause meter.",
+        "answer": "What is The Block?"
+      },
+      {
+        "text": "On this survival show, castaways vote each other out while insisting it's 'just strategy, not personal'.",
+        "answer": "What is Survivor Australia?"
+      },
+      {
+        "text": "This long-running soap has been killing off and resurrecting Ramsay Street residents since 1985.",
+        "answer": "What is Neighbours?"
+      }
+    ]
+  },
+  {
+    "name": "Streaming Straya",
+    "clues": [
+      {
+        "text": "This blue heeler puppy has convinced grown adults that a game of 'keepy uppy' is a spiritual experience.",
+        "answer": "Who is Bluey?"
+      },
+      {
+        "text": "This comedy about a hapless ghost has office workers everywhere asking 'what would this dead accountant do'.",
+        "answer": "What is Colin from Accounts?"
+      },
+      {
+        "text": "This darkly funny murder-mystery series is set in the fictional Tasmanian town it's named after.",
+        "answer": "What is Deadloch?"
+      },
+      {
+        "text": "Based on Trent Dalton's novel, this series follows a Brisbane boy whose stepfather deals drugs and whose babysitter is a convicted murderer.",
+        "answer": "What is Boy Swallows Universe?"
+      },
+      {
+        "text": "This 1980s-set newsroom drama proves big hair and bigger egos ruled Melbourne television.",
+        "answer": "What is The Newsreader?"
+      }
+    ]
+  },
+  {
+    "name": "Sporting Shockers",
+    "clues": [
+      {
+        "text": "This trophy is presented every September to the winner of the AFL Grand Final at the MCG.",
+        "answer": "What is the Premiership Cup?"
+      },
+      {
+        "text": "Each winter, this rugby league series turns loungerooms into war zones over Queensland vs New South Wales.",
+        "answer": "What is State of Origin?"
+      },
+      {
+        "text": "This horse race famously 'stops a nation' for exactly three minutes each November.",
+        "answer": "What is the Melbourne Cup?"
+      },
+      {
+        "text": "Australia's women's soccer team captured the country's heart at the 2023 World Cup under this nickname.",
+        "answer": "Who are the Matildas?"
+      },
+      {
+        "text": "This tiny terracotta urn is contested between Australia and England, despite being smaller than a teacup.",
+        "answer": "What is the Ashes urn?"
+      }
+    ]
+  },
+  {
+    "name": "Weather & Wildlife Woes",
+    "clues": [
+      {
+        "text": "Cyclists across Australia strap zip ties to their helmets every spring to ward off this feathered menace.",
+        "answer": "What is a swooping magpie?"
+      },
+      {
+        "text": "This mythical marsupial is blamed by parents for every unexplained noise in a gum tree at night.",
+        "answer": "What is a drop bear?"
+      },
+      {
+        "text": "Introduced in 1935 to control cane beetles, this warty pest instead became public enemy number one.",
+        "answer": "What is the cane toad?"
+      },
+      {
+        "text": "This towering, rotating summer storm sends weather presenters sprinting back to the green screen.",
+        "answer": "What is a supercell?"
+      },
+      {
+        "text": "Sydney's most infamous spider hides in letterboxes and gives this venomous, web-spinning species its name.",
+        "answer": "What is the Sydney funnel-web spider?"
+      }
+    ]
+  },
+  {
+    "name": "Question Time Quips",
+    "clues": [
+      {
+        "text": "Each sitting day, this raucous session lets MPs yell over each other while pretending to ask genuine questions.",
+        "answer": "What is Question Time?"
+      },
+      {
+        "text": "This Canberra building, opened in 1988, is where all the yelling in Question Time actually happens.",
+        "answer": "What is Parliament House?"
+      },
+      {
+        "text": "This ceremonial officer's main job is shouting 'order!' until everyone politely ignores them.",
+        "answer": "Who is the Speaker of the House?"
+      },
+      {
+        "text": "Australia's federal parliament runs on this two-house Westminster system, just with more sunburn.",
+        "answer": "What is a bicameral parliament?"
+      },
+      {
+        "text": "Every election night, this psephologist's whiteboard and textas become more famous than the candidates.",
+        "answer": "Who is Antony Green?"
+      }
+    ]
+  }
+]

@@ -28,6 +28,16 @@ function buzzButtonStyle(enabled: boolean): CSSProperties {
   };
 }
 
+const editLinkStyle: CSSProperties = {
+  background: "transparent",
+  border: 0,
+  padding: 4,
+  color: "#c9d2f5",
+  fontSize: 13,
+  textDecoration: "underline",
+  cursor: "pointer",
+};
+
 export function JoinPage() {
   useIdentify("player");
   const state = useGameState();
@@ -36,6 +46,7 @@ export function JoinPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId() !== null);
+  const [editing, setEditing] = useState(false);
 
   // On mount, a Player whose browser persisted an identifier from a previous join
   // attempts to reattach to it — covering both a reload and a dropped connection. An
@@ -81,6 +92,21 @@ export function JoinPage() {
     });
   }
 
+  function handleEditIdentity(identity: PlayerIdentityValue) {
+    if (!playerId) return;
+    setSubmitting(true);
+    setError(null);
+    socket.emit("editIdentity", playerId, identity, (result: JoinResult) => {
+      setSubmitting(false);
+      if (result.ok) {
+        setJoinedIdentity(identity);
+        setEditing(false);
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
   const inSetup = state?.phase === "setup";
   const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
@@ -118,12 +144,49 @@ export function JoinPage() {
             <GameOver players={state.players} />
           ) : (
             <>
-              <div style={{ fontWeight: 800, fontSize: 24, textTransform: "uppercase" }}>
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 24,
+                  textTransform: "uppercase",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
                 {displayIdentity && <PlayerIdentity identity={displayIdentity} />}
                 {me && <span style={{ color: accent }}> — {formatScore(me.score)}</span>}
+                {!gameStarted && !editing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setEditing(true);
+                    }}
+                    style={editLinkStyle}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
               {!gameStarted ? (
-                <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
+                editing ? (
+                  <>
+                    <JoinForm onJoin={handleEditIdentity} submitting={submitting} error={error} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setEditing(false);
+                      }}
+                      style={editLinkStyle}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
+                )
               ) : (
                 <>
                   <button

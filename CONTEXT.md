@@ -43,7 +43,7 @@ The person driving the game: selects Tiles, sees each Clue's Answer as soon as i
 _Avoid_: moderator, admin
 
 **Player**:
-A participant with a name and score who can Buzz on the Active Clue from their own device. A Player identifies themselves at join time either by typing a name or by drawing a Signature — never both — and whichever they chose is used everywhere their identity is shown.
+A participant with a name and score who can Buzz on the Active Clue from their own device. A Player identifies themselves at join time either by typing a name or by drawing a Signature — never both — and whichever they chose is used everywhere their identity is shown. A Player may revisit and change this choice — a new typed name, a redrawn Signature, or switching between the two — any time before the Host starts the Game, subject to the same rules as a fresh join (no blank identity, no name collision with another Player).
 _Avoid_: contestant, user
 
 **Signature**:
@@ -58,12 +58,12 @@ _Avoid_: buzz in (as a noun), ring in
 The single Clue currently selected and on display. Only one Clue can be Active at a time; it must resolve (get judged correct and Closed, judged incorrect and reopened, or abandoned) before another Tile can be selected.
 
 **Clue Card**:
-The fullscreen display of the Active Clue, on the Board and Host screens. Zooms in from the selected Tile's position on the Board when selected, and zooms back out when the Clue resolves. On the Board and Player screens it has a Clue face (Category, Value, Clue text) and an Answer face it flips to when the Host Reveals. On the Host's screen it instead shows the Answer alongside the Clue face at all times — the Host's own card never flips.
+The fullscreen display of the Active Clue, on the Board and Host screens. Zooms in from the selected Tile's position on the Board when selected, and zooms back out when the Clue resolves. On the Board and Player screens it has a Clue face (Category, Value, Clue text) and an Answer face it flips to when the Host Reveals; while a Buzz is held, the Clue face there swaps its Clue text for a banner naming whoever's buzzed, so nobody still waiting to buzz can keep reading. On the Host's screen it instead shows the Answer alongside the Clue face at all times — the Host's own card never swaps or flips.
 _Avoid_: tile (a Clue Card isn't a Board Tile — it doesn't hold a Value or get marked used; it's a separate fullscreen view of whichever Tile is Active)
 
 **Reveal**:
-The Host's choice to flip the Clue Card to its Answer face for the Board and Players. Only available while no one currently holds the Buzz. Ends the Clue's attempt loop: once Revealed, no further Buzz is accepted, and the Host may Close the Clue regardless of how many Players have been excluded so far.
-_Avoid_: show the answer (the Host always *sees* the Answer privately; Reveal names only this specific public act)
+The Host's choice to flip the Clue Card to its Answer face for the Board and Players. Only available while no one currently holds the Buzz. Ends the Clue's attempt loop: once Revealed, no further Buzz is accepted, and the Host may Close the Clue regardless of how many Players have been excluded so far. Also triggered automatically the instant a Buzz is judged correct — the Host never needs a separate Reveal click once someone's already won the Clue (see ADR-0007).
+_Avoid_: show the answer (the Host always _sees_ the Answer privately; Reveal names only this specific public act)
 
 **Close**:
 The Host's action that finalizes the Active Clue: marks its Tile used and clears it, zooming every screen back to the Board. Available whenever every joined Player has been excluded, nobody has attempted the Clue at all, it's been Revealed, or a Player has already answered it correctly. Never itself changes a score — that already happened (or never happens) at judge time; Close just ends the Clue's time on screen, whether or not the Host chose to Reveal first.

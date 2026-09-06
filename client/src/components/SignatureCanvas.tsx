@@ -8,8 +8,8 @@ export interface SignatureCanvasHandle {
   toDataURL: () => string;
 }
 
-const CANVAS_WIDTH = 260;
-const CANVAS_HEIGHT = 140;
+const CANVAS_WIDTH = 340;
+const CANVAS_HEIGHT = 170;
 // Longest edge of the exported image. The drawing is scaled down to fit inside this so
 // the Signature that rides along with every `join` payload stays a few KB, not a
 // full-resolution PNG.
@@ -18,6 +18,9 @@ const EXPORT_MAX_EDGE = 180;
 const canvasStyle: CSSProperties = {
   width: CANVAS_WIDTH,
   height: CANVAS_HEIGHT,
+  maxWidth: "100%",
+  // Keeps the drawing area proportional if maxWidth shrinks it below CANVAS_WIDTH.
+  aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
   borderRadius: 12,
   border: "1px solid rgba(255,255,255,.2)",
   background: "rgba(255,255,255,.06)",
@@ -54,6 +57,11 @@ export const SignatureCanvas = forwardRef(function SignatureCanvas(
   const drawingRef = useRef(false);
   const hasContentRef = useRef(false);
   const [hasContent, setHasContent] = useState(false);
+  // A snapshot taken just before the most recent stroke started, plus whether the
+  // canvas had content at that point — restored wholesale by Undo. Single-level: a new
+  // stroke overwrites this snapshot, so only the most recent stroke is ever undoable.
+  const undoRef = useRef<{ snapshot: ImageData; hadContent: boolean } | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
 
   function context() {
     return canvasRef.current?.getContext("2d") ?? null;
@@ -78,6 +86,11 @@ export const SignatureCanvas = forwardRef(function SignatureCanvas(
     const canvas = canvasRef.current;
     const ctx = context();
     if (!canvas || !ctx) return;
+    undoRef.current = {
+      snapshot: ctx.getImageData(0, 0, canvas.width, canvas.height),
+      hadContent: hasContentRef.current,
+    };
+    setCanUndo(true);
     canvas.setPointerCapture(event.pointerId);
     drawingRef.current = true;
 
@@ -114,7 +127,21 @@ export const SignatureCanvas = forwardRef(function SignatureCanvas(
     const ctx = context();
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawingRef.current = false;
+    undoRef.current = null;
+    setCanUndo(false);
     markContent(false);
+  }
+
+  function undo() {
+    const canvas = canvasRef.current;
+    const ctx = context();
+    if (!canvas || !ctx || !undoRef.current) return;
+    ctx.putImageData(undoRef.current.snapshot, 0, 0);
+    const hadContent = undoRef.current.hadContent;
+    undoRef.current = null;
+    setCanUndo(false);
+    drawingRef.current = false;
+    markContent(hadContent);
   }
 
   useImperativeHandle(ref, () => ({
@@ -145,9 +172,14 @@ export const SignatureCanvas = forwardRef(function SignatureCanvas(
         onPointerCancel={endStroke}
         style={canvasStyle}
       />
-      <button type="button" onClick={clear} disabled={!hasContent} style={clearButtonStyle(hasContent)}>
-        Clear
-      </button>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 16 }}>
+        <button type="button" onClick={undo} disabled={!canUndo} style={clearButtonStyle(canUndo)}>
+          Undo
+        </button>
+        <button type="button" onClick={clear} disabled={!hasContent} style={clearButtonStyle(hasContent)}>
+          Clear
+        </button>
+      </div>
     </div>
   );
 });

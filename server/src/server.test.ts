@@ -43,9 +43,7 @@ describe("socket.io wiring", () => {
         else queue.push(state);
       });
       const nextState = () =>
-        queue.length > 0
-          ? Promise.resolve(queue.shift()!)
-          : new Promise<GameState>((r) => waiters.push(r));
+        queue.length > 0 ? Promise.resolve(queue.shift()!) : new Promise<GameState>((r) => waiters.push(r));
 
       socket.on("connect", () => {
         // A socket that declares a role gets a second "state" push in reply (the
@@ -124,7 +122,8 @@ describe("socket.io wiring", () => {
 
     const signature: PlayerIdentity = {
       kind: "signature",
-      image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      image:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     };
     const ack = await new Promise<JoinResult>((resolve) => {
       dana.socket.emit("join", signature, resolve);
@@ -142,6 +141,28 @@ describe("socket.io wiring", () => {
     await reconnected.nextState();
     reconnected.socket.emit("reconnect", danaId);
     expect((await reconnected.nextState()).players[0].identity).toEqual(signature);
+  });
+
+  it("lets a joined Player edit their identity before the Game starts, broadcasting the change", async () => {
+    const dana = await connect();
+    await dana.nextState();
+    dana.socket.emit("openLobby");
+    await dana.nextState();
+
+    const joinAck = await new Promise<JoinResult>((resolve) => {
+      dana.socket.emit("join", textIdentity("Dana"), resolve);
+    });
+    expect(joinAck.ok).toBe(true);
+    const danaId = (joinAck as Extract<JoinResult, { ok: true }>).playerId;
+    await dana.nextState();
+
+    const editAck = await new Promise<JoinResult>((resolve) => {
+      dana.socket.emit("editIdentity", danaId, textIdentity("Danielle"), resolve);
+    });
+    expect(editAck.ok).toBe(true);
+
+    const broadcast = await dana.nextState();
+    expect(broadcast.players[0].identity).toEqual(textIdentity("Danielle"));
   });
 
   it("reopens a Clue after an incorrect judgement and lets the Host close it once everyone is excluded", async () => {

@@ -1,0 +1,7 @@
+# A correct judge auto-reveals the Answer, instead of requiring a separate Reveal click
+
+ADR-0005 deliberately made Reveal a separate, Host-triggered public act from judging, specifically so judging a Buzz never forces the Host to spoil the Answer to Players who haven't attempted the Clue yet. That reasoning only bites while the attempt loop is still open. Once a Buzz has been judged correct, the loop is already over — nobody else can attempt this Clue — so withholding the Answer from the Board and Players any longer serves no one; it just costs the Host an extra click before they can Close.
+
+`judge` with `correct: true` now sets `revealed: true` in the same reducer step that awards the score and clears the Buzz, flipping the Clue Card to its Answer face for Board and Player sockets immediately. An explicit `reveal` action after that point is a no-op (the reducer already rejects a reveal once `revealed` is true), so nothing breaks if a client still fires one. Judging incorrect is unaffected: the loop reopens for the remaining Players, so the Answer stays withheld exactly as before.
+
+Considered leaving judge and Reveal fully independent (the ADR-0005 status quo) and only changing the Host UI to fire both actions back-to-back on a correct judge. Rejected: that's a client-side band-aid for a server-side truth (the attempt loop is over), and it would leave any other client driving the Host role — or a test dispatching `judge` directly — with the same two-click gap this ADR removes.

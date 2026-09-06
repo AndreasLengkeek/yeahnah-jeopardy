@@ -20,9 +20,18 @@ export function GameOver({ players }: { players: Player[] }) {
         textAlign: "center",
       }}
     >
-      <div style={{ fontSize: 13, letterSpacing: ".18em", textTransform: "uppercase", color: "#dfe4ff" }}>Game Over</div>
+      <div style={{ fontSize: 13, letterSpacing: ".18em", textTransform: "uppercase", color: "#dfe4ff" }}>
+        Game Over
+      </div>
       {winners.length > 0 && (
-        <div style={{ fontFamily: "'Zilla Slab', Georgia, serif", fontWeight: 700, fontSize: "clamp(22px, 3.6vh, 40px)", color: accent }}>
+        <div
+          style={{
+            fontFamily: "'Zilla Slab', Georgia, serif",
+            fontWeight: 700,
+            fontSize: "clamp(22px, 3.6vh, 40px)",
+            color: accent,
+          }}
+        >
           {winners.map((player, index) => (
             <span key={player.id}>
               {index > 0 && " & "}

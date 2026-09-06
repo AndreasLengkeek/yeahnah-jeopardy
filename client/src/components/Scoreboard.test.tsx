@@ -53,9 +53,7 @@ describe("Scoreboard", () => {
   it("does not call onEditScore when the field is focused and blurred without an edit", async () => {
     const user = userEvent.setup();
     const onEditScore = vi.fn();
-    const players: Player[] = [
-      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
-    ];
+    const players: Player[] = [{ id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true }];
 
     render(<Scoreboard players={players} onEditScore={onEditScore} />);
 
@@ -69,9 +67,7 @@ describe("Scoreboard", () => {
   it("discards a non-integer entry without calling onEditScore", async () => {
     const user = userEvent.setup();
     const onEditScore = vi.fn();
-    const players: Player[] = [
-      { id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true },
-    ];
+    const players: Player[] = [{ id: "p1", identity: { kind: "text", name: "Dana" }, score: 400, connected: true }];
 
     render(<Scoreboard players={players} onEditScore={onEditScore} />);
 

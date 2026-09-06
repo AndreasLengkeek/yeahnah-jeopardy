@@ -8,8 +8,7 @@ const scoreColor = (score: number) => (score < 0 ? "#ff8a7a" : accent);
 
 // A text identity labels controls (e.g. the editable score's aria-label) by name; a
 // drawn Signature carries no text, so it falls back to a fixed label.
-const identityLabel = (identity: Player["identity"]) =>
-  identity.kind === "text" ? identity.name : "Signature";
+const identityLabel = (identity: Player["identity"]) => (identity.kind === "text" ? identity.name : "Signature");
 
 type ScoreboardProps = {
   players: Player[];
@@ -21,17 +20,18 @@ type ScoreboardProps = {
 
 export function Scoreboard({ players, onEditScore }: ScoreboardProps) {
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", flex: "none" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center", flex: "none" }}>
       {players.map((player) => (
         <div
           key={player.id}
           style={{
             display: "flex",
             alignItems: "baseline",
-            gap: 8,
-            padding: "8px 16px",
+            gap: 12,
+            padding: "14px 26px",
             borderRadius: 999,
             background: palette.card,
+            fontSize: "clamp(16px, 2.6vh, 26px)",
           }}
         >
           <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>
@@ -76,7 +76,7 @@ function EditableScore({ player, onCommit }: { player: Player; onCommit: (score:
         if (event.key === "Enter") event.currentTarget.blur();
       }}
       style={{
-        width: 72,
+        width: "3.2em",
         font: "inherit",
         fontWeight: 800,
         textAlign: "right",

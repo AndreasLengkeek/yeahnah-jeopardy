@@ -10,7 +10,7 @@ const headerStyle: CSSProperties = {
   padding: "13px 9px",
   borderRadius: 12,
   fontWeight: 800,
-  fontSize: 15,
+  fontSize: "clamp(14px, 2.4vh, 24px)",
   lineHeight: 1.15,
   letterSpacing: ".06em",
   textTransform: "uppercase",

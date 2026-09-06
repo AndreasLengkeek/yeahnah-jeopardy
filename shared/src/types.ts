@@ -57,6 +57,7 @@ export type ClueField = 'text' | 'answer';
 
 export type GameAction =
   | { type: 'join'; identity: PlayerIdentity }
+  | { type: 'editIdentity'; playerId: string; identity: PlayerIdentity }
   | { type: 'reconnect'; playerId: string }
   | { type: 'newBoard'; categoryCount: number }
   | { type: 'editCategoryName'; categoryIndex: number; name: string }

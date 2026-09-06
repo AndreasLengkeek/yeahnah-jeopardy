@@ -150,10 +150,6 @@ export function HostPage() {
         </>
       ) : (
         <>
-          <Scoreboard
-            players={state.players}
-            onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
-          />
           <ClueCardStage
             board={state.board}
             activeClue={state.activeClue}
@@ -163,6 +159,10 @@ export function HostPage() {
             alwaysShowAnswer
           />
           {resetGameButton()}
+          <Scoreboard
+            players={state.players}
+            onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
+          />
         </>
       )}
     </div>

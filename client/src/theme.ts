@@ -19,9 +19,10 @@ export const shellStyle: CSSProperties = {
 export const titleStyle: CSSProperties = {
   fontFamily: "'Zilla Slab', Georgia, serif",
   fontWeight: 700,
-  fontSize: 22,
+  fontSize: "clamp(22px, 3vw, 34px)",
   letterSpacing: ".16em",
   textTransform: "uppercase",
+  textAlign: "center",
   color: accent,
 };
 

@@ -65,6 +65,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'join':
       return applyJoin(state, action.identity);
+    case 'editIdentity':
+      return applyEditIdentity(state, action.playerId, action.identity);
     case 'reconnect':
       return applyReconnect(state, action.playerId);
     case 'newBoard':
@@ -108,6 +110,24 @@ function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
 
   const player: Player = { id: crypto.randomUUID(), identity: normalized, score: 0, connected: true };
   return { ...state, players: [...state.players, player] };
+}
+
+// Lets a Player who already joined revise their name or Signature (or switch between
+// the two) any time before the Host starts the Game — same blank and duplicate-name
+// rules as a fresh join, checked against every other Player, not themself.
+function applyEditIdentity(state: GameState, playerId: string, identity: PlayerIdentity): GameState {
+  const normalized = normalizeIdentity(identity);
+  if (isBlankIdentity(normalized)) return state;
+  if (state.phase !== 'lobby') return state;
+  if (!state.players.some((player) => player.id === playerId)) return state;
+  if (state.players.some((player) => player.id !== playerId && identitiesMatch(player.identity, normalized))) {
+    return state;
+  }
+
+  return {
+    ...state,
+    players: state.players.map((player) => (player.id === playerId ? { ...player, identity: normalized } : player)),
+  };
 }
 
 // Reattaches a Player who joined before the Game started to their existing identity —
@@ -252,10 +272,13 @@ function applyJudge(state: GameState, correct: boolean): GameState {
   );
 
   if (correct) {
+    // A correct answer ends the attempt loop the same way an explicit Reveal does, so
+    // it also flips the Clue Card public-facing — the Host shouldn't need a separate
+    // Reveal click once someone's already won the Clue.
     return {
       ...state,
       players,
-      activeClue: { ...clue, buzzedPlayerId: null, correctPlayerId: buzzedPlayerId },
+      activeClue: { ...clue, buzzedPlayerId: null, revealed: true, correctPlayerId: buzzedPlayerId },
     };
   }
 

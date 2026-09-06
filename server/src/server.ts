@@ -86,6 +86,21 @@ export function createGameServer() {
       ack?.({ ok: true, playerId });
     });
 
+    socket.on("editIdentity", (playerId: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
+      const wasLobby = state.phase === "lobby";
+      if (!dispatch({ type: "editIdentity", playerId, identity })) {
+        const error = !wasLobby
+          ? "The game has already started."
+          : identity.kind === "signature"
+            ? "That signature didn't come through — try drawing again."
+            : "That name is already taken.";
+        ack?.({ ok: false, error });
+        return;
+      }
+
+      ack?.({ ok: true, playerId });
+    });
+
     socket.on("newBoard", (categoryCount: number) => {
       dispatch({ type: "newBoard", categoryCount });
     });

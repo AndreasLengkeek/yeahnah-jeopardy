@@ -62,7 +62,13 @@ const backFaceStyle: CSSProperties = {
   transform: "rotateY(180deg)",
   color: accent,
   fontWeight: 800,
-  fontSize: "clamp(18px, 2.8vh, 30px)",
+};
+
+const buzzFaceStyle: CSSProperties = {
+  ...faceStyle,
+  color: accent,
+  fontWeight: 800,
+  animation: "buzzFlash 900ms ease-in-out infinite",
 };
 
 const statusStyle: CSSProperties = {
@@ -102,10 +108,19 @@ export function ActiveClue({
   alwaysShowAnswer?: boolean;
 }) {
   const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer } = details;
-  const statusText: ReactNode = buzzedPlayer ? (
+  // Once someone holds the Buzz, Board and Player hide the Clue text behind a big
+  // banner instead — the Host keeps seeing it throughout (alwaysShowAnswer is only
+  // ever true for the Host's own card).
+  const hideClueOnBuzz = !!buzzedPlayer && !alwaysShowAnswer;
+
+  const buzzBanner: ReactNode = buzzedPlayer && (
     <>
       <PlayerIdentity identity={buzzedPlayer.identity} /> has the buzz
     </>
+  );
+
+  const statusText: ReactNode = hideClueOnBuzz ? null : buzzedPlayer ? (
+    buzzBanner
   ) : correctPlayer ? (
     <>
       <PlayerIdentity identity={correctPlayer.identity} /> got it right
@@ -123,14 +138,14 @@ export function ActiveClue({
 
       <div style={flipStageStyle}>
         <div style={flipCardStyle(revealed)}>
-          <div style={faceStyle}>{clueText}</div>
+          <div style={hideClueOnBuzz ? buzzFaceStyle : faceStyle}>{hideClueOnBuzz ? buzzBanner : clueText}</div>
           <div style={backFaceStyle}>{revealed && answer}</div>
         </div>
       </div>
 
       {alwaysShowAnswer && !revealed && <div style={hostAnswerStyle}>{answer}</div>}
 
-      <div style={statusStyle}>{statusText}</div>
+      {statusText && <div style={statusStyle}>{statusText}</div>}
 
       {footer}
     </div>

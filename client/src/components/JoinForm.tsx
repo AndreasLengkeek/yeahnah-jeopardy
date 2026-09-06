@@ -85,7 +85,7 @@ export function JoinForm({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12, width: 260 }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12, width: 340, maxWidth: "100%" }}>
       <div style={{ display: mode === "draw" ? "flex" : "none", flexDirection: "column", gap: 12 }}>
         <SignatureCanvas ref={canvasRef} onContentChange={setHasDrawing} />
         <button type="button" onClick={() => setMode("text")} style={linkButtonStyle}>
