@@ -81,6 +81,21 @@ describe("BoardSetup", () => {
     expect(handlers.onEditClue).toHaveBeenCalledWith(0, 2, "answer", "Y");
   });
 
+  it("keeps category names single-line while clue text and answers are multiline textareas", () => {
+    render(<BoardSetup content={blankBoard(3)} {...noopHandlers()} />);
+
+    expect(screen.getByLabelText("Category 1 name").tagName).toBe("INPUT");
+    expect(screen.getByRole("textbox", { name: "Category 1 clue 1 text" }).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("textbox", { name: "Category 1 clue 1 answer" }).tagName).toBe("TEXTAREA");
+  });
+
+  it("keeps the category grid column count in sync with the current category count", () => {
+    render(<BoardSetup content={completeBoard(6)} {...noopHandlers()} />);
+
+    const grid = screen.getByLabelText("Category 1 name").closest("div")?.parentElement;
+    expect(grid).toHaveStyle({ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" });
+  });
+
   it("starts a new board with the chosen category count", async () => {
     const user = userEvent.setup();
     const handlers = noopHandlers();
