@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02, 03
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `resetGame` resets `round` to `1`, `phase` to `'lobby'`, rebuilds Round 1's `board` from `content`, and redraws fresh coordinates for Round 1's Daily Double and both of Double Jeopardy's — Double Jeopardy's `board` itself is not rebuilt until `startDoubleJeopardy` runs again
 - [x] `returnToSetup` leaves `doubleJeopardyContent` and `twoRounds` untouched, clearing only `board`, `activeClue`, and every Daily Double coordinate back to their setup-phase defaults (matching how `content` is already preserved today)

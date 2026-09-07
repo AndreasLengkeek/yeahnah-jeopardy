@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `GamePhase` gains `'roundBreak'`, reached only when a two-Round Game's Round 1 Board fully drains (a single-Round Game's drained Board still goes straight to `'gameOver'`, unchanged)
 - [x] `GameState` gains `round: 1 | 2` (always `1` for a single-Round Game)

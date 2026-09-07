@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `serializeBoardConfig` produces `{ round1: CategoryData[], doubleJeopardy?: CategoryData[] }`, including `doubleJeopardy` only when the Game has two Rounds
 - [x] `parseBoardConfig` accepts the new object shape, validating `doubleJeopardy` (when present) with the same per-Category/per-Clue rules as `round1`, at the same Category count
