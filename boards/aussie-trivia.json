@@ -1,127 +1,256 @@
-[
-  {
-    "name": "Slanguage 101",
-    "clues": [
-      {
-        "text": "Aussie shorthand for 'afternoon', as in a barbie this ___",
-        "answer": "Arvo"
-      },
-      {
-        "text": "Slang for a service station, home of the road-trip meat pie",
-        "answer": "Servo"
-      },
-      {
-        "text": "This word for 'excellent' turns up in 'what a bloody ___ effort'",
-        "answer": "Ripper"
-      },
-      {
-        "text": "Slang for sunglasses, essential kit at the cricket",
-        "answer": "Sunnies"
-      },
-      {
-        "text": "Rhyming slang for 'have a look', as in 'have a Captain Cook'",
-        "answer": "Have a look"
-      }
-    ]
-  },
-  {
-    "name": "Bunnings & Big Things",
-    "clues": [
-      {
-        "text": "The bargain hardware chain famous for its $2 sausage in bread",
-        "answer": "Bunnings"
-      },
-      {
-        "text": "The great sausage sizzle debate: onions on top, or ___ the bread",
-        "answer": "Underneath"
-      },
-      {
-        "text": "This giant fibreglass fruit has towered over Coffs Harbour since 1964",
-        "answer": "The Big Banana"
-      },
-      {
-        "text": "This giant crustacean roadside attraction stands in Ballina, NSW",
-        "answer": "The Big Prawn"
-      },
-      {
-        "text": "The colour scheme of every Bunnings warehouse and its logo",
-        "answer": "Green"
-      }
-    ]
-  },
-  {
-    "name": "Sportsball Straya",
-    "clues": [
-      {
-        "text": "This winter football code packs the MCG for its Grand Final each September",
-        "answer": "AFL (Australian Rules Football)"
-      },
-      {
-        "text": "Cricket's shortest, loudest format, played under lights in coloured kit",
-        "answer": "Twenty20 (T20)"
-      },
-      {
-        "text": "The Melbourne Cup is billed as 'the race that stops the ___'",
-        "answer": "Nation"
-      },
-      {
-        "text": "Australia's women's national soccer team goes by this nickname",
-        "answer": "The Matildas"
-      },
-      {
-        "text": "In State of Origin, Queensland's Maroons face off against this state's Blues",
-        "answer": "New South Wales"
-      }
-    ]
-  },
-  {
-    "name": "Screen Straya",
-    "clues": [
-      {
-        "text": "This Brisbane blue heeler puppy became a global streaming phenomenon",
-        "answer": "Bluey"
-      },
-      {
-        "text": "This comedy duo built a career on prank calls and 'Gap Year' TV specials",
-        "answer": "Hamish and Andy"
-      },
-      {
-        "text": "This 1994 film about a Porpoise Spit girl and ABBA anthems launched Toni Collette",
-        "answer": "Muriel's Wedding"
-      },
-      {
-        "text": "Kath Day-Knight's excited catchphrase to Kel: 'Look at moi, look at ___'",
-        "answer": "Moi"
-      },
-      {
-        "text": "This gritty Melbourne crime drama followed the Cody family and gave Ben Mendelsohn his breakout role",
-        "answer": "Animal Kingdom"
-      }
-    ]
-  },
-  {
-    "name": "Wildlife Whinges",
-    "clues": [
-      {
-        "text": "This spring phenomenon sees cyclists strap zip ties to their helmets for protection",
-        "answer": "Magpie swooping season"
-      },
-      {
-        "text": "Mythical marsupial said to drop from trees onto unsuspecting tourists",
-        "answer": "The drop bear"
-      },
-      {
-        "text": "This invasive amphibian, introduced in 1935 to control beetles, became a national pest",
-        "answer": "The cane toad"
-      },
-      {
-        "text": "Sydney's most notorious spider lurks in burrows as this venomous variety",
-        "answer": "The Sydney funnel-web spider"
-      },
-      {
-        "text": "This deadly tropical jellyfish gives stinger-net beaches their name",
-        "answer": "The box jellyfish"
-      }
-    ]
-  }
-]
+{
+  "round1": [
+    {
+      "name": "Slanguage 101",
+      "clues": [
+        {
+          "text": "Aussie shorthand for 'afternoon', as in a barbie this ___",
+          "answer": "Arvo"
+        },
+        {
+          "text": "Slang for a service station, home of the road-trip meat pie",
+          "answer": "Servo"
+        },
+        {
+          "text": "This word for 'excellent' turns up in 'what a bloody ___ effort'",
+          "answer": "Ripper"
+        },
+        {
+          "text": "Slang for sunglasses, essential kit at the cricket",
+          "answer": "Sunnies"
+        },
+        {
+          "text": "Rhyming slang for 'have a look', as in 'have a Captain Cook'",
+          "answer": "Have a look"
+        }
+      ]
+    },
+    {
+      "name": "Bunnings & Big Things",
+      "clues": [
+        {
+          "text": "The bargain hardware chain famous for its $2 sausage in bread",
+          "answer": "Bunnings"
+        },
+        {
+          "text": "The great sausage sizzle debate: onions on top, or ___ the bread",
+          "answer": "Underneath"
+        },
+        {
+          "text": "This giant fibreglass fruit has towered over Coffs Harbour since 1964",
+          "answer": "The Big Banana"
+        },
+        {
+          "text": "This giant crustacean roadside attraction stands in Ballina, NSW",
+          "answer": "The Big Prawn"
+        },
+        {
+          "text": "The colour scheme of every Bunnings warehouse and its logo",
+          "answer": "Green"
+        }
+      ]
+    },
+    {
+      "name": "Sportsball Straya",
+      "clues": [
+        {
+          "text": "This winter football code packs the MCG for its Grand Final each September",
+          "answer": "AFL (Australian Rules Football)"
+        },
+        {
+          "text": "Cricket's shortest, loudest format, played under lights in coloured kit",
+          "answer": "Twenty20 (T20)"
+        },
+        {
+          "text": "The Melbourne Cup is billed as 'the race that stops the ___'",
+          "answer": "Nation"
+        },
+        {
+          "text": "Australia's women's national soccer team goes by this nickname",
+          "answer": "The Matildas"
+        },
+        {
+          "text": "In State of Origin, Queensland's Maroons face off against this state's Blues",
+          "answer": "New South Wales"
+        }
+      ]
+    },
+    {
+      "name": "Screen Straya",
+      "clues": [
+        {
+          "text": "This Brisbane blue heeler puppy became a global streaming phenomenon",
+          "answer": "Bluey"
+        },
+        {
+          "text": "This comedy duo built a career on prank calls and 'Gap Year' TV specials",
+          "answer": "Hamish and Andy"
+        },
+        {
+          "text": "This 1994 film about a Porpoise Spit girl and ABBA anthems launched Toni Collette",
+          "answer": "Muriel's Wedding"
+        },
+        {
+          "text": "Kath Day-Knight's excited catchphrase to Kel: 'Look at moi, look at ___'",
+          "answer": "Moi"
+        },
+        {
+          "text": "This gritty Melbourne crime drama followed the Cody family and gave Ben Mendelsohn his breakout role",
+          "answer": "Animal Kingdom"
+        }
+      ]
+    },
+    {
+      "name": "Wildlife Whinges",
+      "clues": [
+        {
+          "text": "This spring phenomenon sees cyclists strap zip ties to their helmets for protection",
+          "answer": "Magpie swooping season"
+        },
+        {
+          "text": "Mythical marsupial said to drop from trees onto unsuspecting tourists",
+          "answer": "The drop bear"
+        },
+        {
+          "text": "This invasive amphibian, introduced in 1935 to control beetles, became a national pest",
+          "answer": "The cane toad"
+        },
+        {
+          "text": "Sydney's most notorious spider lurks in burrows as this venomous variety",
+          "answer": "The Sydney funnel-web spider"
+        },
+        {
+          "text": "This deadly tropical jellyfish gives stinger-net beaches their name",
+          "answer": "The box jellyfish"
+        }
+      ]
+    }
+  ],
+  "doubleJeopardy": [
+    {
+      "name": "Aussie TV Icons",
+      "clues": [
+        {
+          "text": "Judges cry over deconstructed lamingtons in this show's 'Mystery Box' and 'Invention Test' rounds",
+          "answer": "MasterChef Australia"
+        },
+        {
+          "text": "Strangers wed within days, then face a weekly 'Commitment Ceremony' vote on this show",
+          "answer": "Married at First Sight"
+        },
+        {
+          "text": "Five teams renovate through 'Kitchen Week' and 'Bathroom Week' to a nail-biting live auction",
+          "answer": "The Block"
+        },
+        {
+          "text": "Castaways hunt hidden immunity idols and snuff their torch at 'tribal council'",
+          "answer": "Survivor Australia"
+        },
+        {
+          "text": "This Erinsborough soap was axed, revived, then axed again — Harold Bishop still hasn't had his send-off",
+          "answer": "Neighbours"
+        }
+      ]
+    },
+    {
+      "name": "Streaming Straya",
+      "clues": [
+        {
+          "text": "This six-year-old plays 'Keepy Uppy' and 'Magic Xylophone' in seven-minute episodes",
+          "answer": "Bluey"
+        },
+        {
+          "text": "A three-legged dog named Colin sparks the romance in this rom-com",
+          "answer": "Colin from Accounts"
+        },
+        {
+          "text": "Grisly deaths plague a Tasmanian town's wellness retreat and folk festival in this black comedy",
+          "answer": "Deadloch"
+        },
+        {
+          "text": "A red rotary phone links this saga's narrator to an ex-safecracker named Slim",
+          "answer": "Boy Swallows Universe"
+        },
+        {
+          "text": "Set in 1986, this Melbourne newsroom drama's season one covers the Russell Street bombing",
+          "answer": "The Newsreader"
+        }
+      ]
+    },
+    {
+      "name": "Sporting Straya",
+      "clues": [
+        {
+          "text": "The league chairman hands this trophy to the winning captain on the MCG's members' balcony",
+          "answer": "The Premiership Cup"
+        },
+        {
+          "text": "Born from a 1980 eligibility rule, this rugby league series is a best-of-three each June and July",
+          "answer": "State of Origin"
+        },
+        {
+          "text": "This 3200-metre handicap at Flemington supposedly stops the nation at 3pm each November",
+          "answer": "The Melbourne Cup"
+        },
+        {
+          "text": "Sam Kerr's scissor-kick against England defined this team's fourth-place run at the 2023 World Cup",
+          "answer": "The Matildas"
+        },
+        {
+          "text": "Said to hold a cricket bail's ashes, this tiny trophy has stayed at Lord's since 1927",
+          "answer": "The Ashes urn"
+        }
+      ]
+    },
+    {
+      "name": "Weather & Wildlife Woes",
+      "clues": [
+        {
+          "text": "Nesting males dive-bomb passers-by for about six weeks each spring",
+          "answer": "A swooping magpie"
+        },
+        {
+          "text": "Wear Vegemite behind your ears to ward off this mythical cousin of the koala",
+          "answer": "The drop bear"
+        },
+        {
+          "text": "Released at Gordonvale to fight beetles, this toxic invader now spreads 50 kilometres a year",
+          "answer": "The cane toad"
+        },
+        {
+          "text": "A rotating 'mesocyclone' updraught defines this giant-hailstone-producing storm",
+          "answer": "A supercell"
+        },
+        {
+          "text": "Only males of this deadly spider are venomous enough to kill, and the public still helps milk them",
+          "answer": "The Sydney funnel-web spider"
+        }
+      ]
+    },
+    {
+      "name": "Question Time Quips",
+      "clues": [
+        {
+          "text": "Ministers face real questions while backbenchers lob soft 'Dorothy Dixers' in this daily session",
+          "answer": "Question Time"
+        },
+        {
+          "text": "Opened in 1988 into Capital Hill, this building flies a bus-sized flag",
+          "answer": "Parliament House"
+        },
+        {
+          "text": "This MP-elected officer votes only on ties, and ejects rowdy members under standing order 94(a)",
+          "answer": "The Speaker of the House"
+        },
+        {
+          "text": "Australia's Parliament splits into a 150-seat house and a 76-seat house",
+          "answer": "A bicameral parliament"
+        },
+        {
+          "text": "Since the 1989 NSW election, this ABC analyst calls seats before the AEC finishes counting",
+          "answer": "Antony Green"
+        }
+      ]
+    }
+  ]
+}
