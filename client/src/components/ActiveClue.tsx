@@ -68,7 +68,15 @@ const buzzFaceStyle: CSSProperties = {
   ...faceStyle,
   color: accent,
   fontWeight: 800,
-  animation: "buzzFlash 900ms ease-in-out infinite",
+};
+
+// A Buzz is a claim on the whole Clue Card, not just its text, so the flash covers the
+// entire card. It fires a couple of times (fill-mode "none" so the card settles back to
+// its normal background once the animation ends) rather than looping for as long as the
+// buzz is held.
+const buzzCardStyle: CSSProperties = {
+  ...cardStyle,
+  animation: "buzzFlash 900ms ease-in-out 2",
 };
 
 const statusStyle: CSSProperties = {
@@ -96,7 +104,6 @@ const dailyDoubleTitleStyle: CSSProperties = {
   textTransform: "uppercase",
   color: accent,
   textAlign: "center",
-  animation: "buzzFlash 900ms ease-in-out infinite",
 };
 
 const hostAnswerStyle: CSSProperties = {
@@ -162,6 +169,12 @@ export function ActiveClue({
   // Clue text throughout (alwaysShowAnswer is only ever true for the Host's own card).
   const hideClueBehindBanner = (wagering || !!buzzedPlayer) && !alwaysShowAnswer;
 
+  // Only an actual Buzz flashes the whole Clue Card — a Daily Double's cover and its
+  // wagering banner are already unmistakable moments and don't need it. Keyed to the
+  // buzzing Player so a fresh Buzz (after a wrong answer clears the last one) restarts
+  // its own couple-of-flashes animation instead of reusing a spent one.
+  const showBuzzFlash = !!buzzedPlayer && !alwaysShowAnswer;
+
   const wageringBanner: ReactNode = wageringPlayer ? (
     <>
       <PlayerIdentity identity={wageringPlayer.identity} /> is wagering…
@@ -191,7 +204,7 @@ export function ActiveClue({
   );
 
   return (
-    <div style={cardStyle}>
+    <div style={showBuzzFlash ? buzzCardStyle : cardStyle} key={buzzedPlayer && showBuzzFlash ? buzzedPlayer.id : "card"}>
       <div style={headerStyle}>
         <span>{category}</span>
         <span style={valueStyle}>${headerValue.toLocaleString("en-US")}</span>
