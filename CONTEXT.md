@@ -38,6 +38,10 @@ _Avoid_: question (a Clue is phrased as a statement; the Player's Buzz is what e
 **Value**:
 The point amount a Clue is worth, shown on its Tile before selection and awarded to (or deducted from) whichever Player answers it.
 
+**Daily Double**:
+One Tile per Board, chosen at random when the Board is built and kept secret from everyone — including the Host — until selected. Its Clue is resolved by a single Host-designated Player's Wager instead of the Tile's printed Value and the usual Buzz race; the Value shown before selection is a decoy, never what's actually at stake.
+_Avoid_: hidden tile, bonus tile
+
 **Host**:
 The person driving the game: selects Tiles, sees each Clue's Answer as soon as it becomes Active, judges a Buzz as correct or incorrect without needing to Reveal first, and may Reveal an Answer publicly when no one currently holds the Buzz. May also directly set any Player's score to any value at any time the Scoreboard is visible — including mid-Clue and after Game Over — to correct a mis-judged Buzz or any other scoring mistake, with no confirmation step and no effect on Clue or Buzz state.
 _Avoid_: moderator, admin
@@ -53,6 +57,10 @@ _Avoid_: avatar, drawing (drawing is the act; Signature is the resulting identit
 **Buzz**:
 A Player's claim to answer the Active Clue. The first Buzz the server receives wins; every other Player is locked out until the clue resolves. Not accepted once the Host has Revealed the Answer, or once a Player has already answered it correctly — either one ends the Clue's attempt loop.
 _Avoid_: buzz in (as a noun), ring in
+
+**Wager**:
+The amount a Daily Double's Host-designated Player stakes instead of Buzzing — a number between $5 and the greater of their current score or the board's static top Value, submitted once from their own device and final from that moment on. Replaces the Value as the amount added to (or deducted from) their score once the Host judges their answer; there is no Buzz race and no other Player ever gets a turn at this Clue.
+_Avoid_: bet, bid
 
 **Active Clue**:
 The single Clue currently selected and on display. Only one Clue can be Active at a time; it must resolve (get judged correct and Closed, judged incorrect and reopened, or abandoned) before another Tile can be selected.

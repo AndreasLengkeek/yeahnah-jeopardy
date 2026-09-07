@@ -1,0 +1,17 @@
+# 02: Host designates a wagerer; Player submits a Wager
+
+**What to build:** Once a Daily Double Clue is active, the Host picks any joined Player — connected or not — from a list on the Host screen to wager on it, and can freely re-pick a different Player right up until a Wager actually lands (a plain mis-click fix, not a locked-in competitive act). The designated Player then sees a Wager-entry control on their own device, bounded between $5 and the greater of their current score or the board's static $500 top Value (shown to them before they submit), and commits one final Wager amount — an out-of-range or otherwise invalid submission is rejected outright, never silently adjusted. Every other Player and the Board see a "so-and-so is wagering…" banner (reusing the existing Buzz-banner swap) instead of the normal waiting state. Buzzing is still not locked out in this ticket (that's ticket 3) — this ticket is purely about the designate → wager round trip.
+
+**Blocked by:** 1 (Secret Daily Double assignment & reveal on selection)
+
+**Status:** ready-for-agent
+
+- [ ] A new `designateWagerer { playerId }` action sets the Daily Double's wagering Player to any Player in the roster regardless of `connected` status; valid only while the Clue is a Daily Double and no Wager has yet been submitted; a repeated call before a Wager lands overwrites the prior pick (redesignation); it's a no-op once a Wager already exists.
+- [ ] A new `submitWager { playerId, amount }` action records the Wager only when `playerId` matches the currently designated Player, no Wager exists yet, and `amount` is between $5 and the greater of that Player's current score or $500 inclusive; any other case (wrong Player, already submitted, out of bounds) is a no-op — the amount is never clamped or rewritten.
+- [ ] Once submitted, the Wager is final — no further `submitWager` call for that Clue changes it.
+- [ ] The Host screen shows a list of all joined Players (connection status doesn't filter it) to designate, whenever the active Daily Double has no Wager yet; tapping a different Player re-designates as long as no Wager has landed.
+- [ ] The designated Player's own device shows a Wager-entry control displaying the $5 minimum and their computed maximum before they submit, and emits the submit action on confirm.
+- [ ] Every Player who is not the designated wagerer, and the Board, see a banner naming the current wagerer (reusing the existing Buzz-banner mechanism) instead of a waiting-for-Buzz state, for as long as no Wager has been submitted.
+- [ ] `shared/src/gameEngine.test.ts` covers: `designateWagerer` sets the wagering Player regardless of `connected`; is a no-op on a non-Daily-Double Clue or once a Wager exists; supports redesignation pre-Wager. `submitWager` accepts the full valid range including the $500 floor for a Player at or below $500 (including exactly $0 and negative scores) and the score-based ceiling above $500; rejects amounts below $5, above the computed max, from a non-designated Player, or once a Wager already exists — in every reject case, `wager` stays unchanged.
+- [ ] `server/src/server.test.ts` covers: emitting `designateWagerer` and `submitWager` each produce a broadcast reflecting the change, following the existing 1:1 wiring pattern.
+- [ ] `client/src/activeClue.test.ts` and `client/src/components/ActiveClue.test.tsx` cover: `resolveActiveClue` surfaces the wagering Player and Wager amount; the component shows the wagering banner while no Wager exists yet.
