@@ -203,10 +203,10 @@ const selectStyle: CSSProperties = {
   width: 88,
 };
 
-// Browser-API glue only: triggers a download of the serialized Board Config. Thin and
-// untested, matching the precedent of socket.ts and playerIdentity.ts's localStorage calls.
-function downloadBoardConfig(content: CategoryData[]): void {
-  const blob = new Blob([serializeBoardConfig(content)], { type: "application/json" });
+// Browser-API glue only: triggers a download of the serialized Board Config. Thin,
+// matching the precedent of socket.ts and playerIdentity.ts's localStorage calls.
+function downloadBoardConfig(content: CategoryData[], doubleJeopardyContent: CategoryData[] | null): void {
+  const blob = new Blob([serializeBoardConfig(content, doubleJeopardyContent)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -247,8 +247,8 @@ export function BoardSetup({
   const doubleJeopardyComplete = !twoRounds || isContentComplete(doubleJeopardyContent!);
   const canOpenLobby = complete && doubleJeopardyComplete;
 
-  // Browser-API glue only: reads the chosen file's text. Thin and untested, matching
-  // the precedent of socket.ts and playerIdentity.ts's localStorage calls.
+  // Browser-API glue only: reads the chosen file's text. Thin, matching the precedent
+  // of socket.ts and playerIdentity.ts's localStorage calls.
   async function handleImportFile(file: File): Promise<void> {
     const raw = await file.text();
     const result = parseBoardConfig(raw);
@@ -258,7 +258,17 @@ export function BoardSetup({
     }
 
     setImportError(null);
+    onSetTwoRounds(Boolean(result.doubleJeopardy));
     onImportBoardConfig(result.content);
+    if (!result.doubleJeopardy) return;
+
+    for (const [categoryIndex, category] of result.doubleJeopardy.entries()) {
+      onEditDoubleJeopardyCategoryName(categoryIndex, category.name);
+      for (const [tileIndex, clue] of category.clues.entries()) {
+        onEditDoubleJeopardyClue(categoryIndex, tileIndex, "text", clue.text);
+        onEditDoubleJeopardyClue(categoryIndex, tileIndex, "answer", clue.answer);
+      }
+    }
   }
 
   return (
@@ -270,7 +280,11 @@ export function BoardSetup({
             <button type="button" onClick={() => fileInputRef.current?.click()} style={outlineButtonStyle}>
               Import Board
             </button>
-            <button type="button" onClick={() => downloadBoardConfig(content)} style={outlineButtonStyle}>
+            <button
+              type="button"
+              onClick={() => downloadBoardConfig(content, twoRounds ? doubleJeopardyContent : null)}
+              style={outlineButtonStyle}
+            >
               Export Board
             </button>
             <button type="button" disabled={!canOpenLobby} onClick={onOpenLobby} style={pillButtonStyle(canOpenLobby)}>
