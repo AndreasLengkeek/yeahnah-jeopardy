@@ -7,6 +7,7 @@ import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { Lobby } from "../components/Lobby";
+import { PlayerIdentity } from "../components/PlayerIdentity";
 import { Scoreboard } from "../components/Scoreboard";
 import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
@@ -25,6 +26,23 @@ function pillButtonStyle(enabled: boolean): CSSProperties {
     background: enabled ? accent : "rgba(255,255,255,.12)",
     color: enabled ? "#07103f" : "rgba(255,255,255,.5)",
     cursor: enabled ? "pointer" : "default",
+  };
+}
+
+function wagererButtonStyle(selected: boolean): CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 20px",
+    borderRadius: 999,
+    border: selected ? `1px solid ${accent}` : "1px solid rgba(255,255,255,.3)",
+    fontWeight: 700,
+    letterSpacing: ".06em",
+    textTransform: "uppercase",
+    background: selected ? accent : "transparent",
+    color: selected ? "#07103f" : "rgba(255,255,255,.8)",
+    cursor: "pointer",
   };
 }
 
@@ -72,6 +90,25 @@ function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
         <button onClick={() => socket.emit("showDailyDoubleClue")} style={pillButtonStyle(true)}>
           Show Clue
         </button>
+      </div>
+    );
+  }
+
+  // Once the Daily Double's Wager hasn't landed yet, the Host picks (or re-picks) any
+  // joined Player, connected or not, instead of the normal Buzz/Reveal/Judge controls —
+  // takes priority over everything below, since none of that can happen yet.
+  if (activeClue.isDailyDouble && activeClue.wager === null) {
+    return (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+        {players.map((player) => (
+          <button
+            key={player.id}
+            onClick={() => socket.emit("designateWagerer", player.id)}
+            style={wagererButtonStyle(activeClue.wageringPlayerId === player.id)}
+          >
+            <PlayerIdentity identity={player.identity} />
+          </button>
+        ))}
       </div>
     );
   }

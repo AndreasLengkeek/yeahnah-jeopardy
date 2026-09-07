@@ -130,6 +130,7 @@ export function ActiveClue({
 }) {
   const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer, isDailyDouble, clueShown } =
     details;
+  const { wageringPlayer, wager } = details;
 
   // A Daily Double's Clue text stays behind a full-card cover screen until the Host
   // reveals it (see gameEngine.ts's showDailyDoubleClue) — nothing to Buzz on, no
@@ -145,10 +146,24 @@ export function ActiveClue({
     );
   }
 
-  // Once someone holds the Buzz, Board and Player hide the Clue text behind a big
-  // banner instead — the Host keeps seeing it throughout (alwaysShowAnswer is only
-  // ever true for the Host's own card).
-  const hideClueOnBuzz = !!buzzedPlayer && !alwaysShowAnswer;
+  // Once the Host reveals a Daily Double but no Wager has landed yet, Board and Player
+  // see a "so-and-so is wagering…" banner instead of the normal waiting-for-Buzz state —
+  // reusing the same banner mechanism the Buzz flow uses below. Takes priority over any
+  // buzz status, since buzzing isn't meant to happen during this window.
+  const wagering = isDailyDouble && wager === null;
+
+  // Once someone holds the Buzz — or a Daily Double is awaiting its Wager — Board and
+  // Player hide the Clue text behind a big banner instead. The Host keeps seeing the
+  // Clue text throughout (alwaysShowAnswer is only ever true for the Host's own card).
+  const hideClueBehindBanner = (wagering || !!buzzedPlayer) && !alwaysShowAnswer;
+
+  const wageringBanner: ReactNode = wageringPlayer ? (
+    <>
+      <PlayerIdentity identity={wageringPlayer.identity} /> is wagering…
+    </>
+  ) : (
+    "Choosing a wagerer…"
+  );
 
   const buzzBanner: ReactNode = buzzedPlayer && (
     <>
@@ -156,7 +171,11 @@ export function ActiveClue({
     </>
   );
 
-  const statusText: ReactNode = hideClueOnBuzz ? null : buzzedPlayer ? (
+  const banner: ReactNode = wagering ? wageringBanner : buzzBanner;
+
+  const statusText: ReactNode = hideClueBehindBanner ? null : wagering ? (
+    wageringBanner
+  ) : buzzedPlayer ? (
     buzzBanner
   ) : correctPlayer ? (
     <>
@@ -175,7 +194,7 @@ export function ActiveClue({
 
       <div style={flipStageStyle}>
         <div style={flipCardStyle(revealed)}>
-          <div style={hideClueOnBuzz ? buzzFaceStyle : faceStyle}>{hideClueOnBuzz ? buzzBanner : clueText}</div>
+          <div style={hideClueBehindBanner ? buzzFaceStyle : faceStyle}>{hideClueBehindBanner ? banner : clueText}</div>
           <div style={backFaceStyle}>{revealed && answer}</div>
         </div>
       </div>

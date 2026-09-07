@@ -19,6 +19,23 @@ const CLUES_PER_CATEGORY = VALUES.length;
 export const MIN_CATEGORIES = 3;
 export const MAX_CATEGORIES = 6;
 
+// A Daily Double Wager's floor and, alongside the wagering Player's own score, its
+// ceiling — see `wagerRange`. $500 mirrors the Board's static top Tile Value rather
+// than tracking VALUES directly, since a Wager ceiling is a game rule of its own, not
+// derived from however many Values the Board happens to be seeded with (see
+// ADR-0010).
+export const MIN_WAGER = 5;
+export const DAILY_DOUBLE_WAGER_CEILING = 500;
+
+// The inclusive bounds a Daily Double Wager must fall within: $5 at the low end, and
+// the greater of the wagering Player's current score or the $500 ceiling at the high
+// end (so a Player below $500, including at $0 or negative, can still Wager up to
+// $500). Shared by the reducer's validation and the client's Wager-entry control, so
+// both agree on the same range.
+export function wagerRange(player: Player): { min: number; max: number } {
+  return { min: MIN_WAGER, max: Math.max(player.score, DAILY_DOUBLE_WAGER_CEILING) };
+}
+
 // A deep copy of the bundled example, so edits during Board Setup never mutate the
 // shared fixture module.
 function seedContent(): CategoryData[] {
@@ -107,6 +124,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applySelectTile(state, action.categoryIndex, action.tileIndex);
     case 'showDailyDoubleClue':
       return applyShowDailyDoubleClue(state);
+    case 'designateWagerer':
+      return applyDesignateWagerer(state, action.playerId);
+    case 'submitWager':
+      return applySubmitWager(state, action.playerId, action.amount);
     case 'buzz':
       return applyBuzz(state, action.playerId);
     case 'reveal':
@@ -275,6 +296,8 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
     // Daily Double's stays behind the cover screen until the Host explicitly reveals
     // it via `showDailyDoubleClue`.
     clueShown: !isDailyDouble,
+    wageringPlayerId: null,
+    wager: null,
   };
   return { ...state, activeClue };
 }
@@ -288,6 +311,39 @@ function applyShowDailyDoubleClue(state: GameState): GameState {
   if (state.activeClue.clueShown) return state;
 
   return { ...state, activeClue: { ...state.activeClue, clueShown: true } };
+}
+
+// Points a Daily Double's Wager at any Player in the roster, connected or not — the
+// Host may freely re-pick right up until a Wager actually lands (a mis-click fix, not
+// a locked-in competitive act). A no-op with no Active Clue, on a normal Clue, once a
+// Wager already exists, or for a playerId matching nobody in the roster.
+function applyDesignateWagerer(state: GameState, playerId: string): GameState {
+  if (!state.activeClue) return state;
+  if (!state.activeClue.isDailyDouble) return state;
+  if (state.activeClue.wager !== null) return state;
+  if (!state.players.some((player) => player.id === playerId)) return state;
+
+  return { ...state, activeClue: { ...state.activeClue, wageringPlayerId: playerId } };
+}
+
+// Locks in the designated Player's final Wager on a Daily Double, once — validated
+// against `wagerRange` (see above). A no-op with no Active Clue, when playerId doesn't
+// match the currently designated Player (including no designation at all), once a
+// Wager already exists, or when amount falls outside the Player's computed range.
+// Never clamps or rewrites an out-of-range amount; it's simply rejected.
+function applySubmitWager(state: GameState, playerId: string, amount: number): GameState {
+  const clue = state.activeClue;
+  if (!clue) return state;
+  if (clue.wageringPlayerId !== playerId) return state;
+  if (clue.wager !== null) return state;
+
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player) return state;
+
+  const { min, max } = wagerRange(player);
+  if (!Number.isFinite(amount) || amount < min || amount > max) return state;
+
+  return { ...state, activeClue: { ...clue, wager: amount } };
 }
 
 function applyBuzz(state: GameState, playerId: string): GameState {

@@ -14,6 +14,8 @@ function details(overrides: Partial<ActiveClueDetails> = {}): ActiveClueDetails 
     correctPlayer: null,
     isDailyDouble: false,
     clueShown: true,
+    wageringPlayer: null,
+    wager: null,
     ...overrides,
   };
 }
@@ -134,24 +136,67 @@ describe("ActiveClue", () => {
 
   it("renders the footer even behind the Daily Double cover, so the Host's reveal control still shows", () => {
     render(
-      <ActiveClue
-        details={details({ isDailyDouble: true, clueShown: false })}
-        footer={<button>Show Clue</button>}
-      />,
+      <ActiveClue details={details({ isDailyDouble: true, clueShown: false })} footer={<button>Show Clue</button>} />,
     );
 
     expect(screen.getByRole("button", { name: "Show Clue" })).toBeInTheDocument();
   });
 
-  it("shows the Clue text and normal waiting status once the Host reveals a Daily Double (clueShown true)", () => {
-    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true })} />);
+  it("shows the Clue text and normal waiting status once a Daily Double's Wager has already landed", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true, wager: 500 })} />);
 
     expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
     expect(screen.getByText("This Baltic capital sits on the Vilnia River")).toBeInTheDocument();
     expect(screen.getByText("Waiting for a buzz…")).toBeInTheDocument();
   });
 
-  it("buzzing on a revealed Daily Double behaves exactly like a normal Clue", () => {
+  it("buzzing on a Daily Double whose Wager has already landed behaves exactly like a normal Clue", () => {
+    render(
+      <ActiveClue
+        details={details({
+          isDailyDouble: true,
+          clueShown: true,
+          wager: 500,
+          buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
+    expect(screen.getByText(/has the buzz/).textContent).toBe("Dana has the buzz");
+  });
+
+  it("shows a wagering banner instead of the waiting-for-buzz status once the Host reveals a Daily Double with no Wager yet", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true })} />);
+
+    expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
+    expect(screen.queryByText("This Baltic capital sits on the Vilnia River")).not.toBeInTheDocument();
+    expect(screen.queryByText("Waiting for a buzz…")).not.toBeInTheDocument();
+    expect(screen.getByText("Choosing a wagerer…")).toBeInTheDocument();
+  });
+
+  it("names the designated Player in the wagering banner once the Host has picked one", () => {
+    render(
+      <ActiveClue
+        details={details({
+          isDailyDouble: true,
+          clueShown: true,
+          wageringPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/is wagering…/).textContent).toBe("Dana is wagering…");
+  });
+
+  it("still shows the Clue text (not the wagering banner) for the Host, via alwaysShowAnswer, while a Wager is pending", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true })} alwaysShowAnswer />);
+
+    expect(screen.getByText("This Baltic capital sits on the Vilnia River")).toBeInTheDocument();
+    expect(screen.getByText("Choosing a wagerer…")).toBeInTheDocument();
+  });
+
+  it("shows the wagering banner even if a buzz has somehow landed while no Wager exists yet", () => {
     render(
       <ActiveClue
         details={details({
@@ -162,7 +207,7 @@ describe("ActiveClue", () => {
       />,
     );
 
-    expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
-    expect(screen.getByText(/has the buzz/).textContent).toBe("Dana has the buzz");
+    expect(screen.getByText("Choosing a wagerer…")).toBeInTheDocument();
+    expect(screen.queryByText(/has the buzz/)).not.toBeInTheDocument();
   });
 });

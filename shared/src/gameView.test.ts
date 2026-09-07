@@ -15,6 +15,8 @@ function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     correctPlayerId: null,
     isDailyDouble: false,
     clueShown: true,
+    wageringPlayerId: null,
+    wager: null,
     ...overrides,
   };
 }

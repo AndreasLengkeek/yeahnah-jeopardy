@@ -1,10 +1,12 @@
 import type { JoinResult, PlayerIdentity as PlayerIdentityValue } from "@yeahnah/shared";
+import { wagerRange } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { resolveActiveClue } from "../activeClue";
 import { GameOver } from "../components/GameOver";
 import { JoinForm } from "../components/JoinForm";
 import { PlayerIdentity } from "../components/PlayerIdentity";
+import { WagerForm } from "../components/WagerForm";
 import { formatScore } from "../format";
 import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
 import { socket } from "../socket";
@@ -134,8 +136,18 @@ export function JoinPage() {
   // A Daily Double's Clue stays behind its cover screen until the Host reveals it —
   // nothing to Buzz on yet (see gameEngine.ts's showDailyDoubleClue).
   const dailyDoubleCovered = !!activeClue?.isDailyDouble && !activeClue.clueShown;
+  // Once a Daily Double's Clue is shown but no Wager has landed yet, the designated
+  // Player Wagers instead of Buzzing — everyone else sees a banner naming them (same
+  // signal as Board/Host's ActiveClue banner, see components/ActiveClue.tsx).
+  const wagering = !!activeClue?.isDailyDouble && activeClue.wager === null && !dailyDoubleCovered;
+  const iAmWagering = wagering && activeClue?.wageringPlayerId === playerId;
   const canBuzz =
-    gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null && !iAmExcluded && !dailyDoubleCovered;
+    gameStarted &&
+    activeClue !== null &&
+    activeClue.buzzedPlayerId === null &&
+    !iAmExcluded &&
+    !dailyDoubleCovered &&
+    !wagering;
 
   return (
     <div style={shellStyle}>
@@ -205,6 +217,24 @@ export function JoinPage() {
                 )
               ) : dailyDoubleCovered ? (
                 <div style={dailyDoubleStyle}>Daily Double!</div>
+              ) : wagering ? (
+                iAmWagering && me ? (
+                  <WagerForm
+                    min={wagerRange(me).min}
+                    max={wagerRange(me).max}
+                    onSubmit={(amount) => socket.emit("submitWager", playerId, amount)}
+                  />
+                ) : (
+                  <div style={dailyDoubleStyle}>
+                    {clueDetails?.wageringPlayer ? (
+                      <>
+                        <PlayerIdentity identity={clueDetails.wageringPlayer.identity} /> is wagering…
+                      </>
+                    ) : (
+                      "Choosing a wagerer…"
+                    )}
+                  </div>
+                )
               ) : (
                 <>
                   <button

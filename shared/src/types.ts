@@ -42,6 +42,14 @@ export interface ActiveClue {
   // manually reveals it (see `showDailyDoubleClue`). Always `true` on selection for a
   // normal Clue — this only ever starts `false` for a Daily Double.
   clueShown: boolean;
+  // The Player the Host has picked to Wager on a Daily Double (see `designateWagerer`).
+  // Freely re-pointed at a different Player up until `wager` lands, at which point it's
+  // locked. Always null on a normal Clue.
+  wageringPlayerId: string | null;
+  // The designated Player's final Wager amount on a Daily Double (see `submitWager`).
+  // Null until a valid Wager has been submitted, then never changes again for this
+  // Clue. Always null on a normal Clue.
+  wager: number | null;
 }
 
 // The Board's secretly pre-picked Daily Double Tile, chosen fresh every time the Board
@@ -88,6 +96,8 @@ export type GameAction =
   | { type: 'startGame' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }
   | { type: 'showDailyDoubleClue' }
+  | { type: 'designateWagerer'; playerId: string }
+  | { type: 'submitWager'; playerId: string; amount: number }
   | { type: 'buzz'; playerId: string }
   | { type: 'reveal' }
   | { type: 'judge'; correct: boolean }

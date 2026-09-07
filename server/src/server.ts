@@ -137,6 +137,14 @@ export function createGameServer() {
       dispatch({ type: "showDailyDoubleClue" });
     });
 
+    socket.on("designateWagerer", (playerId: string) => {
+      dispatch({ type: "designateWagerer", playerId });
+    });
+
+    socket.on("submitWager", (playerId: string, amount: number) => {
+      dispatch({ type: "submitWager", playerId, amount });
+    });
+
     socket.on("buzz", (playerId: string) => {
       dispatch({ type: "buzz", playerId });
     });

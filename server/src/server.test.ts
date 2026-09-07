@@ -89,6 +89,30 @@ describe("socket.io wiring", () => {
     await driver.nextState();
   }
 
+  // Sweeps every Tile on the seeded 5x5 Board (closing each miss — immediately
+  // closable, since nobody's buzzed) until the one Tile that comes back flagged as the
+  // secretly pre-picked Daily Double is found, leaving it as the Active Clue.
+  async function selectUntilDailyDouble(
+    driver: { socket: Socket; nextState: () => Promise<GameState> },
+    listeners: Array<{ nextState: () => Promise<GameState> }>,
+  ): Promise<GameState[]> {
+    const all = [driver, ...listeners];
+    const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+        driver.socket.emit("selectTile", categoryIndex, tileIndex);
+        const states = await drain();
+        if (states[0].activeClue?.isDailyDouble) return states;
+
+        driver.socket.emit("closeClue");
+        await drain();
+      }
+    }
+
+    throw new Error("No Daily Double Tile found while sweeping the Board");
+  }
+
   it("broadcasts resulting state to every connected socket as actions are dispatched", async () => {
     const dana = await connect();
     expect((await dana.nextState()).phase).toBe("setup"); // initial state pushed on connect
@@ -526,6 +550,54 @@ describe("socket.io wiring", () => {
       }
 
       expect(found).toBe(true);
+    });
+  });
+
+  describe("Daily Double designate & wager (designateWagerer / submitWager)", () => {
+    it("broadcasts a designateWagerer and a submitWager to every role, following the existing 1:1 wiring pattern", async () => {
+      const host = await connect("host");
+      await host.nextState();
+      await host.nextState();
+      const board = await connect("board");
+      await board.nextState();
+      await board.nextState();
+      const player = await connect("player");
+      await player.nextState();
+      await player.nextState();
+
+      host.socket.emit("openLobby");
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("join", textIdentity("Dana"));
+      const [hostJoinedDana] = await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("join", textIdentity("Marcus"));
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("startGame");
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+
+      const danaId = byName(hostJoinedDana.players, "Dana").id;
+
+      const [hostSel] = await selectUntilDailyDouble(host, [board, player]);
+      expect(hostSel.activeClue?.isDailyDouble).toBe(true);
+
+      host.socket.emit("designateWagerer", danaId);
+      const [hostDesignated, boardDesignated, playerDesignated] = await Promise.all([
+        host.nextState(),
+        board.nextState(),
+        player.nextState(),
+      ]);
+      expect(hostDesignated.activeClue?.wageringPlayerId).toBe(danaId);
+      expect(boardDesignated.activeClue?.wageringPlayerId).toBe(danaId);
+      expect(playerDesignated.activeClue?.wageringPlayerId).toBe(danaId);
+
+      host.socket.emit("submitWager", danaId, 100);
+      const [hostWagered, boardWagered, playerWagered] = await Promise.all([
+        host.nextState(),
+        board.nextState(),
+        player.nextState(),
+      ]);
+      expect(hostWagered.activeClue?.wager).toBe(100);
+      expect(boardWagered.activeClue?.wager).toBe(100);
+      expect(playerWagered.activeClue?.wager).toBe(100);
     });
   });
 });

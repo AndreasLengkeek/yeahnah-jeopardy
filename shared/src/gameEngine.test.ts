@@ -456,6 +456,173 @@ describe("gameEngine: Daily Double", () => {
   });
 });
 
+describe("gameEngine: designateWagerer", () => {
+  it("sets the wagering Player on a Daily Double Clue, regardless of connected status", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana] = state.players;
+    state = { ...state, players: state.players.map((p) => (p.id === dana.id ? { ...p, connected: false } : p)) };
+
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    expect(state.activeClue?.wageringPlayerId).toBe(dana.id);
+  });
+
+  it("is a no-op with no active clue", () => {
+    const state = applyAction(startedGame(), { type: "designateWagerer", playerId: "anyone" });
+
+    expect(state.activeClue).toBeNull();
+  });
+
+  it("is a no-op on a normal (non-Daily-Double) Clue", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wageringPlayerId).toBeNull();
+  });
+
+  it("is a no-op for a playerId that matches nobody in the roster", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    const state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+
+    const next = applyAction(state, { type: "designateWagerer", playerId: "ghost" });
+
+    expect(next).toBe(state);
+  });
+
+  it("supports redesignating a different Player before a Wager lands", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    state = applyAction(state, { type: "designateWagerer", playerId: marcus.id });
+
+    expect(state.activeClue?.wageringPlayerId).toBe(marcus.id);
+  });
+
+  it("is a no-op once a Wager already exists", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+    state = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 100 });
+
+    const next = applyAction(state, { type: "designateWagerer", playerId: marcus.id });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wageringPlayerId).toBe(dana.id);
+  });
+});
+
+describe("gameEngine: submitWager", () => {
+  function dailyDoubleWithDesignatedWagerer(scoreOverride?: number) {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    let [dana] = state.players;
+    if (scoreOverride !== undefined) {
+      state = { ...state, players: state.players.map((p) => (p.id === dana.id ? { ...p, score: scoreOverride } : p)) };
+      [dana] = state.players;
+    }
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+    return { state, dana };
+  }
+
+  it("accepts the $5 minimum", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer();
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 5 });
+
+    expect(next.activeClue?.wager).toBe(5);
+  });
+
+  it("accepts the $500 ceiling for a Player at exactly $0", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer(0);
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 500 });
+
+    expect(next.activeClue?.wager).toBe(500);
+  });
+
+  it("accepts the $500 ceiling for a Player with a negative score", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer(-200);
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 500 });
+
+    expect(next.activeClue?.wager).toBe(500);
+  });
+
+  it("accepts the score-based ceiling for a Player above $500", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer(1200);
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 1200 });
+
+    expect(next.activeClue?.wager).toBe(1200);
+  });
+
+  it("rejects an amount below $5", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer();
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 4 });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wager).toBeNull();
+  });
+
+  it("rejects an amount above the computed max", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer(200);
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 501 });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wager).toBeNull();
+  });
+
+  it("rejects a submission from a non-designated Player", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    const next = applyAction(state, { type: "submitWager", playerId: marcus.id, amount: 100 });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wager).toBeNull();
+  });
+
+  it("rejects a submission when no Player has been designated yet", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    const state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana] = state.players;
+
+    const next = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 100 });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.wager).toBeNull();
+  });
+
+  it("is a no-op once a Wager already exists — the amount stays unchanged even for the same Player", () => {
+    const { state, dana } = dailyDoubleWithDesignatedWagerer();
+    const first = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 100 });
+
+    const second = applyAction(first, { type: "submitWager", playerId: dana.id, amount: 300 });
+
+    expect(second).toBe(first);
+    expect(second.activeClue?.wager).toBe(100);
+  });
+});
+
 describe("gameEngine: buzz", () => {
   it("rejects a buzz with no active clue", () => {
     const state = applyAction(startedGame(), { type: "buzz", playerId: "whoever" });

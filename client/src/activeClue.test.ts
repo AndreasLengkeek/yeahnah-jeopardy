@@ -29,6 +29,8 @@ function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     correctPlayerId: null,
     isDailyDouble: false,
     clueShown: true,
+    wageringPlayerId: null,
+    wager: null,
     ...overrides,
   };
 }
@@ -124,5 +126,44 @@ describe("resolveActiveClue", () => {
     const details = resolveActiveClue(activeClue({ isDailyDouble: true, clueShown: false }), board(), players());
 
     expect(details.clueShown).toBe(false);
+  });
+
+  it("resolves wageringPlayer to the matching Player when wageringPlayerId is set", () => {
+    const details = resolveActiveClue(
+      activeClue({ categoryIndex: 1, tileIndex: 0, wageringPlayerId: "p2" }),
+      board(),
+      players(),
+    );
+
+    expect(details.wageringPlayer).toEqual({
+      id: "p2",
+      identity: { kind: "text", name: "Marcus" },
+      score: 0,
+      connected: true,
+    });
+  });
+
+  it("resolves wageringPlayer to null when wageringPlayerId is null", () => {
+    const details = resolveActiveClue(activeClue({ wageringPlayerId: null }), board(), players());
+
+    expect(details.wageringPlayer).toBeNull();
+  });
+
+  it("resolves wageringPlayer to null when wageringPlayerId no longer matches a Player", () => {
+    const details = resolveActiveClue(activeClue({ wageringPlayerId: "gone" }), board(), players());
+
+    expect(details.wageringPlayer).toBeNull();
+  });
+
+  it("surfaces the submitted Wager amount", () => {
+    const details = resolveActiveClue(activeClue({ wageringPlayerId: "p1", wager: 250 }), board(), players());
+
+    expect(details.wager).toBe(250);
+  });
+
+  it("surfaces a null Wager before one has been submitted", () => {
+    const details = resolveActiveClue(activeClue({ wager: null }), board(), players());
+
+    expect(details.wager).toBeNull();
   });
 });

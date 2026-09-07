@@ -12,6 +12,11 @@ export interface ActiveClueDetails {
   // Gates the Clue text behind a "Daily Double!" cover screen (see ActiveClue.tsx)
   // until the Host reveals it — always true for a normal Clue.
   clueShown: boolean;
+  // The Player the Host has designated to Wager on a Daily Double, resolved from
+  // wageringPlayerId — null until the Host picks someone (see `designateWagerer`).
+  wageringPlayer: Player | null;
+  // The designated Player's final Wager amount — null until `submitWager` lands.
+  wager: number | null;
 }
 
 function resolvePlayer(playerId: string | null, players: Player[]): Player | null {
@@ -35,5 +40,7 @@ export function resolveActiveClue(activeClue: ActiveClue, board: Category[], pla
     correctPlayer: resolvePlayer(activeClue.correctPlayerId, players),
     isDailyDouble: activeClue.isDailyDouble,
     clueShown: activeClue.clueShown,
+    wageringPlayer: resolvePlayer(activeClue.wageringPlayerId, players),
+    wager: activeClue.wager,
   };
 }
