@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, canCloseClue, initialState, isContentComplete, valuesForRound } from "./gameEngine.js";
+import {
+  applyAction,
+  canCloseClue,
+  dailyDoubleWagerCeiling,
+  initialState,
+  isContentComplete,
+  valuesForRound,
+} from "./gameEngine.js";
 import { CATS, DOUBLE_JEOPARDY_VALUES, VALUES } from "./trivia.js";
 import type { PlayerIdentity } from "./types.js";
 
@@ -538,6 +545,115 @@ describe("gameEngine: Daily Double", () => {
     const stillBlocked = applyAction(state, { type: "buzz", playerId: dana.id });
 
     expect(stillBlocked.activeClue?.buzzedPlayerId).toBeNull();
+  });
+});
+
+describe("gameEngine: Double Jeopardy Daily Doubles", () => {
+  it("draws two distinct coordinates when a two-Round Game's Lobby opens", () => {
+    const state = applyAction(filledTwoRoundContent(5), { type: "openLobby" });
+
+    const [first, second] = state.doubleJeopardyDailyDoubles!;
+    expect(state.doubleJeopardyDailyDoubles).not.toBeNull();
+    expect(first).not.toEqual(second);
+  });
+
+  it("never draws the same coordinate twice across many independent Lobby openings", () => {
+    for (let i = 0; i < 25; i++) {
+      const state = applyAction(filledTwoRoundContent(5), { type: "openLobby" });
+      const [first, second] = state.doubleJeopardyDailyDoubles!;
+      expect(first).not.toEqual(second);
+    }
+  });
+
+  it("stays null for a single-Round Game", () => {
+    const state = lobbyState();
+
+    expect(state.doubleJeopardyDailyDoubles).toBeNull();
+  });
+
+  it("draws a new pair on resetGame rather than reusing the previous Board's", () => {
+    let state = applyAction(filledTwoRoundContent(5), { type: "openLobby" });
+    const first = state.doubleJeopardyDailyDoubles;
+    state = applyAction(state, joinText("Dana"));
+    state = applyAction(state, joinText("Marcus"));
+    state = applyAction(state, { type: "startGame" });
+
+    state = applyAction(state, { type: "resetGame" });
+
+    expect(state.doubleJeopardyDailyDoubles).not.toBeNull();
+    expect(state.doubleJeopardyDailyDoubles).not.toEqual(first);
+  });
+
+  it("selecting a Tile during Double Jeopardy checks the Double Jeopardy coordinate set, not Round 1's", () => {
+    const state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
+    const [ddOne, ddTwo] = state.doubleJeopardyDailyDoubles!;
+
+    const hitOne = applyAction(state, { type: "selectTile", categoryIndex: ddOne.categoryIndex, tileIndex: ddOne.tileIndex });
+    const hitTwo = applyAction(state, { type: "selectTile", categoryIndex: ddTwo.categoryIndex, tileIndex: ddTwo.tileIndex });
+
+    expect(hitOne.activeClue?.isDailyDouble).toBe(true);
+    expect(hitTwo.activeClue?.isDailyDouble).toBe(true);
+  });
+
+  it("selecting a non-Daily-Double Tile during Double Jeopardy is never flagged as one", () => {
+    const state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
+    const isDD = (categoryIndex: number, tileIndex: number) =>
+      state.doubleJeopardyDailyDoubles!.some((dd) => dd.categoryIndex === categoryIndex && dd.tileIndex === tileIndex);
+
+    let normalCategory = 0;
+    let normalTile = 0;
+    outer: for (let c = 0; c < state.board.length; c++) {
+      for (let t = 0; t < state.board[c].tiles.length; t++) {
+        if (!isDD(c, t)) {
+          normalCategory = c;
+          normalTile = t;
+          break outer;
+        }
+      }
+    }
+
+    const next = applyAction(state, { type: "selectTile", categoryIndex: normalCategory, tileIndex: normalTile });
+
+    expect(next.activeClue?.isDailyDouble).toBe(false);
+  });
+
+  it("Wager ceiling is $500 in Round 1 and $1000 in Double Jeopardy for an identical Player score", () => {
+    expect(dailyDoubleWagerCeiling(1)).toBe(500);
+    expect(dailyDoubleWagerCeiling(2)).toBe(1000);
+  });
+
+  it("Round 1's Wager ceiling stays $500 for a two-Round Game — never inflated just because Double Jeopardy exists", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana] = state.players;
+    state = { ...state, players: state.players.map((p) => (p.id === dana.id ? { ...p, score: 0 } : p)) };
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    const accepted = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 500 });
+    expect(accepted.activeClue?.wager).toBe(500);
+
+    const rejected = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 1000 });
+    expect(rejected.activeClue?.wager).toBeNull();
+  });
+
+  it("Double Jeopardy's Wager ceiling is $1000 for a Player at $0", () => {
+    let state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
+    const [ddOne] = state.doubleJeopardyDailyDoubles!;
+    state = applyAction(state, {
+      type: "selectTile",
+      categoryIndex: ddOne.categoryIndex,
+      tileIndex: ddOne.tileIndex,
+    });
+    const [dana] = state.players;
+    state = { ...state, players: state.players.map((p) => (p.id === dana.id ? { ...p, score: 0 } : p)) };
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    const accepted = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 1000 });
+    expect(accepted.activeClue?.wager).toBe(1000);
+
+    const rejected = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 1001 });
+    expect(rejected.activeClue?.wager).toBeNull();
   });
 });
 
@@ -1343,6 +1459,7 @@ describe("gameEngine: initialState", () => {
     expect(state.activeClue).toBeNull();
     expect(state.boardSoundMuted).toBe(false);
     expect(state.dailyDouble).toBeNull();
+    expect(state.doubleJeopardyDailyDoubles).toBeNull();
     expect(state.round).toBe(1);
   });
 

@@ -20,24 +20,32 @@ export const MIN_CATEGORIES = 3;
 export const MAX_CATEGORIES = 6;
 
 // A Daily Double Wager's floor and, alongside the wagering Player's own score, its
-// ceiling — see `wagerRange`. $500 mirrors the Board's static top Tile Value rather
-// than tracking VALUES directly, since a Wager ceiling is a game rule of its own, not
-// derived from however many Values the Board happens to be seeded with (see
-// ADR-0010).
+// ceiling — see `wagerRange`. Each Round's ceiling mirrors that Round's own static top
+// Tile Value rather than tracking VALUES directly, since a Wager ceiling is a game rule
+// of its own, not derived from however many Values the Board happens to be seeded with
+// (see ADR-0010) — and never the other Round's ceiling, even once Double Jeopardy
+// exists.
 export const MIN_WAGER = 5;
 export const DAILY_DOUBLE_WAGER_CEILING = 500;
+export const DOUBLE_JEOPARDY_DAILY_DOUBLE_WAGER_CEILING = 1000;
 
 export function valuesForRound(round: 1 | 2): number[] {
   return round === 1 ? VALUES : DOUBLE_JEOPARDY_VALUES;
 }
 
+// The current Round's Daily Double Wager ceiling: $500 during Round 1, $1000 during
+// Double Jeopardy — see `wagerRange`.
+export function dailyDoubleWagerCeiling(round: 1 | 2): number {
+  return round === 1 ? DAILY_DOUBLE_WAGER_CEILING : DOUBLE_JEOPARDY_DAILY_DOUBLE_WAGER_CEILING;
+}
+
 // The inclusive bounds a Daily Double Wager must fall within: $5 at the low end, and
-// the greater of the wagering Player's current score or the $500 ceiling at the high
-// end (so a Player below $500, including at $0 or negative, can still Wager up to
-// $500). Shared by the reducer's validation and the client's Wager-entry control, so
-// both agree on the same range.
-export function wagerRange(player: Player): { min: number; max: number } {
-  return { min: MIN_WAGER, max: Math.max(player.score, DAILY_DOUBLE_WAGER_CEILING) };
+// the greater of the wagering Player's current score or the current Round's ceiling at
+// the high end (so a Player below the ceiling, including at $0 or negative, can still
+// Wager up to it). Shared by the reducer's validation and the client's Wager-entry
+// control, so both agree on the same range.
+export function wagerRange(player: Player, round: 1 | 2): { min: number; max: number } {
+  return { min: MIN_WAGER, max: Math.max(player.score, dailyDoubleWagerCeiling(round)) };
 }
 
 // A deep copy of the bundled example, so edits during Board Setup never mutate the
@@ -79,6 +87,24 @@ function pickDailyDouble(board: Category[]): DailyDoubleCoordinate {
   return { categoryIndex, tileIndex };
 }
 
+function sameCoordinate(a: DailyDoubleCoordinate, b: DailyDoubleCoordinate): boolean {
+  return a.categoryIndex === b.categoryIndex && a.tileIndex === b.tileIndex;
+}
+
+// Draws Double Jeopardy's two independent secret Daily Double coordinates, redrawing
+// the second on collision so they never land on the same Tile. Shaped by
+// Round 1's just-built `board` — Double Jeopardy's own Board (categories/tile count)
+// always matches it, and isn't built until `startDoubleJeopardy`, so this draws
+// against that shape ahead of time rather than deferring the draw.
+function pickDoubleJeopardyDailyDoubles(board: Category[]): [DailyDoubleCoordinate, DailyDoubleCoordinate] {
+  const first = pickDailyDouble(board);
+  let second = pickDailyDouble(board);
+  while (sameCoordinate(first, second)) {
+    second = pickDailyDouble(board);
+  }
+  return [first, second];
+}
+
 // A field counts as filled only once it holds non-whitespace content. Shared by the
 // Lobby gate below and the editor's per-field blank flags, so both agree on "blank".
 export function isBlank(value: string): boolean {
@@ -103,6 +129,7 @@ export function initialState(): GameState {
     activeClue: null,
     boardSoundMuted: false,
     dailyDouble: null,
+    doubleJeopardyDailyDoubles: null,
     twoRounds: false,
     round: 1,
     doubleJeopardyContent: null,
@@ -342,7 +369,14 @@ function applyOpenLobby(state: GameState): GameState {
   if (state.twoRounds && !isContentComplete(state.doubleJeopardyContent!)) return state;
 
   const board = buildBoard(state.content, 1);
-  return { ...state, phase: 'lobby', board, dailyDouble: pickDailyDouble(board), round: 1 };
+  return {
+    ...state,
+    phase: 'lobby',
+    board,
+    dailyDouble: pickDailyDouble(board),
+    doubleJeopardyDailyDoubles: state.twoRounds ? pickDoubleJeopardyDailyDoubles(board) : null,
+    round: 1,
+  };
 }
 
 function applyStartGame(state: GameState): GameState {
@@ -380,10 +414,12 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   // reducer rule.
   const content = contentForRound(state);
   const clue = content[categoryIndex].clues[tileIndex];
+  const coordinate = { categoryIndex, tileIndex };
   const isDailyDouble =
-    state.dailyDouble !== null &&
-    state.dailyDouble.categoryIndex === categoryIndex &&
-    state.dailyDouble.tileIndex === tileIndex;
+    state.round === 1
+      ? state.dailyDouble !== null && sameCoordinate(state.dailyDouble, coordinate)
+      : state.doubleJeopardyDailyDoubles !== null &&
+        state.doubleJeopardyDailyDoubles.some((dd) => sameCoordinate(dd, coordinate));
   const activeClue: ActiveClue = {
     categoryIndex,
     tileIndex,
@@ -442,7 +478,7 @@ function applySubmitWager(state: GameState, playerId: string, amount: number): G
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!player) return state;
 
-  const { min, max } = wagerRange(player);
+  const { min, max } = wagerRange(player, state.round);
   if (!Number.isFinite(amount) || amount < min || amount > max) return state;
 
   return { ...state, activeClue: { ...clue, wager: amount } };
@@ -565,6 +601,7 @@ function applyReturnToSetup(state: GameState): GameState {
     board: [],
     activeClue: null,
     dailyDouble: null,
+    doubleJeopardyDailyDoubles: null,
     round: 1,
   };
 }
@@ -585,6 +622,7 @@ function applyResetGame(state: GameState): GameState {
     activeClue: null,
     boardSoundMuted: state.boardSoundMuted,
     dailyDouble: pickDailyDouble(board),
+    doubleJeopardyDailyDoubles: state.twoRounds ? pickDoubleJeopardyDailyDoubles(board) : null,
     twoRounds: state.twoRounds,
     round: 1,
     doubleJeopardyContent: state.doubleJeopardyContent,

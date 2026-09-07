@@ -80,6 +80,13 @@ export interface GameState {
   // The secret Daily Double pick for the current `board` — see DailyDoubleCoordinate.
   // null only while there's no Board yet (phase "setup").
   dailyDouble: DailyDoubleCoordinate | null;
+  // Double Jeopardy's two secret Daily Double picks, drawn independently of each other
+  // (redrawn on collision so they never land on the same Tile) at the same moment
+  // `dailyDouble` is drawn — Lobby opening / Reset Game — not deferred to
+  // `startDoubleJeopardy`. Never present in a viewForRole output for any role, exactly
+  // like `dailyDouble`. `null` whenever `twoRounds` is `false`, or before there's a
+  // Board yet (phase "setup").
+  doubleJeopardyDailyDoubles: [DailyDoubleCoordinate, DailyDoubleCoordinate] | null;
   // Whether this Game has a second, Double Jeopardy Round — chosen during Board Setup
   // via `setTwoRounds`, `false` by default.
   twoRounds: boolean;

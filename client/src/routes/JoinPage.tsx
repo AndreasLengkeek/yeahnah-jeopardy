@@ -225,8 +225,8 @@ export function JoinPage() {
               ) : wagering ? (
                 iAmWagering && me ? (
                   <WagerForm
-                    min={wagerRange(me).min}
-                    max={wagerRange(me).max}
+                    min={wagerRange(me, state?.round ?? 1).min}
+                    max={wagerRange(me, state?.round ?? 1).max}
                     onSubmit={(amount) => socket.emit("submitWager", playerId, amount)}
                   />
                 ) : (

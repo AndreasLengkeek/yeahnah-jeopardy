@@ -34,6 +34,7 @@ function state(overrides: Partial<GameState> = {}): GameState {
     activeClue: activeClue(),
     boardSoundMuted: false,
     dailyDouble: { categoryIndex: 3, tileIndex: 4 },
+    doubleJeopardyDailyDoubles: null,
     twoRounds: false,
     round: 1,
     doubleJeopardyContent: null,
@@ -126,5 +127,41 @@ describe("viewForRole", () => {
 
   it("never exposes the secret Daily Double coordinate to the Player view", () => {
     expect(viewForRole(state(), "player").dailyDouble).toBeNull();
+  });
+
+  it("never exposes the Double Jeopardy Daily Double coordinates to the Host view", () => {
+    const input = state({
+      twoRounds: true,
+      doubleJeopardyDailyDoubles: [
+        { categoryIndex: 1, tileIndex: 1 },
+        { categoryIndex: 2, tileIndex: 3 },
+      ],
+    });
+
+    expect(viewForRole(input, "host").doubleJeopardyDailyDoubles).toBeNull();
+  });
+
+  it("never exposes the Double Jeopardy Daily Double coordinates to the Board view", () => {
+    const input = state({
+      twoRounds: true,
+      doubleJeopardyDailyDoubles: [
+        { categoryIndex: 1, tileIndex: 1 },
+        { categoryIndex: 2, tileIndex: 3 },
+      ],
+    });
+
+    expect(viewForRole(input, "board").doubleJeopardyDailyDoubles).toBeNull();
+  });
+
+  it("never exposes the Double Jeopardy Daily Double coordinates to the Player view", () => {
+    const input = state({
+      twoRounds: true,
+      doubleJeopardyDailyDoubles: [
+        { categoryIndex: 1, tileIndex: 1 },
+        { categoryIndex: 2, tileIndex: 3 },
+      ],
+    });
+
+    expect(viewForRole(input, "player").doubleJeopardyDailyDoubles).toBeNull();
   });
 });
