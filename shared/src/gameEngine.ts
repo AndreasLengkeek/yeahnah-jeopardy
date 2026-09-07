@@ -353,9 +353,10 @@ function applyBuzz(state: GameState, playerId: string): GameState {
   if (state.activeClue.excludedPlayerIds.includes(playerId)) return state;
   if (state.activeClue.revealed) return state;
   if (state.activeClue.correctPlayerId !== null) return state;
-  // Nobody can Buzz on a Daily Double's Clue before the Host reveals it from behind
-  // the cover screen — there's nothing to Buzz in on yet.
-  if (!state.activeClue.clueShown) return state;
+  // Buzzing is a no-op for the entire lifetime of a Daily Double Clue — from
+  // selection through Close — since there's never a Buzz race for one; only the
+  // designated wagerer (via designateWagerer/submitWager) can act on it.
+  if (state.activeClue.isDailyDouble) return state;
 
   return { ...state, activeClue: { ...state.activeClue, buzzedPlayerId: playerId } };
 }
@@ -371,6 +372,29 @@ function applyReveal(state: GameState): GameState {
 function applyJudge(state: GameState, correct: boolean): GameState {
   const clue = state.activeClue;
   if (!clue) return state;
+
+  if (clue.isDailyDouble) {
+    // Judging is blocked until a Wager has actually been submitted — the same "who
+    // currently must be judged" gate a normal Clue applies via buzzedPlayerId.
+    if (clue.wager === null || clue.wageringPlayerId === null) return state;
+
+    const wageringPlayerId = clue.wageringPlayerId;
+    const wager = clue.wager;
+    const players = state.players.map((player) =>
+      player.id === wageringPlayerId ? { ...player, score: player.score + (correct ? wager : -wager) } : player,
+    );
+
+    // A Daily Double auto-reveals on either outcome — correct or incorrect — since
+    // nobody else ever gets a turn at it, diverging from a normal wrong Buzz (see
+    // ADR-0011). That also makes it immediately closable via the existing
+    // clue.revealed branch in canCloseClue, with no excludedPlayerIds re-attempt loop.
+    return {
+      ...state,
+      players,
+      activeClue: { ...clue, revealed: true, correctPlayerId: correct ? wageringPlayerId : clue.correctPlayerId },
+    };
+  }
+
   if (clue.buzzedPlayerId === null) return state;
 
   const buzzedPlayerId = clue.buzzedPlayerId;

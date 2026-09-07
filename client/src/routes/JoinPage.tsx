@@ -146,8 +146,10 @@ export function JoinPage() {
     activeClue !== null &&
     activeClue.buzzedPlayerId === null &&
     !iAmExcluded &&
-    !dailyDoubleCovered &&
-    !wagering;
+    // A Daily Double never has a Buzz race — locked out for its entire lifetime, from
+    // selection through Close, not just while covered or awaiting a Wager (see
+    // gameEngine.ts's applyBuzz).
+    !activeClue.isDailyDouble;
 
   return (
     <div style={shellStyle}>

@@ -77,16 +77,30 @@ describe("socket.io wiring", () => {
     return drain();
   }
 
-  // The Daily Double coordinate is secretly randomized; Tile (0, 0) may occasionally
-  // land on it, and buzzing is gated behind its cover screen. Tests that select a
-  // fixed Tile and buzz immediately call this first so they never flake.
-  async function revealIfDailyDouble(
+  // The Daily Double coordinate is secretly randomized, so a hardcoded Tile pick may
+  // occasionally land on it. Since 03 permanently locks Buzzing out of a Daily Double
+  // Clue's entire lifetime (superseding 01's reveal-then-buzz interim behavior), tests
+  // that want ordinary Buzz/judge wiring select the first non-Daily-Double Tile they
+  // find instead, closing any Daily Double Clue they land on along the way.
+  async function selectFirstNonDailyDoubleTile(
     driver: { socket: Socket; nextState: () => Promise<GameState> },
-    state: GameState,
-  ): Promise<void> {
-    if (!state.activeClue?.isDailyDouble) return;
-    driver.socket.emit("showDailyDoubleClue");
-    await driver.nextState();
+    listeners: Array<{ nextState: () => Promise<GameState> }>,
+  ): Promise<{ states: GameState[]; categoryIndex: number; tileIndex: number }> {
+    const all = [driver, ...listeners];
+    const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+        driver.socket.emit("selectTile", categoryIndex, tileIndex);
+        const states = await drain();
+        if (!states[0].activeClue?.isDailyDouble) return { states, categoryIndex, tileIndex };
+
+        driver.socket.emit("closeClue");
+        await drain();
+      }
+    }
+
+    throw new Error("Every Tile came back flagged as the Daily Double while sweeping the Board");
   }
 
   // Sweeps every Tile on the seeded 5x5 Board (closing each miss — immediately
@@ -134,10 +148,8 @@ describe("socket.io wiring", () => {
     expect(started.phase).toBe("playing");
     const danaId = byName(started.players, "Dana").id;
 
-    dana.socket.emit("selectTile", 0, 0);
-    const selected = await dana.nextState();
-    expect(selected.activeClue).toMatchObject({ categoryIndex: 0, tileIndex: 0 });
-    await revealIfDailyDouble(dana, selected);
+    const { states: [selected] } = await selectFirstNonDailyDoubleTile(dana, []);
+    expect(selected.activeClue?.isDailyDouble).toBe(false);
 
     dana.socket.emit("buzz", danaId);
     expect((await dana.nextState()).activeClue?.buzzedPlayerId).toBe(danaId);
@@ -241,9 +253,7 @@ describe("socket.io wiring", () => {
     dana.socket.emit("startGame");
     await dana.nextState();
 
-    dana.socket.emit("selectTile", 0, 0);
-    const selected = await dana.nextState();
-    await revealIfDailyDouble(dana, selected);
+    const { categoryIndex, tileIndex } = await selectFirstNonDailyDoubleTile(dana, []);
 
     dana.socket.emit("buzz", danaId);
     await dana.nextState();
@@ -262,7 +272,7 @@ describe("socket.io wiring", () => {
     dana.socket.emit("closeClue");
     const closed = await dana.nextState();
     expect(closed.activeClue).toBeNull();
-    expect(closed.board[0].tiles[0].used).toBe(true);
+    expect(closed.board[categoryIndex].tiles[tileIndex].used).toBe(true);
   });
 
   it("reattaches a known Player id to a fresh socket connection, and rejects an unknown one", async () => {
@@ -305,9 +315,7 @@ describe("socket.io wiring", () => {
 
     dana.socket.emit("startGame");
     await dana.nextState();
-    dana.socket.emit("selectTile", 0, 0);
-    const selected = await dana.nextState();
-    await revealIfDailyDouble(dana, selected);
+    await selectFirstNonDailyDoubleTile(dana, []);
     dana.socket.emit("buzz", danaId);
     const buzzed = await dana.nextState();
     expect(buzzed.activeClue?.buzzedPlayerId).toBe(danaId);

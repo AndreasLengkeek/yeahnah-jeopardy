@@ -196,6 +196,13 @@ describe("ActiveClue", () => {
     expect(screen.getByText("Choosing a wagerer…")).toBeInTheDocument();
   });
 
+  it("shows the submitted Wager amount in the header instead of the Tile's Value once a Wager lands", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true, value: 300, wager: 750 })} />);
+
+    expect(screen.getByText("$750")).toBeInTheDocument();
+    expect(screen.queryByText("$300")).not.toBeInTheDocument();
+  });
+
   it("shows the wagering banner even if a buzz has somehow landed while no Wager exists yet", () => {
     render(
       <ActiveClue

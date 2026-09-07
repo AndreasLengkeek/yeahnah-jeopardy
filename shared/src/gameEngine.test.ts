@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, initialState, isContentComplete } from "./gameEngine.js";
+import { applyAction, canCloseClue, initialState, isContentComplete } from "./gameEngine.js";
 import { CATS, VALUES } from "./trivia.js";
 import type { PlayerIdentity } from "./types.js";
 
@@ -440,7 +440,7 @@ describe("gameEngine: Daily Double", () => {
     expect(next).toBe(state);
   });
 
-  it("rejects a buzz on a Daily Double Clue until the Host reveals it, then allows it normally", () => {
+  it("rejects a buzz on a Daily Double Clue both before and after the Host reveals it — buzzing is locked out for its entire lifetime", () => {
     const base = startedGameWithRealDailyDouble();
     const { categoryIndex, tileIndex } = base.dailyDouble!;
     let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
@@ -450,9 +450,9 @@ describe("gameEngine: Daily Double", () => {
     expect(blocked.activeClue?.buzzedPlayerId).toBeNull();
 
     state = applyAction(state, { type: "showDailyDoubleClue" });
-    const buzzed = applyAction(state, { type: "buzz", playerId: dana.id });
+    const stillBlocked = applyAction(state, { type: "buzz", playerId: dana.id });
 
-    expect(buzzed.activeClue?.buzzedPlayerId).toBe(dana.id);
+    expect(stillBlocked.activeClue?.buzzedPlayerId).toBeNull();
   });
 });
 
@@ -684,6 +684,32 @@ describe("gameEngine: buzz", () => {
 
     expect(next.activeClue?.buzzedPlayerId).toBeNull();
   });
+
+  it("is a no-op on a Daily Double Clue at any point in its lifetime — right after selection, before the wager, and after judging", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana, marcus] = state.players;
+
+    const rightAfterSelection = applyAction(state, { type: "buzz", playerId: marcus.id });
+    expect(rightAfterSelection.activeClue?.buzzedPlayerId).toBeNull();
+
+    state = applyAction(state, { type: "showDailyDoubleClue" });
+    const afterClueShown = applyAction(state, { type: "buzz", playerId: marcus.id });
+    expect(afterClueShown.activeClue?.buzzedPlayerId).toBeNull();
+
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+    const afterDesignation = applyAction(state, { type: "buzz", playerId: marcus.id });
+    expect(afterDesignation.activeClue?.buzzedPlayerId).toBeNull();
+
+    state = applyAction(state, { type: "submitWager", playerId: dana.id, amount: 100 });
+    const afterWager = applyAction(state, { type: "buzz", playerId: marcus.id });
+    expect(afterWager.activeClue?.buzzedPlayerId).toBeNull();
+
+    state = applyAction(state, { type: "judge", correct: true });
+    const afterJudge = applyAction(state, { type: "buzz", playerId: marcus.id });
+    expect(afterJudge.activeClue?.buzzedPlayerId).toBeNull();
+  });
 });
 
 describe("gameEngine: reveal", () => {
@@ -804,6 +830,70 @@ describe("gameEngine: judge", () => {
     const next = applyAction(afterCorrect, { type: "judge", correct: false });
 
     expect(next).toBe(afterCorrect);
+  });
+});
+
+function dailyDoubleWithWager(amount = 100): {
+  state: ReturnType<typeof initialState>;
+  danaId: string;
+  marcusId: string;
+} {
+  const base = startedGameWithRealDailyDouble();
+  const { categoryIndex, tileIndex } = base.dailyDouble!;
+  let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+  const [dana, marcus] = state.players;
+  state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+  state = applyAction(state, { type: "submitWager", playerId: dana.id, amount });
+  return { state, danaId: dana.id, marcusId: marcus.id };
+}
+
+describe("gameEngine: judge on a Daily Double", () => {
+  it("adds the submitted Wager, not the Tile's Value, to the wagering Player's score, and sets revealed true", () => {
+    const { state, danaId } = dailyDoubleWithWager(350);
+    const value = state.board[state.activeClue!.categoryIndex].tiles[state.activeClue!.tileIndex].value;
+    expect(value).not.toBe(350);
+
+    const next = applyAction(state, { type: "judge", correct: true });
+
+    expect(next.players.find((p) => p.id === danaId)?.score).toBe(350);
+    expect(next.activeClue?.revealed).toBe(true);
+    expect(next.activeClue?.correctPlayerId).toBe(danaId);
+  });
+
+  it("subtracts the submitted Wager on an incorrect judgment, and — diverging from a normal wrong Buzz — still sets revealed true", () => {
+    const { state, danaId } = dailyDoubleWithWager(350);
+
+    const next = applyAction(state, { type: "judge", correct: false });
+
+    expect(next.players.find((p) => p.id === danaId)?.score).toBe(-350);
+    expect(next.activeClue?.revealed).toBe(true);
+    expect(next.activeClue?.correctPlayerId).toBeNull();
+  });
+
+  it("is blocked (no-op) until a Wager has actually been submitted", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana] = state.players;
+    state = applyAction(state, { type: "designateWagerer", playerId: dana.id });
+
+    const next = applyAction(state, { type: "judge", correct: true });
+
+    expect(next).toBe(state);
+    expect(next.players.find((p) => p.id === dana.id)?.score).toBe(0);
+  });
+
+  it("is immediately closable after either outcome, with no dependency on excludedPlayerIds", () => {
+    const { state: correctState } = dailyDoubleWithWager(200);
+    const afterCorrect = applyAction(correctState, { type: "judge", correct: true });
+    expect(canCloseClue(afterCorrect.activeClue!, afterCorrect.players)).toBe(true);
+
+    const { state: incorrectState } = dailyDoubleWithWager(200);
+    const afterIncorrect = applyAction(incorrectState, { type: "judge", correct: false });
+    expect(canCloseClue(afterIncorrect.activeClue!, afterIncorrect.players)).toBe(true);
+
+    const closed = applyAction(afterIncorrect, { type: "closeClue" });
+    expect(closed.activeClue).toBeNull();
   });
 });
 

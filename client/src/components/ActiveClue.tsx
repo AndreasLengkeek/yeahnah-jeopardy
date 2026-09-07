@@ -152,6 +152,11 @@ export function ActiveClue({
   // buzz status, since buzzing isn't meant to happen during this window.
   const wagering = isDailyDouble && wager === null;
 
+  // Once a Daily Double's Wager is submitted, the header shows the actual Wager
+  // amount staked — not the Tile's printed Value — reflecting what the reducer
+  // actually scores it by (see applyJudge).
+  const headerValue = isDailyDouble && wager !== null ? wager : value;
+
   // Once someone holds the Buzz — or a Daily Double is awaiting its Wager — Board and
   // Player hide the Clue text behind a big banner instead. The Host keeps seeing the
   // Clue text throughout (alwaysShowAnswer is only ever true for the Host's own card).
@@ -189,7 +194,7 @@ export function ActiveClue({
     <div style={cardStyle}>
       <div style={headerStyle}>
         <span>{category}</span>
-        <span style={valueStyle}>${value.toLocaleString("en-US")}</span>
+        <span style={valueStyle}>${headerValue.toLocaleString("en-US")}</span>
       </div>
 
       <div style={flipStageStyle}>
