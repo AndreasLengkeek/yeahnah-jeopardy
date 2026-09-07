@@ -184,6 +184,15 @@ export function HostPage() {
           onNewBoard={(categoryCount) => socket.emit("newBoard", categoryCount)}
           onImportBoardConfig={(content) => socket.emit("importBoardConfig", content)}
           onOpenLobby={() => socket.emit("openLobby")}
+          twoRounds={state.twoRounds}
+          doubleJeopardyContent={state.doubleJeopardyContent}
+          onSetTwoRounds={(value) => socket.emit("setTwoRounds", value)}
+          onEditDoubleJeopardyCategoryName={(categoryIndex, name) =>
+            socket.emit("editDoubleJeopardyCategoryName", categoryIndex, name)
+          }
+          onEditDoubleJeopardyClue={(categoryIndex, tileIndex, field, value) =>
+            socket.emit("editDoubleJeopardyClue", categoryIndex, tileIndex, field, value)
+          }
         />
       ) : state.phase === "lobby" ? (
         <>

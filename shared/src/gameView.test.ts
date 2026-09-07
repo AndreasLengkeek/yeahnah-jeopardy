@@ -34,6 +34,8 @@ function state(overrides: Partial<GameState> = {}): GameState {
     activeClue: activeClue(),
     boardSoundMuted: false,
     dailyDouble: { categoryIndex: 3, tileIndex: 4 },
+    twoRounds: false,
+    doubleJeopardyContent: null,
     ...overrides,
   };
 }
@@ -62,6 +64,13 @@ describe("viewForRole", () => {
 
   it("strips the authored content from the Player view", () => {
     expect(viewForRole(state(), "player").content).toEqual([]);
+  });
+
+  it("strips Double Jeopardy content from the Board/Player views", () => {
+    const input = state({ twoRounds: true, doubleJeopardyContent: content });
+
+    expect(viewForRole(input, "board").doubleJeopardyContent).toBeNull();
+    expect(viewForRole(input, "player").doubleJeopardyContent).toBeNull();
   });
 
   it("redacts the Answer from the Board view while the Clue is unrevealed", () => {

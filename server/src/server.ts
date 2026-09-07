@@ -113,6 +113,21 @@ export function createGameServer() {
       dispatch({ type: "editClue", categoryIndex, tileIndex, field, value });
     });
 
+    socket.on("setTwoRounds", (value: boolean) => {
+      dispatch({ type: "setTwoRounds", value });
+    });
+
+    socket.on("editDoubleJeopardyCategoryName", (categoryIndex: number, name: string) => {
+      dispatch({ type: "editDoubleJeopardyCategoryName", categoryIndex, name });
+    });
+
+    socket.on(
+      "editDoubleJeopardyClue",
+      (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
+        dispatch({ type: "editDoubleJeopardyClue", categoryIndex, tileIndex, field, value });
+      },
+    );
+
     socket.on("importBoardConfig", (content: CategoryData[]) => {
       dispatch({ type: "importBoardConfig", content });
     });

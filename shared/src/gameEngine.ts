@@ -95,6 +95,8 @@ export function initialState(): GameState {
     activeClue: null,
     boardSoundMuted: false,
     dailyDouble: null,
+    twoRounds: false,
+    doubleJeopardyContent: null,
   };
 }
 
@@ -112,6 +114,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyEditCategoryName(state, action.categoryIndex, action.name);
     case 'editClue':
       return applyEditClue(state, action.categoryIndex, action.tileIndex, action.field, action.value);
+    case 'setTwoRounds':
+      return applySetTwoRounds(state, action.value);
+    case 'editDoubleJeopardyCategoryName':
+      return applyEditDoubleJeopardyCategoryName(state, action.categoryIndex, action.name);
+    case 'editDoubleJeopardyClue':
+      return applyEditDoubleJeopardyClue(state, action.categoryIndex, action.tileIndex, action.field, action.value);
     case 'importBoardConfig':
       return applyImportBoardConfig(state, action.content);
     case 'openLobby':
@@ -202,7 +210,13 @@ function applyNewBoard(state: GameState, categoryCount: number): GameState {
     return state;
   }
 
-  return { ...state, content: blankContent(categoryCount) };
+  return {
+    ...state,
+    content: blankContent(categoryCount),
+    // Double Jeopardy's Category count always matches Round 1's — reseed it blank at
+    // the new count so the two panels never drift apart.
+    doubleJeopardyContent: state.twoRounds ? blankContent(categoryCount) : state.doubleJeopardyContent,
+  };
 }
 
 function applyEditCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
@@ -240,6 +254,61 @@ function applyEditClue(
   };
 }
 
+// Turns Double Jeopardy authoring on or off. Turning on seeds `doubleJeopardyContent`
+// blank at Round 1's current Category count (mirroring applyNewBoard's blanking
+// behavior); turning off drops it back to null with no attempt to preserve partially-
+// authored content across the toggle.
+function applySetTwoRounds(state: GameState, value: boolean): GameState {
+  if (state.phase !== 'setup') return state;
+
+  return {
+    ...state,
+    twoRounds: value,
+    doubleJeopardyContent: value ? blankContent(state.content.length) : null,
+  };
+}
+
+// Mirrors applyEditCategoryName, but targets doubleJeopardyContent — a no-op whenever
+// that's null (i.e., twoRounds is false).
+function applyEditDoubleJeopardyCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
+  if (state.phase !== 'setup') return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex]) return state;
+
+  return {
+    ...state,
+    doubleJeopardyContent: state.doubleJeopardyContent.map((category, index) =>
+      index === categoryIndex ? { ...category, name } : category,
+    ),
+  };
+}
+
+// Mirrors applyEditClue, but targets doubleJeopardyContent — a no-op whenever that's
+// null (i.e., twoRounds is false).
+function applyEditDoubleJeopardyClue(
+  state: GameState,
+  categoryIndex: number,
+  tileIndex: number,
+  field: ClueField,
+  value: string,
+): GameState {
+  if (state.phase !== 'setup') return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex]?.clues[tileIndex]) return state;
+
+  return {
+    ...state,
+    doubleJeopardyContent: state.doubleJeopardyContent.map((category, index) =>
+      index === categoryIndex
+        ? {
+            ...category,
+            clues: category.clues.map((clue, clueIndex) =>
+              clueIndex === tileIndex ? { ...clue, [field]: value } : clue,
+            ),
+          }
+        : category,
+    ),
+  };
+}
+
 // Replaces `content` wholesale with an already-parsed, already-validated payload (see
 // parseBoardConfig in boardConfig.ts) — a Board Config Import. Blank fields are
 // tolerated here too, surfaced via the same isContentComplete check openLobby uses,
@@ -247,12 +316,19 @@ function applyEditClue(
 function applyImportBoardConfig(state: GameState, content: CategoryData[]): GameState {
   if (state.phase !== 'setup') return state;
 
-  return { ...state, content };
+  return {
+    ...state,
+    content,
+    // Double Jeopardy's Category count always matches Round 1's — reseed it blank at
+    // the imported count so the two panels never drift apart.
+    doubleJeopardyContent: state.twoRounds ? blankContent(content.length) : state.doubleJeopardyContent,
+  };
 }
 
 function applyOpenLobby(state: GameState): GameState {
   if (state.phase !== 'setup') return state;
   if (!isContentComplete(state.content)) return state;
+  if (state.twoRounds && !isContentComplete(state.doubleJeopardyContent!)) return state;
 
   const board = buildBoard(state.content);
   return { ...state, phase: 'lobby', board, dailyDouble: pickDailyDouble(board) };
@@ -482,6 +558,8 @@ function applyResetGame(state: GameState): GameState {
     activeClue: null,
     boardSoundMuted: state.boardSoundMuted,
     dailyDouble: pickDailyDouble(board),
+    twoRounds: state.twoRounds,
+    doubleJeopardyContent: state.doubleJeopardyContent,
   };
 }
 

@@ -66,3 +66,6 @@ export const CATS: CategoryData[] = [
 ];
 
 export const VALUES: number[] = [100, 200, 300, 400, 500];
+
+// Double Jeopardy's Values, Tile for Tile double Round 1's — same shape, doubled stakes.
+export const DOUBLE_JEOPARDY_VALUES: number[] = [200, 400, 600, 800, 1000];

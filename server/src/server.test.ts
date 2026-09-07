@@ -376,6 +376,28 @@ describe("socket.io wiring", () => {
     expect(afterImport.content).toEqual(CATS);
   });
 
+  it("wires the Double Jeopardy authoring events through to the reducer", async () => {
+    const host = await connect("host");
+    await host.nextState(); // raw-connect view
+    await host.nextState(); // post-identify view
+
+    host.socket.emit("setTwoRounds", true);
+    const withTwoRounds = await host.nextState();
+    expect(withTwoRounds.twoRounds).toBe(true);
+    expect(withTwoRounds.doubleJeopardyContent).toHaveLength(5);
+
+    host.socket.emit("editDoubleJeopardyCategoryName", 0, "Double History");
+    expect((await host.nextState()).doubleJeopardyContent![0].name).toBe("Double History");
+
+    host.socket.emit("editDoubleJeopardyClue", 0, 0, "text", "A double clue");
+    expect((await host.nextState()).doubleJeopardyContent![0].clues[0].text).toBe("A double clue");
+
+    host.socket.emit("setTwoRounds", false);
+    const withoutTwoRounds = await host.nextState();
+    expect(withoutTwoRounds.twoRounds).toBe(false);
+    expect(withoutTwoRounds.doubleJeopardyContent).toBeNull();
+  });
+
   it("returns from the Lobby to Board Setup without dropping already-joined Players", async () => {
     const host = await connect("host");
     await host.nextState();

@@ -1,4 +1,5 @@
 import {
+  DOUBLE_JEOPARDY_VALUES,
   MAX_CATEGORIES,
   MIN_CATEGORIES,
   VALUES,
@@ -221,6 +222,11 @@ export function BoardSetup({
   onNewBoard,
   onImportBoardConfig,
   onOpenLobby,
+  twoRounds,
+  doubleJeopardyContent,
+  onSetTwoRounds,
+  onEditDoubleJeopardyCategoryName,
+  onEditDoubleJeopardyClue,
 }: {
   content: CategoryData[];
   onEditCategoryName: (categoryIndex: number, name: string) => void;
@@ -228,11 +234,18 @@ export function BoardSetup({
   onNewBoard: (categoryCount: number) => void;
   onImportBoardConfig: (content: CategoryData[]) => void;
   onOpenLobby: () => void;
+  twoRounds: boolean;
+  doubleJeopardyContent: CategoryData[] | null;
+  onSetTwoRounds: (value: boolean) => void;
+  onEditDoubleJeopardyCategoryName: (categoryIndex: number, name: string) => void;
+  onEditDoubleJeopardyClue: (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => void;
 }) {
   const [newCount, setNewCount] = useState(4);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const complete = isContentComplete(content);
+  const doubleJeopardyComplete = !twoRounds || isContentComplete(doubleJeopardyContent!);
+  const canOpenLobby = complete && doubleJeopardyComplete;
 
   // Browser-API glue only: reads the chosen file's text. Thin and untested, matching
   // the precedent of socket.ts and playerIdentity.ts's localStorage calls.
@@ -260,7 +273,7 @@ export function BoardSetup({
             <button type="button" onClick={() => downloadBoardConfig(content)} style={outlineButtonStyle}>
               Export Board
             </button>
-            <button type="button" disabled={!complete} onClick={onOpenLobby} style={pillButtonStyle(complete)}>
+            <button type="button" disabled={!canOpenLobby} onClick={onOpenLobby} style={pillButtonStyle(canOpenLobby)}>
               Open Lobby
             </button>
           </div>
@@ -285,6 +298,15 @@ export function BoardSetup({
           <button type="button" onClick={() => onNewBoard(newCount)} style={pillButtonStyle(true)}>
             Start New Board
           </button>
+          <label style={countControlStyle}>
+            <input
+              type="checkbox"
+              aria-label="Double Jeopardy"
+              checked={twoRounds}
+              onChange={(event) => onSetTwoRounds(event.target.checked)}
+            />
+            <span>Double Jeopardy</span>
+          </label>
         </div>
 
         <input
@@ -305,58 +327,103 @@ export function BoardSetup({
           </div>
         )}
 
-        {!complete && (
+        {!canOpenLobby && (
           <div style={statusStyle} role="status">
-            Fill in every Category name and every Clue before opening the Lobby.
+            Fill in every Category name and every Clue before opening the Lobby
+            {!complete && !doubleJeopardyComplete
+              ? " for Round 1 and Double Jeopardy."
+              : !doubleJeopardyComplete
+                ? " for Double Jeopardy."
+                : "."}
           </div>
         )}
       </div>
 
-      <div style={{ ...columnsStyle, gridTemplateColumns: `repeat(${content.length}, minmax(0, 1fr))` }}>
-        {content.map((category, categoryIndex) => (
-          <div key={categoryIndex} style={categoryCardStyle}>
-            <input
-              aria-label={`Category ${categoryIndex + 1} name`}
-              value={category.name}
-              placeholder="Category name"
-              onChange={(event) => onEditCategoryName(categoryIndex, event.target.value)}
-              style={isBlank(category.name) ? invalidCategoryInputStyle : categoryInputStyle}
-            />
-            {isBlank(category.name) && <span style={flagStyle}>Category name required</span>}
+      <CategoryEditor
+        content={content}
+        values={VALUES}
+        onEditCategoryName={onEditCategoryName}
+        onEditClue={onEditClue}
+      />
 
-            {category.clues.map((clue, tileIndex) => (
-              <div key={tileIndex} style={clueRowStyle}>
-                <div style={clueValueStyle}>${VALUES[tileIndex]}</div>
-                <textarea
-                  aria-label={`Category ${categoryIndex + 1} clue ${tileIndex + 1} text`}
-                  value={clue.text}
-                  placeholder={`Clue ${tileIndex + 1} text`}
-                  onChange={(event) => onEditClue(categoryIndex, tileIndex, "text", event.target.value)}
-                  rows={3}
-                  style={isBlank(clue.text) ? invalidClueTextareaStyle : clueTextareaStyle}
-                />
-                <textarea
-                  aria-label={`Category ${categoryIndex + 1} clue ${tileIndex + 1} answer`}
-                  value={clue.answer}
-                  placeholder={`Clue ${tileIndex + 1} answer`}
-                  onChange={(event) => onEditClue(categoryIndex, tileIndex, "answer", event.target.value)}
-                  rows={2}
-                  style={isBlank(clue.answer) ? invalidAnswerTextareaStyle : answerTextareaStyle}
-                />
-                {(isBlank(clue.text) || isBlank(clue.answer)) && (
-                  <span style={flagStyle}>
-                    {isBlank(clue.text) && isBlank(clue.answer)
-                      ? "Clue text and answer required"
-                      : isBlank(clue.text)
-                        ? "Clue text required"
-                        : "Answer required"}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+      {twoRounds && doubleJeopardyContent && (
+        <div style={panelStyle}>
+          <div style={titleStyle}>Double Jeopardy</div>
+          <CategoryEditor
+            content={doubleJeopardyContent}
+            values={DOUBLE_JEOPARDY_VALUES}
+            onEditCategoryName={onEditDoubleJeopardyCategoryName}
+            onEditClue={onEditDoubleJeopardyClue}
+            labelPrefix="Double Jeopardy "
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The Category/Clue-editing grid, shared between Round 1's and Double Jeopardy's
+// panels — parameterized by which content array, Value labels, and edit actions it's
+// bound to. `labelPrefix` keeps the two panels' aria-labels unique when both render at
+// once (defaults to none, for Round 1's panel).
+function CategoryEditor({
+  content,
+  values,
+  onEditCategoryName,
+  onEditClue,
+  labelPrefix = "",
+}: {
+  content: CategoryData[];
+  values: number[];
+  onEditCategoryName: (categoryIndex: number, name: string) => void;
+  onEditClue: (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => void;
+  labelPrefix?: string;
+}) {
+  return (
+    <div style={{ ...columnsStyle, gridTemplateColumns: `repeat(${content.length}, minmax(0, 1fr))` }}>
+      {content.map((category, categoryIndex) => (
+        <div key={categoryIndex} style={categoryCardStyle}>
+          <input
+            aria-label={`${labelPrefix}Category ${categoryIndex + 1} name`}
+            value={category.name}
+            placeholder="Category name"
+            onChange={(event) => onEditCategoryName(categoryIndex, event.target.value)}
+            style={isBlank(category.name) ? invalidCategoryInputStyle : categoryInputStyle}
+          />
+          {isBlank(category.name) && <span style={flagStyle}>Category name required</span>}
+
+          {category.clues.map((clue, tileIndex) => (
+            <div key={tileIndex} style={clueRowStyle}>
+              <div style={clueValueStyle}>${values[tileIndex]}</div>
+              <textarea
+                aria-label={`${labelPrefix}Category ${categoryIndex + 1} clue ${tileIndex + 1} text`}
+                value={clue.text}
+                placeholder={`Clue ${tileIndex + 1} text`}
+                onChange={(event) => onEditClue(categoryIndex, tileIndex, "text", event.target.value)}
+                rows={3}
+                style={isBlank(clue.text) ? invalidClueTextareaStyle : clueTextareaStyle}
+              />
+              <textarea
+                aria-label={`${labelPrefix}Category ${categoryIndex + 1} clue ${tileIndex + 1} answer`}
+                value={clue.answer}
+                placeholder={`Clue ${tileIndex + 1} answer`}
+                onChange={(event) => onEditClue(categoryIndex, tileIndex, "answer", event.target.value)}
+                rows={2}
+                style={isBlank(clue.answer) ? invalidAnswerTextareaStyle : answerTextareaStyle}
+              />
+              {(isBlank(clue.text) || isBlank(clue.answer)) && (
+                <span style={flagStyle}>
+                  {isBlank(clue.text) && isBlank(clue.answer)
+                    ? "Clue text and answer required"
+                    : isBlank(clue.text)
+                      ? "Clue text required"
+                      : "Answer required"}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

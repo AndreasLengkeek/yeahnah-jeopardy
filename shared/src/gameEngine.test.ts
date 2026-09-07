@@ -1350,6 +1350,21 @@ describe("gameEngine: Board Setup", () => {
       expect(next).toBe(lobby);
       expect(next.content).toHaveLength(5);
     });
+
+    it("reseeds doubleJeopardyContent blank at the new category count when twoRounds is on, keeping the two panels' counts in sync", () => {
+      const withTwoRounds = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+
+      const resized = applyAction(withTwoRounds, { type: "newBoard", categoryCount: 6 });
+
+      expect(resized.content).toHaveLength(6);
+      expect(resized.doubleJeopardyContent).toHaveLength(6);
+    });
+
+    it("leaves doubleJeopardyContent untouched (still null) when twoRounds is off", () => {
+      const state = applyAction(filledContent(4), { type: "newBoard", categoryCount: 6 });
+
+      expect(state.doubleJeopardyContent).toBeNull();
+    });
   });
 
   describe("editCategoryName / editClue", () => {
@@ -1430,6 +1445,42 @@ describe("gameEngine: Board Setup", () => {
       const lobby = lobbyState();
       expect(applyAction(lobby, { type: "openLobby" })).toBe(lobby);
     });
+
+    it("is blocked when twoRounds is true and doubleJeopardyContent is incomplete, even if Round 1's content is complete", () => {
+      const state = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+
+      const next = applyAction(state, { type: "openLobby" });
+
+      expect(next).toBe(state);
+      expect(next.phase).toBe("setup");
+    });
+
+    it("succeeds once both Round 1's and Double Jeopardy's content are complete", () => {
+      let state = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+      for (let c = 0; c < 4; c++) {
+        state = applyAction(state, { type: "editDoubleJeopardyCategoryName", categoryIndex: c, name: `DJ ${c}` });
+        for (let t = 0; t < 5; t++) {
+          state = applyAction(state, {
+            type: "editDoubleJeopardyClue",
+            categoryIndex: c,
+            tileIndex: t,
+            field: "text",
+            value: `DJ clue ${c}-${t}`,
+          });
+          state = applyAction(state, {
+            type: "editDoubleJeopardyClue",
+            categoryIndex: c,
+            tileIndex: t,
+            field: "answer",
+            value: `DJ answer ${c}-${t}`,
+          });
+        }
+      }
+
+      const next = applyAction(state, { type: "openLobby" });
+
+      expect(next.phase).toBe("lobby");
+    });
   });
 
   describe("importBoardConfig", () => {
@@ -1455,6 +1506,138 @@ describe("gameEngine: Board Setup", () => {
       const imported = filledContent(4).content;
 
       expect(applyAction(lobby, { type: "importBoardConfig", content: imported })).toBe(lobby);
+    });
+
+    it("reseeds doubleJeopardyContent blank at the imported category count when twoRounds is on", () => {
+      const withTwoRounds = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+      const imported = filledContent(6).content;
+
+      const state = applyAction(withTwoRounds, { type: "importBoardConfig", content: imported });
+
+      expect(state.content).toHaveLength(6);
+      expect(state.doubleJeopardyContent).toHaveLength(6);
+    });
+
+    it("leaves doubleJeopardyContent untouched (still null) when twoRounds is off", () => {
+      const imported = filledContent(6).content;
+
+      const state = applyAction(filledContent(4), { type: "importBoardConfig", content: imported });
+
+      expect(state.doubleJeopardyContent).toBeNull();
+    });
+  });
+
+  describe("setTwoRounds", () => {
+    it("turning on seeds doubleJeopardyContent blank at Round 1's current category count", () => {
+      const state = applyAction(filledContent(5), { type: "setTwoRounds", value: true });
+
+      expect(state.twoRounds).toBe(true);
+      expect(state.doubleJeopardyContent).toHaveLength(5);
+      state.doubleJeopardyContent!.forEach((category) => {
+        expect(category.name).toBe("");
+        expect(category.clues).toHaveLength(5);
+        category.clues.forEach((clue) => expect(clue).toEqual({ text: "", answer: "" }));
+      });
+    });
+
+    it("turning off clears doubleJeopardyContent back to null", () => {
+      const on = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+      const withEdit = applyAction(on, {
+        type: "editDoubleJeopardyCategoryName",
+        categoryIndex: 0,
+        name: "Some name",
+      });
+
+      const off = applyAction(withEdit, { type: "setTwoRounds", value: false });
+
+      expect(off.twoRounds).toBe(false);
+      expect(off.doubleJeopardyContent).toBeNull();
+    });
+
+    it("toggling back on after off starts the panel blank again, not preserving prior edits", () => {
+      let state = applyAction(filledContent(3), { type: "setTwoRounds", value: true });
+      state = applyAction(state, { type: "editDoubleJeopardyCategoryName", categoryIndex: 0, name: "Old" });
+      state = applyAction(state, { type: "setTwoRounds", value: false });
+
+      state = applyAction(state, { type: "setTwoRounds", value: true });
+
+      expect(state.doubleJeopardyContent![0].name).toBe("");
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+
+      expect(applyAction(lobby, { type: "setTwoRounds", value: true })).toBe(lobby);
+    });
+  });
+
+  describe("editDoubleJeopardyCategoryName / editDoubleJeopardyClue", () => {
+    it("updates a Double Jeopardy category name in place, leaving content untouched", () => {
+      const on = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+
+      const state = applyAction(on, {
+        type: "editDoubleJeopardyCategoryName",
+        categoryIndex: 1,
+        name: "Double Jeopardy Category",
+      });
+
+      expect(state.doubleJeopardyContent![1].name).toBe("Double Jeopardy Category");
+      expect(state.content[1].name).toBe("Category 1");
+    });
+
+    it("updates a Double Jeopardy clue's text and answer independently", () => {
+      const on = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
+
+      let state = applyAction(on, {
+        type: "editDoubleJeopardyClue",
+        categoryIndex: 0,
+        tileIndex: 2,
+        field: "text",
+        value: "DJ clue text",
+      });
+      state = applyAction(state, {
+        type: "editDoubleJeopardyClue",
+        categoryIndex: 0,
+        tileIndex: 2,
+        field: "answer",
+        value: "DJ answer",
+      });
+
+      expect(state.doubleJeopardyContent![0].clues[2]).toEqual({ text: "DJ clue text", answer: "DJ answer" });
+    });
+
+    it("is a no-op whenever doubleJeopardyContent is null (twoRounds is false)", () => {
+      const before = filledContent(4);
+
+      expect(
+        applyAction(before, { type: "editDoubleJeopardyCategoryName", categoryIndex: 0, name: "x" }),
+      ).toBe(before);
+      expect(
+        applyAction(before, {
+          type: "editDoubleJeopardyClue",
+          categoryIndex: 0,
+          tileIndex: 0,
+          field: "text",
+          value: "x",
+        }),
+      ).toBe(before);
+    });
+
+    it("is a no-op outside the setup phase", () => {
+      const lobby = lobbyState();
+
+      expect(applyAction(lobby, { type: "editDoubleJeopardyCategoryName", categoryIndex: 0, name: "x" })).toBe(
+        lobby,
+      );
+      expect(
+        applyAction(lobby, {
+          type: "editDoubleJeopardyClue",
+          categoryIndex: 0,
+          tileIndex: 0,
+          field: "text",
+          value: "x",
+        }),
+      ).toBe(lobby);
     });
   });
 

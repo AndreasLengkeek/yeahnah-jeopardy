@@ -17,6 +17,7 @@ export function viewForRole(state: GameState, role: SocketRole): GameState {
   return {
     ...state,
     content: [],
+    doubleJeopardyContent: null,
     dailyDouble: null,
     activeClue: redactAnswer ? { ...state.activeClue!, answer: '' } : state.activeClue,
   };

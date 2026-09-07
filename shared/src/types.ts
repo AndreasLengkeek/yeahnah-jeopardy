@@ -79,6 +79,13 @@ export interface GameState {
   // The secret Daily Double pick for the current `board` — see DailyDoubleCoordinate.
   // null only while there's no Board yet (phase "setup").
   dailyDouble: DailyDoubleCoordinate | null;
+  // Whether this Game has a second, Double Jeopardy Round — chosen during Board Setup
+  // via `setTwoRounds`, `false` by default.
+  twoRounds: boolean;
+  // Double Jeopardy's authored Categories/Clues, editable during Board Setup exactly
+  // like `content`. `null` whenever `twoRounds` is `false`; seeded blank the moment
+  // `twoRounds` flips to `true` (see applySetTwoRounds).
+  doubleJeopardyContent: CategoryData[] | null;
 }
 
 export type ClueField = 'text' | 'answer';
@@ -90,6 +97,15 @@ export type GameAction =
   | { type: 'newBoard'; categoryCount: number }
   | { type: 'editCategoryName'; categoryIndex: number; name: string }
   | { type: 'editClue'; categoryIndex: number; tileIndex: number; field: ClueField; value: string }
+  | { type: 'setTwoRounds'; value: boolean }
+  | { type: 'editDoubleJeopardyCategoryName'; categoryIndex: number; name: string }
+  | {
+      type: 'editDoubleJeopardyClue';
+      categoryIndex: number;
+      tileIndex: number;
+      field: ClueField;
+      value: string;
+    }
   | { type: 'importBoardConfig'; content: CategoryData[] }
   | { type: 'openLobby' }
   | { type: 'toggleBoardSound' }

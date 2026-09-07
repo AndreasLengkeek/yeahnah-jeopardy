@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `GameState` gains `twoRounds: boolean` (default `false`) and `doubleJeopardyContent: CategoryData[] | null` (default `null`)
-- [ ] New setup-only reducer action `setTwoRounds { value: boolean }`: turning on seeds `doubleJeopardyContent` with blank content at Round 1's current Category count; turning off clears it back to `null`; no-op outside `phase === 'setup'`
-- [ ] New setup-only reducer actions `editDoubleJeopardyCategoryName` and `editDoubleJeopardyClue`, mirroring `editCategoryName`/`editClue` but targeting `doubleJeopardyContent`; no-op whenever `doubleJeopardyContent` is `null`
-- [ ] `openLobby`'s completeness gate additionally requires `doubleJeopardyContent` to be complete whenever `twoRounds` is `true`; unaffected when `twoRounds` is `false`
-- [ ] `BoardSetup.tsx` gains a Double Jeopardy toggle and, when on, a second category/clue-editing panel reusing the existing editing markup, labeled "Double Jeopardy" with $200–$1000 Value labels, and the incompleteness message extends to mention Double Jeopardy when relevant
-- [ ] Server wiring: new socket events `setTwoRounds`, `editDoubleJeopardyCategoryName`, `editDoubleJeopardyClue`, each dispatched 1:1 like existing actions
-- [ ] Reducer tests cover: toggling seeds/clears `doubleJeopardyContent`; edits mutate the right content array; `openLobby` is blocked when Double Jeopardy content is incomplete and Round 1's is complete, and succeeds once both are complete
-- [ ] Component test coverage for the toggle/panel showing, hiding, and gating Open Lobby
+- [x] `GameState` gains `twoRounds: boolean` (default `false`) and `doubleJeopardyContent: CategoryData[] | null` (default `null`)
+- [x] New setup-only reducer action `setTwoRounds { value: boolean }`: turning on seeds `doubleJeopardyContent` with blank content at Round 1's current Category count; turning off clears it back to `null`; no-op outside `phase === 'setup'`
+- [x] New setup-only reducer actions `editDoubleJeopardyCategoryName` and `editDoubleJeopardyClue`, mirroring `editCategoryName`/`editClue` but targeting `doubleJeopardyContent`; no-op whenever `doubleJeopardyContent` is `null`
+- [x] `openLobby`'s completeness gate additionally requires `doubleJeopardyContent` to be complete whenever `twoRounds` is `true`; unaffected when `twoRounds` is `false`
+- [x] `BoardSetup.tsx` gains a Double Jeopardy toggle and, when on, a second category/clue-editing panel reusing the existing editing markup, labeled "Double Jeopardy" with $200–$1000 Value labels, and the incompleteness message extends to mention Double Jeopardy when relevant
+- [x] Server wiring: new socket events `setTwoRounds`, `editDoubleJeopardyCategoryName`, `editDoubleJeopardyClue`, each dispatched 1:1 like existing actions
+- [x] Reducer tests cover: toggling seeds/clears `doubleJeopardyContent`; edits mutate the right content array; `openLobby` is blocked when Double Jeopardy content is incomplete and Round 1's is complete, and succeeds once both are complete
+- [x] Component test coverage for the toggle/panel showing, hiding, and gating Open Lobby

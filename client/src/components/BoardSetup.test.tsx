@@ -25,6 +25,11 @@ function noopHandlers() {
     onNewBoard: vi.fn(),
     onImportBoardConfig: vi.fn(),
     onOpenLobby: vi.fn(),
+    twoRounds: false,
+    doubleJeopardyContent: null,
+    onSetTwoRounds: vi.fn(),
+    onEditDoubleJeopardyCategoryName: vi.fn(),
+    onEditDoubleJeopardyClue: vi.fn(),
   };
 }
 
@@ -105,5 +110,84 @@ describe("BoardSetup", () => {
     await user.click(screen.getByRole("button", { name: "Start New Board" }));
 
     expect(handlers.onNewBoard).toHaveBeenCalledWith(6);
+  });
+
+  describe("Double Jeopardy toggle", () => {
+    it("hides the Double Jeopardy panel while the toggle is off", () => {
+      render(<BoardSetup content={completeBoard(3)} {...noopHandlers()} />);
+
+      expect(screen.getAllByText("Double Jeopardy")).toHaveLength(1); // toggle label only, no panel title
+      expect(screen.getByLabelText("Double Jeopardy")).not.toBeChecked();
+    });
+
+    it("reports toggling Double Jeopardy on", async () => {
+      const user = userEvent.setup();
+      const handlers = noopHandlers();
+      render(<BoardSetup content={completeBoard(3)} {...handlers} />);
+
+      await user.click(screen.getByLabelText("Double Jeopardy"));
+
+      expect(handlers.onSetTwoRounds).toHaveBeenCalledWith(true);
+    });
+
+    it("shows a second panel with $200-$1000 Value labels once twoRounds is on with content", () => {
+      render(
+        <BoardSetup
+          content={completeBoard(3)}
+          {...noopHandlers()}
+          twoRounds={true}
+          doubleJeopardyContent={blankBoard(3)}
+        />,
+      );
+
+      expect(screen.getAllByText("Double Jeopardy")).toHaveLength(2); // toggle label + panel title
+      expect(screen.getAllByText("$200")).toHaveLength(3 + 3); // one per category in each panel (Round 1's tile 2, DJ's tile 1)
+      expect(screen.getAllByText("$1000")).toHaveLength(3); // only present in the Double Jeopardy panel
+    });
+
+    it("reports Double Jeopardy category and clue edits separately from Round 1's", async () => {
+      const user = userEvent.setup();
+      const handlers = noopHandlers();
+      render(
+        <BoardSetup
+          content={completeBoard(3)}
+          {...handlers}
+          twoRounds={true}
+          doubleJeopardyContent={blankBoard(3)}
+        />,
+      );
+
+      const djNameInput = screen.getByLabelText("Double Jeopardy Category 2 name");
+      await user.type(djNameInput, "X");
+
+      expect(handlers.onEditDoubleJeopardyCategoryName).toHaveBeenCalledWith(1, "X");
+      expect(handlers.onEditCategoryName).not.toHaveBeenCalled();
+    });
+
+    it("keeps Open Lobby disabled while Double Jeopardy content is incomplete, even though Round 1's is complete", () => {
+      render(
+        <BoardSetup
+          content={completeBoard(3)}
+          {...noopHandlers()}
+          twoRounds={true}
+          doubleJeopardyContent={blankBoard(3)}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Open Lobby" })).toBeDisabled();
+    });
+
+    it("enables Open Lobby once both Round 1's and Double Jeopardy's content are complete", () => {
+      render(
+        <BoardSetup
+          content={completeBoard(3)}
+          {...noopHandlers()}
+          twoRounds={true}
+          doubleJeopardyContent={completeBoard(3)}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Open Lobby" })).toBeEnabled();
+    });
   });
 });
