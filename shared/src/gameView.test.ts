@@ -35,6 +35,7 @@ function state(overrides: Partial<GameState> = {}): GameState {
     boardSoundMuted: false,
     dailyDouble: { categoryIndex: 3, tileIndex: 4 },
     twoRounds: false,
+    round: 1,
     doubleJeopardyContent: null,
     ...overrides,
   };

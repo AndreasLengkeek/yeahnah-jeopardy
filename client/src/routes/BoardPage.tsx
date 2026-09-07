@@ -52,6 +52,8 @@ export function BoardPage() {
             </button>
           )}
         </>
+      ) : state.phase === "roundBreak" ? (
+        <div>Waiting for Double Jeopardy…</div>
       ) : state.phase === "gameOver" ? (
         <GameOver players={state.players} />
       ) : (

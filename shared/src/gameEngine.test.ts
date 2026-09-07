@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, canCloseClue, initialState, isContentComplete } from "./gameEngine.js";
-import { CATS, VALUES } from "./trivia.js";
+import { applyAction, canCloseClue, initialState, isContentComplete, valuesForRound } from "./gameEngine.js";
+import { CATS, DOUBLE_JEOPARDY_VALUES, VALUES } from "./trivia.js";
 import type { PlayerIdentity } from "./types.js";
 
 const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
@@ -99,6 +99,48 @@ describe("gameEngine: join", () => {
     state = applyAction(state, joinSignature(A_SIGNATURE));
 
     expect(state.players).toHaveLength(2);
+  });
+});
+
+describe("gameEngine: startDoubleJeopardy", () => {
+  it("is a no-op outside roundBreak", () => {
+    const playing = startedTwoRoundGame();
+
+    expect(applyAction(playing, { type: "startDoubleJeopardy" })).toBe(playing);
+  });
+
+  it("rebuilds the board from Double Jeopardy content at doubled Values and preserves players", () => {
+    let state = roundBreakState();
+    state = {
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 0 ? { ...player, score: 600, connected: false } : { ...player, score: -200 },
+      ),
+    };
+    const playersBefore = state.players;
+
+    const next = applyAction(state, { type: "startDoubleJeopardy" });
+
+    expect(next.phase).toBe("playing");
+    expect(next.round).toBe(2);
+    expect(next.players).toEqual(playersBefore);
+    expect(next.activeClue).toBeNull();
+    expect(next.board.map((category) => category.name)).toEqual(
+      next.doubleJeopardyContent!.map((category) => category.name),
+    );
+    next.board.forEach((category) => {
+      expect(category.tiles.map((tile) => tile.value)).toEqual(DOUBLE_JEOPARDY_VALUES);
+      expect(category.tiles.every((tile) => !tile.used)).toBe(true);
+    });
+  });
+
+  it("uses Double Jeopardy clue content after the Round starts", () => {
+    const state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
+
+    const next = applyAction(state, { type: "selectTile", categoryIndex: 1, tileIndex: 2 });
+
+    expect(next.activeClue?.clueText).toBe("DJ clue 1-2");
+    expect(next.activeClue?.answer).toBe("DJ answer 1-2");
   });
 });
 
@@ -263,6 +305,49 @@ function startedGameWithRealDailyDouble(): ReturnType<typeof initialState> {
   let state = lobbyWithTwoPlayers();
   state = applyAction(state, { type: "startGame" });
   return state;
+}
+
+function fillDoubleJeopardyContent(state: ReturnType<typeof initialState>): ReturnType<typeof initialState> {
+  let next = state;
+  for (let c = 0; c < next.content.length; c++) {
+    next = applyAction(next, { type: "editDoubleJeopardyCategoryName", categoryIndex: c, name: `DJ Category ${c}` });
+    for (let t = 0; t < 5; t++) {
+      next = applyAction(next, {
+        type: "editDoubleJeopardyClue",
+        categoryIndex: c,
+        tileIndex: t,
+        field: "text",
+        value: `DJ clue ${c}-${t}`,
+      });
+      next = applyAction(next, {
+        type: "editDoubleJeopardyClue",
+        categoryIndex: c,
+        tileIndex: t,
+        field: "answer",
+        value: `DJ answer ${c}-${t}`,
+      });
+    }
+  }
+  return next;
+}
+
+function filledTwoRoundContent(categoryCount: number): ReturnType<typeof initialState> {
+  return fillDoubleJeopardyContent(applyAction(filledContent(categoryCount), { type: "setTwoRounds", value: true }));
+}
+
+function startedTwoRoundGame(): ReturnType<typeof initialState> {
+  let state = applyAction(filledTwoRoundContent(5), { type: "openLobby" });
+  state = applyAction(state, joinText("Dana"));
+  state = applyAction(state, joinText("Marcus"));
+  state = applyAction(state, { type: "startGame" });
+  return { ...state, dailyDouble: null };
+}
+
+function roundBreakState(): ReturnType<typeof initialState> {
+  let state = startedTwoRoundGame();
+  state = markAllUsedExcept(state, 4, 4);
+  state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+  return applyAction(state, { type: "closeClue" });
 }
 
 function lobbyWithTwoPlayers(): ReturnType<typeof initialState> {
@@ -1028,6 +1113,14 @@ function markAllUsedExcept(
 }
 
 describe("gameEngine: game over", () => {
+  it("transitions to roundBreak when Round 1's last Tile closes in a two-Round Game", () => {
+    const next = roundBreakState();
+
+    expect(next.phase).toBe("roundBreak");
+    expect(next.round).toBe(1);
+    expect(next.board.every((category) => category.tiles.every((tile) => tile.used))).toBe(true);
+  });
+
   it("stays in playing immediately after a correct judge, then transitions to gameOver once that Clue is closed", () => {
     let state = startedGame();
     state = markAllUsedExcept(state, 4, 4);
@@ -1082,6 +1175,17 @@ describe("gameEngine: game over", () => {
     const next = applyAction(state, { type: "closeClue" });
 
     expect(next.phase).toBe("playing");
+  });
+
+  it("transitions to gameOver when Double Jeopardy's last Tile closes", () => {
+    let state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
+    state = markAllUsedExcept(state, 4, 4);
+    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+
+    const next = applyAction(state, { type: "closeClue" });
+
+    expect(next.phase).toBe("gameOver");
+    expect(next.round).toBe(2);
   });
 });
 
@@ -1239,6 +1343,7 @@ describe("gameEngine: initialState", () => {
     expect(state.activeClue).toBeNull();
     expect(state.boardSoundMuted).toBe(false);
     expect(state.dailyDouble).toBeNull();
+    expect(state.round).toBe(1);
   });
 
   it("seeds content from the ported CATS fixture (5 categories, 5 clues each)", () => {
@@ -1285,6 +1390,11 @@ describe("gameEngine: initialState", () => {
     expect(state.dailyDouble!.categoryIndex).toBeLessThan(state.board.length);
     expect(state.dailyDouble!.tileIndex).toBeGreaterThanOrEqual(0);
     expect(state.dailyDouble!.tileIndex).toBeLessThan(state.board[state.dailyDouble!.categoryIndex].tiles.length);
+  });
+
+  it("routes Value lists through valuesForRound for both Rounds", () => {
+    expect(valuesForRound(1)).toEqual(VALUES);
+    expect(valuesForRound(2)).toEqual(DOUBLE_JEOPARDY_VALUES);
   });
 });
 
@@ -1456,30 +1566,12 @@ describe("gameEngine: Board Setup", () => {
     });
 
     it("succeeds once both Round 1's and Double Jeopardy's content are complete", () => {
-      let state = applyAction(filledContent(4), { type: "setTwoRounds", value: true });
-      for (let c = 0; c < 4; c++) {
-        state = applyAction(state, { type: "editDoubleJeopardyCategoryName", categoryIndex: c, name: `DJ ${c}` });
-        for (let t = 0; t < 5; t++) {
-          state = applyAction(state, {
-            type: "editDoubleJeopardyClue",
-            categoryIndex: c,
-            tileIndex: t,
-            field: "text",
-            value: `DJ clue ${c}-${t}`,
-          });
-          state = applyAction(state, {
-            type: "editDoubleJeopardyClue",
-            categoryIndex: c,
-            tileIndex: t,
-            field: "answer",
-            value: `DJ answer ${c}-${t}`,
-          });
-        }
-      }
+      const state = filledTwoRoundContent(4);
 
       const next = applyAction(state, { type: "openLobby" });
 
       expect(next.phase).toBe("lobby");
+      expect(next.round).toBe(1);
     });
   });
 

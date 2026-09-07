@@ -6,11 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] `GamePhase` gains `'roundBreak'`, reached only when a two-Round Game's Round 1 Board fully drains (a single-Round Game's drained Board still goes straight to `'gameOver'`, unchanged)
-- [ ] `GameState` gains `round: 1 | 2` (always `1` for a single-Round Game)
-- [ ] New exported `DOUBLE_JEOPARDY_VALUES = [200, 400, 600, 800, 1000]` alongside existing `VALUES`; a `valuesForRound(round)` helper is the single seam every Value-dependent call site (board building) switches through
-- [ ] New reducer action `startDoubleJeopardy`: valid only from `phase === 'roundBreak'`; rebuilds `board` from `doubleJeopardyContent` at Double Jeopardy Values, sets `round: 2`, `phase: 'playing'`; preserves `players` (scores and roster) unchanged; no-op in every other phase
-- [ ] Closing Double Jeopardy's last Tile (`round === 2`) always transitions to `'gameOver'`
-- [ ] `HostPage.tsx` renders a "Start Double Jeopardy" action during `'roundBreak'`, and the existing "Edit Board" header action also shows during `'roundBreak'`
-- [ ] `BoardPage.tsx` and `JoinPage.tsx` render a "waiting for Double Jeopardy" message during `'roundBreak'`
-- [ ] Reducer tests cover: draining Round 1's Board goes to `'roundBreak'` when `twoRounds` is true, straight to `'gameOver'` when false (regression); `startDoubleJeopardy` is a no-op outside `'roundBreak'` and behaves correctly from it; Double Jeopardy's Board uses `DOUBLE_JEOPARDY_VALUES`; draining Double Jeopardy's Board always reaches `'gameOver'`
+- [x] `GamePhase` gains `'roundBreak'`, reached only when a two-Round Game's Round 1 Board fully drains (a single-Round Game's drained Board still goes straight to `'gameOver'`, unchanged)
+- [x] `GameState` gains `round: 1 | 2` (always `1` for a single-Round Game)
+- [x] New exported `DOUBLE_JEOPARDY_VALUES = [200, 400, 600, 800, 1000]` alongside existing `VALUES`; a `valuesForRound(round)` helper is the single seam every Value-dependent call site (board building) switches through
+- [x] New reducer action `startDoubleJeopardy`: valid only from `phase === 'roundBreak'`; rebuilds `board` from `doubleJeopardyContent` at Double Jeopardy Values, sets `round: 2`, `phase: 'playing'`; preserves `players` (scores and roster) unchanged; no-op in every other phase
+- [x] Closing Double Jeopardy's last Tile (`round === 2`) always transitions to `'gameOver'`
+- [x] `HostPage.tsx` renders a "Start Double Jeopardy" action during `'roundBreak'`, and the existing "Edit Board" header action also shows during `'roundBreak'`
+- [x] `BoardPage.tsx` and `JoinPage.tsx` render a "waiting for Double Jeopardy" message during `'roundBreak'`
+- [x] Reducer tests cover: draining Round 1's Board goes to `'roundBreak'` when `twoRounds` is true, straight to `'gameOver'` when false (regression); `startDoubleJeopardy` is a no-op outside `'roundBreak'` and behaves correctly from it; Double Jeopardy's Board uses `DOUBLE_JEOPARDY_VALUES`; draining Double Jeopardy's Board always reaches `'gameOver'`

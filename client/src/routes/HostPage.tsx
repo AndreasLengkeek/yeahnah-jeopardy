@@ -162,7 +162,7 @@ export function HostPage() {
 
   const canStart = state.phase === "lobby" && state.players.length >= 2;
   const headerAction =
-    state.phase === "lobby" || state.phase === "gameOver"
+    state.phase === "lobby" || state.phase === "roundBreak" || state.phase === "gameOver"
       ? { label: "Edit Board", onClick: () => socket.emit("returnToSetup") }
       : undefined;
 
@@ -205,6 +205,22 @@ export function HostPage() {
               Reset Game
             </button>
           </div>
+        </>
+      ) : state.phase === "roundBreak" ? (
+        <>
+          <div style={{ color: "#c9d2f5", textAlign: "center" }}>Round 1 is complete.</div>
+          <div style={centeredRowWithGapStyle}>
+            <button onClick={() => socket.emit("startDoubleJeopardy")} style={pillButtonStyle(true)}>
+              Start Double Jeopardy
+            </button>
+            <button onClick={() => socket.emit("resetGame")} style={resetButtonStyle}>
+              Reset Game
+            </button>
+          </div>
+          <Scoreboard
+            players={state.players}
+            onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
+          />
         </>
       ) : state.phase === "gameOver" ? (
         <>

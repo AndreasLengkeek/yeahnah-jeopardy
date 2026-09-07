@@ -1,5 +1,5 @@
 import { identitiesMatch, isBlankIdentity, normalizeIdentity } from './playerIdentity.js';
-import { CATS, VALUES } from './trivia.js';
+import { CATS, DOUBLE_JEOPARDY_VALUES, VALUES } from './trivia.js';
 import type { CategoryData } from './trivia.js';
 import type {
   ActiveClue,
@@ -26,6 +26,10 @@ export const MAX_CATEGORIES = 6;
 // ADR-0010).
 export const MIN_WAGER = 5;
 export const DAILY_DOUBLE_WAGER_CEILING = 500;
+
+export function valuesForRound(round: 1 | 2): number[] {
+  return round === 1 ? VALUES : DOUBLE_JEOPARDY_VALUES;
+}
 
 // The inclusive bounds a Daily Double Wager must fall within: $5 at the low end, and
 // the greater of the wagering Player's current score or the $500 ceiling at the high
@@ -55,11 +59,15 @@ function blankContent(categoryCount: number): CategoryData[] {
 // The played Board: one column of five Value Tiles per authored Category, all unused.
 // Derived from `content`'s category names when the Lobby opens (and rebuilt fresh on
 // replay), never edited directly.
-function buildBoard(content: CategoryData[]): Category[] {
+function buildBoard(content: CategoryData[], round: 1 | 2): Category[] {
   return content.map((category) => ({
     name: category.name,
-    tiles: VALUES.map((value) => ({ value, used: false })),
+    tiles: valuesForRound(round).map((value) => ({ value, used: false })),
   }));
+}
+
+function contentForRound(state: GameState): CategoryData[] {
+  return state.round === 1 ? state.content : state.doubleJeopardyContent ?? [];
 }
 
 // Draws a fresh random Daily Double coordinate for a just-built Board — every Tile on
@@ -96,6 +104,7 @@ export function initialState(): GameState {
     boardSoundMuted: false,
     dailyDouble: null,
     twoRounds: false,
+    round: 1,
     doubleJeopardyContent: null,
   };
 }
@@ -128,6 +137,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyToggleBoardSound(state);
     case 'startGame':
       return applyStartGame(state);
+    case 'startDoubleJeopardy':
+      return applyStartDoubleJeopardy(state);
     case 'selectTile':
       return applySelectTile(state, action.categoryIndex, action.tileIndex);
     case 'showDailyDoubleClue':
@@ -330,8 +341,8 @@ function applyOpenLobby(state: GameState): GameState {
   if (!isContentComplete(state.content)) return state;
   if (state.twoRounds && !isContentComplete(state.doubleJeopardyContent!)) return state;
 
-  const board = buildBoard(state.content);
-  return { ...state, phase: 'lobby', board, dailyDouble: pickDailyDouble(board) };
+  const board = buildBoard(state.content, 1);
+  return { ...state, phase: 'lobby', board, dailyDouble: pickDailyDouble(board), round: 1 };
 }
 
 function applyStartGame(state: GameState): GameState {
@@ -339,6 +350,20 @@ function applyStartGame(state: GameState): GameState {
   if (state.players.length < 2) return state;
 
   return { ...state, phase: 'playing' };
+}
+
+function applyStartDoubleJeopardy(state: GameState): GameState {
+  if (state.phase !== 'roundBreak') return state;
+  if (!state.doubleJeopardyContent) return state;
+
+  return {
+    ...state,
+    phase: 'playing',
+    round: 2,
+    board: buildBoard(state.doubleJeopardyContent, 2),
+    activeClue: null,
+    dailyDouble: null,
+  };
 }
 
 function applySelectTile(state: GameState, categoryIndex: number, tileIndex: number): GameState {
@@ -353,7 +378,8 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   // above covers these indices too). Withholding the Answer from Board/Player sockets
   // before Reveal is a transmission concern handled by viewForRole (ADR-0006), not a
   // reducer rule.
-  const clue = state.content[categoryIndex].clues[tileIndex];
+  const content = contentForRound(state);
+  const clue = content[categoryIndex].clues[tileIndex];
   const isDailyDouble =
     state.dailyDouble !== null &&
     state.dailyDouble.categoryIndex === categoryIndex &&
@@ -539,6 +565,7 @@ function applyReturnToSetup(state: GameState): GameState {
     board: [],
     activeClue: null,
     dailyDouble: null,
+    round: 1,
   };
 }
 
@@ -549,7 +576,7 @@ function applyReturnToSetup(state: GameState): GameState {
 function applyResetGame(state: GameState): GameState {
   if (state.phase === 'setup') return state;
 
-  const board = buildBoard(state.content);
+  const board = buildBoard(state.content, 1);
   return {
     phase: 'lobby',
     players: [],
@@ -559,6 +586,7 @@ function applyResetGame(state: GameState): GameState {
     boardSoundMuted: state.boardSoundMuted,
     dailyDouble: pickDailyDouble(board),
     twoRounds: state.twoRounds,
+    round: 1,
     doubleJeopardyContent: state.doubleJeopardyContent,
   };
 }
@@ -585,7 +613,12 @@ function isBoardComplete(board: Category[]): boolean {
 // A Tile resolving (judged correct, or closed) always marks it used and checks whether that
 // was the Board's last remaining Tile — the two call sites share this transition.
 function resolveBoard(state: GameState, board: Category[]): Pick<GameState, 'board' | 'phase'> {
-  return { board, phase: isBoardComplete(board) ? 'gameOver' : state.phase };
+  if (!isBoardComplete(board)) return { board, phase: state.phase };
+
+  return {
+    board,
+    phase: state.twoRounds && state.round === 1 ? 'roundBreak' : 'gameOver',
+  };
 }
 
 function markTileUsed(board: Category[], clue: ActiveClue): Category[] {

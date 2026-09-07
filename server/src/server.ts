@@ -144,6 +144,10 @@ export function createGameServer() {
       dispatch({ type: "startGame" });
     });
 
+    socket.on("startDoubleJeopardy", () => {
+      dispatch({ type: "startDoubleJeopardy" });
+    });
+
     socket.on("selectTile", (categoryIndex: number, tileIndex: number) => {
       dispatch({ type: "selectTile", categoryIndex, tileIndex });
     });

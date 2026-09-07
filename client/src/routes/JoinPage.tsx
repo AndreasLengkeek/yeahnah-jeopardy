@@ -122,7 +122,8 @@ export function JoinPage() {
   }
 
   const inSetup = state?.phase === "setup";
-  const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup";
+  const inRoundBreak = state?.phase === "roundBreak";
+  const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup" && state.phase !== "roundBreak";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
   // A fresh join already has the identity it submitted before the state broadcast
   // confirming it arrives; a reconnect has no local identity to fall back on, so it
@@ -199,7 +200,9 @@ export function JoinPage() {
                   </button>
                 )}
               </div>
-              {!gameStarted ? (
+              {inRoundBreak ? (
+                <div style={{ color: "#c9d2f5" }}>Waiting for Double Jeopardy…</div>
+              ) : !gameStarted ? (
                 editing ? (
                   <>
                     <JoinForm onJoin={handleEditIdentity} submitting={submitting} error={error} />
@@ -265,6 +268,8 @@ export function JoinPage() {
               )}
             </>
           )
+        ) : inRoundBreak ? (
+          <div style={{ color: "#c9d2f5" }}>Waiting for Double Jeopardy…</div>
         ) : gameStarted ? (
           <div style={{ color: "#c9d2f5" }}>Joining has closed — the Game has already started.</div>
         ) : (

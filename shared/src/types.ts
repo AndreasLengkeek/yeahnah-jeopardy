@@ -1,7 +1,8 @@
 import type { CategoryData } from './trivia.js';
 
-// "setup" is the Host's Board-authoring phase, before the Lobby opens. Ordered first.
-export type GamePhase = 'setup' | 'lobby' | 'playing' | 'gameOver';
+// "setup" is the Host's Board-authoring phase, before the Lobby opens. "roundBreak"
+// pauses a two-Round Game between Round 1 and Double Jeopardy. Ordered by play flow.
+export type GamePhase = 'setup' | 'lobby' | 'playing' | 'roundBreak' | 'gameOver';
 
 // How a Player identifies themselves, chosen once at join time and never both: a typed
 // name carries the trimmed string; a drawn Signature carries a small raster image as a
@@ -82,6 +83,9 @@ export interface GameState {
   // Whether this Game has a second, Double Jeopardy Round — chosen during Board Setup
   // via `setTwoRounds`, `false` by default.
   twoRounds: boolean;
+  // Which Round is currently in progress (or most recently finished, in gameOver).
+  // A single-Round Game stays at 1 for its whole lifetime.
+  round: 1 | 2;
   // Double Jeopardy's authored Categories/Clues, editable during Board Setup exactly
   // like `content`. `null` whenever `twoRounds` is `false`; seeded blank the moment
   // `twoRounds` flips to `true` (see applySetTwoRounds).
@@ -110,6 +114,7 @@ export type GameAction =
   | { type: 'openLobby' }
   | { type: 'toggleBoardSound' }
   | { type: 'startGame' }
+  | { type: 'startDoubleJeopardy' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }
   | { type: 'showDailyDoubleClue' }
   | { type: 'designateWagerer'; playerId: string }

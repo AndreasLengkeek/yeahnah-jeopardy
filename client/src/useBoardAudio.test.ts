@@ -34,6 +34,7 @@ function state(activeClue: ActiveClue | null): GameState {
     boardSoundMuted: false,
     dailyDouble: null,
     twoRounds: false,
+    round: 1,
     doubleJeopardyContent: null,
   };
 }

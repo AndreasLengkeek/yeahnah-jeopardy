@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import { CATS } from "@yeahnah/shared";
+import { CATS, DOUBLE_JEOPARDY_VALUES } from "@yeahnah/shared";
 import type { GameState, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -75,6 +75,48 @@ describe("socket.io wiring", () => {
     await drain();
     driver.socket.emit("selectTile", 0, 0);
     return drain();
+  }
+
+  async function fillDoubleJeopardyContent(host: { socket: Socket; nextState: () => Promise<GameState> }) {
+    host.socket.emit("setTwoRounds", true);
+    await host.nextState();
+
+    for (let categoryIndex = 0; categoryIndex < CATS.length; categoryIndex++) {
+      host.socket.emit("editDoubleJeopardyCategoryName", categoryIndex, `DJ ${categoryIndex}`);
+      await host.nextState();
+      for (let tileIndex = 0; tileIndex < CATS[categoryIndex].clues.length; tileIndex++) {
+        host.socket.emit("editDoubleJeopardyClue", categoryIndex, tileIndex, "text", `DJ clue ${categoryIndex}-${tileIndex}`);
+        await host.nextState();
+        host.socket.emit(
+          "editDoubleJeopardyClue",
+          categoryIndex,
+          tileIndex,
+          "answer",
+          `DJ answer ${categoryIndex}-${tileIndex}`,
+        );
+        await host.nextState();
+      }
+    }
+  }
+
+  async function sweepBoardToRoundBreak(
+    driver: { socket: Socket; nextState: () => Promise<GameState> },
+    listeners: Array<{ nextState: () => Promise<GameState> }>,
+  ): Promise<GameState[]> {
+    const all = [driver, ...listeners];
+    const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+        driver.socket.emit("selectTile", categoryIndex, tileIndex);
+        await drain();
+        driver.socket.emit("closeClue");
+        const states = await drain();
+        if (states[0].phase === "roundBreak") return states;
+      }
+    }
+
+    throw new Error("Round 1 never reached roundBreak while sweeping the Board");
   }
 
   // The Daily Double coordinate is secretly randomized, so a hardcoded Tile pick may
@@ -396,6 +438,38 @@ describe("socket.io wiring", () => {
     const withoutTwoRounds = await host.nextState();
     expect(withoutTwoRounds.twoRounds).toBe(false);
     expect(withoutTwoRounds.doubleJeopardyContent).toBeNull();
+  });
+
+  it("wires startDoubleJeopardy through to the reducer", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+
+    await fillDoubleJeopardyContent(host);
+
+    host.socket.emit("openLobby");
+    await host.nextState();
+    host.socket.emit("join", textIdentity("Dana"));
+    const withDana = await host.nextState();
+    host.socket.emit("join", textIdentity("Marcus"));
+    await host.nextState();
+    host.socket.emit("startGame");
+    await host.nextState();
+
+    const [roundBreak] = await sweepBoardToRoundBreak(host, []);
+    expect(roundBreak.phase).toBe("roundBreak");
+
+    host.socket.emit("startDoubleJeopardy");
+    const doubleJeopardy = await host.nextState();
+
+    expect(doubleJeopardy.phase).toBe("playing");
+    expect(doubleJeopardy.round).toBe(2);
+    expect(doubleJeopardy.players).toEqual(roundBreak.players);
+    doubleJeopardy.board.forEach((category) => {
+      expect(category.tiles.map((tile) => tile.value)).toEqual(DOUBLE_JEOPARDY_VALUES);
+    });
+    expect(doubleJeopardy.board[0].name).toBe("DJ 0");
+    expect(byName(doubleJeopardy.players, "Dana").id).toBe(byName(withDana.players, "Dana").id);
   });
 
   it("returns from the Lobby to Board Setup without dropping already-joined Players", async () => {
