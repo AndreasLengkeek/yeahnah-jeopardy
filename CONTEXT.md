@@ -5,15 +5,19 @@ A real-time multiplayer Jeopardy-style party game: a shared Board driven by a Ho
 ## Language
 
 **Game**:
-One playthrough: a single Board played start to finish by whichever Players have joined. v1 has exactly one Game active at a time, and it holds no state beyond server memory — restarting the server ends it.
-_Avoid_: Round, session (v1 has no multi-round structure and no concurrent games, so those distinctions don't exist yet)
+One playthrough, start to finish, by whichever Players have joined — either a single Round or two Rounds back to back (see Round), chosen during Board Setup. v1 has exactly one Game active at a time, and it holds no state beyond server memory — restarting the server ends it.
+_Avoid_: session (v1 has no concurrent games, so that distinction doesn't exist yet)
+
+**Round**:
+One pass through a Board, from the first Tile selected to the last Tile closed, played at a fixed pair of Value ranges with its own set of Categories and its own Daily Double(s). The Host chooses during Board Setup whether the Game has a single Round (Values $100–$500, 1 Daily Double, no "Round" language shown anywhere) or two — Round 1 ($100–$500, 1 Daily Double) followed by **Double Jeopardy** ($200–$1000, 2 Daily Doubles) — with scores carrying over from Round 1 into Double Jeopardy unchanged. The Host manually starts Double Jeopardy once every Round 1 Tile is closed; it never starts automatically.
+_Avoid_: session, game (a Round is part of a Game, not the whole thing), "Round 2" (its proper name is Double Jeopardy)
 
 **Board Setup**:
 The Game's state before the Lobby opens: the Host creates a new Board or imports a Board Config, edits it in-app — including choosing its Category count — until every Tile has a Clue and Answer, and only then may open the Lobby for Players to join. The Category count is fixed for as long as the Lobby stays open, but not permanently: the Host may resume Board Setup from the Lobby at any time before starting the Game, reopening the Category count and every other field, and already-joined Players stay joined across the round trip. Opens pre-loaded with a complete, editable Board (the bundled example on first boot, or whichever Board was last played) rather than starting blank.
 _Avoid_: create room, room (v1 has exactly one Game at a time — see Game — so this isn't a multi-tenant "room")
 
 **Board Config**:
-The file a Host imports or exports during Board Setup to save a Board's authored content — each Category's name and its five Clues' text and Answers. Holds Board content only, never Game state (no used Tiles, no scores, no Buzz/score progress), and is the only durable copy of a Board: v1 keeps no board library server-side beyond memory.
+The file a Host imports or exports during Board Setup to save a Board's authored content — each Round's Categories' names and their five Clues' text and Answers, plus a second such Category set for Double Jeopardy when the Game has two Rounds. Holds Board content only, never Game state (no used Tiles, no scores, no Buzz/score progress, no Daily Double placement), and is the only durable copy of a Board: v1 keeps no board library server-side beyond memory. A Board Config authored before Double Jeopardy existed has no second Category set and imports as a single-Round Game.
 _Avoid_: save file, board data
 
 **Lobby**:
@@ -25,7 +29,7 @@ The grid of Tiles for the current game — three to six Categories across (chose
 _Avoid_: grid, gameboard
 
 **Category**:
-A themed column of five Clues on the Board, ordered by increasing Value.
+A themed column of five Clues on the Board, ordered by increasing Value. Belongs to exactly one Round — a two-Round Game has an entirely separate set of Categories for Double Jeopardy, all authored during the same Board Setup pass as Round 1's, at the same Category count.
 
 **Tile**:
 A single cell on the Board showing a Value; selecting it makes its Clue the Active Clue and empties the Tile.
@@ -39,7 +43,7 @@ _Avoid_: question (a Clue is phrased as a statement; the Player's Buzz is what e
 The point amount a Clue is worth, shown on its Tile before selection and awarded to (or deducted from) whichever Player answers it.
 
 **Daily Double**:
-One Tile per Board, chosen at random when the Board is built and kept secret from everyone — including the Host — until selected. Its Clue is resolved by a single Host-designated Player's Wager instead of the Tile's printed Value and the usual Buzz race; the Value shown before selection is a decoy, never what's actually at stake.
+One Tile per Round (two in Double Jeopardy), chosen at random when the Board is built — for both Rounds at once, before the Lobby even opens — and kept secret from everyone, including the Host, until selected. Its Clue is resolved by a single Host-designated Player's Wager instead of the Tile's printed Value and the usual Buzz race; the Value shown before selection is a decoy, never what's actually at stake. The Wager ceiling is the greater of the Player's current score or the Daily Double's own Round's static top Value ($500 in Round 1, $1000 in Double Jeopardy) — never the other Round's.
 _Avoid_: hidden tile, bonus tile
 
 **Host**:
