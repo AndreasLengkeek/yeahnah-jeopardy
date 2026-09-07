@@ -1416,6 +1416,51 @@ describe("gameEngine: resetGame", () => {
 
     expect(state.players[0]).toMatchObject({ identity: textIdentity("Dana"), score: 0 });
   });
+
+  it("resets a finished two-Round Game back to round 1's lobby, rebuilding Round 1's board fresh", () => {
+    const state = finishedTwoRoundGame();
+    expect(state.phase).toBe("gameOver");
+    expect(state.round).toBe(2);
+    const contentBefore = state.content;
+    const doubleJeopardyContentBefore = state.doubleJeopardyContent;
+
+    const next = applyAction(state, { type: "resetGame" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.round).toBe(1);
+    expect(next.content).toEqual(contentBefore);
+    expect(next.board.map((c) => c.name)).toEqual(contentBefore.map((c) => c.name));
+    expect(next.board.every((c) => c.tiles.every((tile) => !tile.used))).toBe(true);
+    expect(next.players).toEqual([]);
+    // Double Jeopardy's board itself is only rebuilt when startDoubleJeopardy next
+    // runs — resetGame leaves its authored content untouched and doesn't derive a
+    // board from it.
+    expect(next.doubleJeopardyContent).toEqual(doubleJeopardyContentBefore);
+    next.board.forEach((category) => {
+      expect(category.tiles.map((tile) => tile.value)).toEqual(valuesForRound(1));
+    });
+  });
+
+  it("draws fresh Daily Double coordinates on resetGame for both Round 1 and Double Jeopardy, varying across repeated resets of the same finished two-Round Game", () => {
+    const state = finishedTwoRoundGame();
+
+    const round1CoordinatesSeen = new Set<string>();
+    const doubleJeopardyCoordinatesSeen = new Set<string>();
+    for (let i = 0; i < 25; i++) {
+      const next = applyAction(state, { type: "resetGame" });
+      expect(next.dailyDouble).not.toBeNull();
+      expect(next.doubleJeopardyDailyDoubles).not.toBeNull();
+      const [first, second] = next.doubleJeopardyDailyDoubles!;
+      expect(first).not.toEqual(second);
+      round1CoordinatesSeen.add(JSON.stringify(next.dailyDouble));
+      doubleJeopardyCoordinatesSeen.add(JSON.stringify(next.doubleJeopardyDailyDoubles));
+    }
+
+    // Not every one of 25 draws is guaranteed distinct, but a real random redraw
+    // should produce more than a single repeated coordinate/pair across all of them.
+    expect(round1CoordinatesSeen.size).toBeGreaterThan(1);
+    expect(doubleJeopardyCoordinatesSeen.size).toBeGreaterThan(1);
+  });
 });
 
 describe("gameEngine: toggleBoardSound", () => {
@@ -1543,6 +1588,16 @@ function filledContent(categoryCount: number) {
 
 function finishedGame(): ReturnType<typeof initialState> {
   let state = startedGame();
+  state = markAllUsedExcept(state, 4, 4);
+  state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
+  return applyAction(state, { type: "closeClue" });
+}
+
+// Plays a two-Round Game all the way through Double Jeopardy to gameOver, so
+// resetGame/returnToSetup can be exercised against the "furthest along" state a
+// two-Round Game reaches.
+function finishedTwoRoundGame(): ReturnType<typeof initialState> {
+  let state = applyAction(roundBreakState(), { type: "startDoubleJeopardy" });
   state = markAllUsedExcept(state, 4, 4);
   state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
   return applyAction(state, { type: "closeClue" });
@@ -1895,6 +1950,36 @@ describe("gameEngine: Board Setup", () => {
       expect(next.players).toEqual([]);
       expect(next.board).toEqual([]);
       expect(next.activeClue).toBeNull();
+    });
+
+    it("preserves doubleJeopardyContent and twoRounds across the round trip from a finished two-Round Game", () => {
+      const state = finishedTwoRoundGame();
+      expect(state.twoRounds).toBe(true);
+      const doubleJeopardyContentBefore = state.doubleJeopardyContent;
+
+      const next = applyAction(state, { type: "returnToSetup" });
+
+      expect(next.phase).toBe("setup");
+      expect(next.twoRounds).toBe(true);
+      expect(next.doubleJeopardyContent).toEqual(doubleJeopardyContentBefore);
+      expect(next.board).toEqual([]);
+      expect(next.activeClue).toBeNull();
+      expect(next.dailyDouble).toBeNull();
+      expect(next.doubleJeopardyDailyDoubles).toBeNull();
+      expect(next.round).toBe(1);
+    });
+
+    it("still allows editing Double Jeopardy's content after returning to setup from a two-Round Game", () => {
+      const state = finishedTwoRoundGame();
+
+      const backInSetup = applyAction(state, { type: "returnToSetup" });
+      const renamed = applyAction(backInSetup, {
+        type: "editDoubleJeopardyCategoryName",
+        categoryIndex: 0,
+        name: "Edited after reset",
+      });
+
+      expect(renamed.doubleJeopardyContent![0].name).toBe("Edited after reset");
     });
 
     it.each(["setup", "playing"] as const)("is a no-op from the %s phase", (_phase) => {
