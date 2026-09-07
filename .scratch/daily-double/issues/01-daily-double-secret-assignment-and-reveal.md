@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Daily Double's `(categoryIndex, tileIndex)` is picked at random every time the Board is built (`openLobby` and `resetGame`), and is never exposed in any broadcast `GameState` — to any role, including `"host"` — before that Tile is selected.
-- [ ] Selecting the pre-picked Tile sets `isDailyDouble: true` on the resulting Active Clue; selecting any other Tile sets it `false`.
-- [ ] A subsequent Board rebuild draws a fresh random coordinate rather than reusing the previous one.
-- [ ] Buzzing remains fully functional on a Daily Double Clue in this ticket (no lockout yet).
-- [ ] The Host, Board, and Player views each render a clear "Daily Double!" indicator whenever the Active Clue's `isDailyDouble` is true, visually distinct from a normal Clue's waiting-for-Buzz state (exact visual polish can be minimal; later tickets build out the full designate/wager UI on top of it).
-- [ ] `shared/src/gameEngine.test.ts` covers: the random pick is not present on `state` in a form any `viewForRole` output would expose; selecting the picked coordinate flags `isDailyDouble: true`; selecting any other Tile flags it `false`; a rebuild produces a different pick across repeated rebuilds.
-- [ ] `server/src/server.test.ts` covers: no broadcast to any connected role ever exposes the secret coordinate prior to its selection.
-- [ ] `client/src/activeClue.test.ts` and `client/src/components/ActiveClue.test.tsx` cover: `resolveActiveClue` surfaces `isDailyDouble`, and the component renders the Daily Double indicator when it's true.
+- [x] The Daily Double's `(categoryIndex, tileIndex)` is picked at random every time the Board is built (`openLobby` and `resetGame`), and is never exposed in any broadcast `GameState` — to any role, including `"host"` — before that Tile is selected.
+- [x] Selecting the pre-picked Tile sets `isDailyDouble: true` on the resulting Active Clue; selecting any other Tile sets it `false`.
+- [x] A subsequent Board rebuild draws a fresh random coordinate rather than reusing the previous one.
+- [x] Buzzing remains fully functional on a Daily Double Clue in this ticket (no lockout yet).
+- [x] The Host, Board, and Player views each render a clear "Daily Double!" indicator whenever the Active Clue's `isDailyDouble` is true, visually distinct from a normal Clue's waiting-for-Buzz state (exact visual polish can be minimal; later tickets build out the full designate/wager UI on top of it).
+- [x] `shared/src/gameEngine.test.ts` covers: the random pick is not present on `state` in a form any `viewForRole` output would expose; selecting the picked coordinate flags `isDailyDouble: true`; selecting any other Tile flags it `false`; a rebuild produces a different pick across repeated rebuilds.
+- [x] `server/src/server.test.ts` covers: no broadcast to any connected role ever exposes the secret coordinate prior to its selection.
+- [x] `client/src/activeClue.test.ts` and `client/src/components/ActiveClue.test.tsx` cover: `resolveActiveClue` surfaces `isDailyDouble`, and the component renders the Daily Double indicator when it's true.

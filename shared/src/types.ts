@@ -35,6 +35,18 @@ export interface ActiveClue {
   buzzedPlayerId: string | null;
   excludedPlayerIds: string[];
   correctPlayerId: string | null;
+  // Set from the secretly pre-picked Daily Double coordinate (see GameState.dailyDouble)
+  // the moment this Tile is selected — the only place that secret ever surfaces.
+  isDailyDouble: boolean;
+}
+
+// The Board's secretly pre-picked Daily Double Tile, chosen fresh every time the Board
+// is built (openLobby / resetGame). Never present in a viewForRole output for any role,
+// including "host" — it only becomes visible indirectly, via ActiveClue.isDailyDouble,
+// once that Tile is selected.
+export interface DailyDoubleCoordinate {
+  categoryIndex: number;
+  tileIndex: number;
 }
 
 // A socket's self-declared role, sent once via the `identify` event at connection.
@@ -52,6 +64,9 @@ export interface GameState {
   board: Category[];
   activeClue: ActiveClue | null;
   boardSoundMuted: boolean;
+  // The secret Daily Double pick for the current `board` — see DailyDoubleCoordinate.
+  // null only while there's no Board yet (phase "setup").
+  dailyDouble: DailyDoubleCoordinate | null;
 }
 
 export type ClueField = 'text' | 'answer';

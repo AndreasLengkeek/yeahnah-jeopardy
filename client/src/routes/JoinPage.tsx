@@ -38,6 +38,18 @@ const editLinkStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+// Loud and distinct from the plain buzz-status text below it, so a Player notices a
+// Daily Double the instant it's selected — matches the signal Host/Board show via the
+// ActiveClue component (see client/src/components/ActiveClue.tsx).
+const dailyDoubleStyle: CSSProperties = {
+  fontFamily: "'Zilla Slab', Georgia, serif",
+  fontWeight: 800,
+  fontSize: 22,
+  letterSpacing: ".04em",
+  textTransform: "uppercase",
+  color: accent,
+};
+
 export function JoinPage() {
   useIdentify("player");
   const state = useGameState();
@@ -189,6 +201,9 @@ export function JoinPage() {
                 )
               ) : (
                 <>
+                  {activeClue?.isDailyDouble && !iHaveTheBuzz && !otherBuzzedPlayer && !clueDetails?.correctPlayer && (
+                    <div style={dailyDoubleStyle}>Daily Double!</div>
+                  )}
                   <button
                     disabled={!canBuzz}
                     onClick={() => socket.emit("buzz", playerId)}

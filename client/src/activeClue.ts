@@ -8,6 +8,7 @@ export interface ActiveClueDetails {
   revealed: boolean;
   buzzedPlayer: Player | null;
   correctPlayer: Player | null;
+  isDailyDouble: boolean;
 }
 
 function resolvePlayer(playerId: string | null, players: Player[]): Player | null {
@@ -29,5 +30,6 @@ export function resolveActiveClue(activeClue: ActiveClue, board: Category[], pla
     revealed: activeClue.revealed,
     buzzedPlayer: resolvePlayer(activeClue.buzzedPlayerId, players),
     correctPlayer: resolvePlayer(activeClue.correctPlayerId, players),
+    isDailyDouble: activeClue.isDailyDouble,
   };
 }

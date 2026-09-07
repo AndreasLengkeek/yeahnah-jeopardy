@@ -12,6 +12,7 @@ function details(overrides: Partial<ActiveClueDetails> = {}): ActiveClueDetails 
     revealed: false,
     buzzedPlayer: null,
     correctPlayer: null,
+    isDailyDouble: false,
     ...overrides,
   };
 }
@@ -120,5 +121,33 @@ describe("ActiveClue", () => {
     render(<ActiveClue details={details({ revealed: false })} />);
 
     expect(screen.queryByText("Vilnius")).not.toBeInTheDocument();
+  });
+
+  it("shows the Daily Double indicator instead of the waiting message when isDailyDouble is true", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true })} />);
+
+    expect(screen.getByText("Daily Double!")).toBeInTheDocument();
+    expect(screen.queryByText("Waiting for a buzz…")).not.toBeInTheDocument();
+  });
+
+  it("does not show the Daily Double indicator for a normal Clue", () => {
+    render(<ActiveClue details={details({ isDailyDouble: false })} />);
+
+    expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
+    expect(screen.getByText("Waiting for a buzz…")).toBeInTheDocument();
+  });
+
+  it("hands status back to the buzzed player once someone buzzes on a Daily Double Clue", () => {
+    render(
+      <ActiveClue
+        details={details({
+          isDailyDouble: true,
+          buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
+    expect(screen.getByText(/has the buzz/).textContent).toBe("Dana has the buzz");
   });
 });

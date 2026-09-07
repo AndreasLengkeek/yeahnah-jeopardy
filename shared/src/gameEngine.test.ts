@@ -264,7 +264,7 @@ describe("gameEngine: selectTile", () => {
   it("selecting an unused tile makes it the active clue", () => {
     const state = applyAction(startedGame(), { type: "selectTile", categoryIndex: 0, tileIndex: 2 });
 
-    expect(state.activeClue).toEqual({
+    expect(state.activeClue).toMatchObject({
       categoryIndex: 0,
       tileIndex: 2,
       clueText: CATS[0].clues[2].text,
@@ -274,6 +274,9 @@ describe("gameEngine: selectTile", () => {
       excludedPlayerIds: [],
       correctPlayerId: null,
     });
+    // Whether it lands on the secretly pre-picked Daily Double Tile is covered by its
+    // own describe block below — this test only cares that the field is present.
+    expect(typeof state.activeClue?.isDailyDouble).toBe("boolean");
   });
 
   it("stores the true Clue text and Answer from the authored content on the active clue", () => {
@@ -315,6 +318,59 @@ describe("gameEngine: selectTile", () => {
     const next = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
 
     expect(next.activeClue).toBeNull();
+  });
+});
+
+describe("gameEngine: Daily Double", () => {
+  it("flags isDailyDouble true only when the secretly pre-picked Tile is the one selected, false for every other Tile", () => {
+    const base = startedGame();
+    const { categoryIndex: ddCategory, tileIndex: ddTile } = base.dailyDouble!;
+
+    let dailyDoubleHits = 0;
+    for (let categoryIndex = 0; categoryIndex < base.board.length; categoryIndex++) {
+      for (let tileIndex = 0; tileIndex < base.board[categoryIndex].tiles.length; tileIndex++) {
+        const state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+        const expected = categoryIndex === ddCategory && tileIndex === ddTile;
+        expect(state.activeClue?.isDailyDouble).toBe(expected);
+        if (expected) dailyDoubleHits++;
+      }
+    }
+
+    // Exactly one coordinate on the whole Board is the Daily Double.
+    expect(dailyDoubleHits).toBe(1);
+  });
+
+  it("draws a fresh random coordinate every time the Lobby opens, never exposed on the resulting state itself as anything selectTile didn't already reveal", () => {
+    const picks = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const state = lobbyState();
+      picks.add(`${state.dailyDouble!.categoryIndex}-${state.dailyDouble!.tileIndex}`);
+    }
+
+    // 25 possible Tiles, 20 independent draws: astronomically unlikely to all collide
+    // unless the pick genuinely varies from build to build.
+    expect(picks.size).toBeGreaterThan(1);
+  });
+
+  it("draws a new coordinate on resetGame rather than reusing the one from the previous Board", () => {
+    const originalRandom = Math.random;
+    try {
+      // Category 0 tile 0, then category 4 tile 4 (5 categories x 5 tiles seeded Board).
+      Math.random = () => 0;
+      let state = applyAction(initialState(), { type: "openLobby" });
+      expect(state.dailyDouble).toEqual({ categoryIndex: 0, tileIndex: 0 });
+
+      state = applyAction(state, joinText("Dana"));
+      state = applyAction(state, joinText("Marcus"));
+      state = applyAction(state, { type: "startGame" });
+
+      Math.random = () => 0.999;
+      state = applyAction(state, { type: "resetGame" });
+
+      expect(state.dailyDouble).toEqual({ categoryIndex: 4, tileIndex: 4 });
+    } finally {
+      Math.random = originalRandom;
+    }
   });
 });
 
@@ -843,6 +899,7 @@ describe("gameEngine: initialState", () => {
     expect(state.players).toEqual([]);
     expect(state.activeClue).toBeNull();
     expect(state.boardSoundMuted).toBe(false);
+    expect(state.dailyDouble).toBeNull();
   });
 
   it("seeds content from the ported CATS fixture (5 categories, 5 clues each)", () => {
@@ -879,6 +936,16 @@ describe("gameEngine: initialState", () => {
         expect(tile.used).toBe(false);
       });
     });
+  });
+
+  it("picks a Daily Double coordinate within the Board's bounds when the Lobby opens", () => {
+    const state = lobbyState();
+
+    expect(state.dailyDouble).not.toBeNull();
+    expect(state.dailyDouble!.categoryIndex).toBeGreaterThanOrEqual(0);
+    expect(state.dailyDouble!.categoryIndex).toBeLessThan(state.board.length);
+    expect(state.dailyDouble!.tileIndex).toBeGreaterThanOrEqual(0);
+    expect(state.dailyDouble!.tileIndex).toBeLessThan(state.board[state.dailyDouble!.categoryIndex].tiles.length);
   });
 });
 

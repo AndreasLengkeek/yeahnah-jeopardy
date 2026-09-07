@@ -78,6 +78,21 @@ const statusStyle: CSSProperties = {
   color: "#c9d2f5",
 };
 
+// Deliberately loud and distinct from the plain "Waiting for a buzz…" status it
+// replaces — a Daily Double is a one-off moment the Host and every Player need to
+// notice immediately, not something they might read past.
+const dailyDoubleStyle: CSSProperties = {
+  flex: "none",
+  textAlign: "center",
+  fontFamily: "'Zilla Slab', Georgia, serif",
+  fontWeight: 800,
+  fontSize: "clamp(20px, 3vh, 32px)",
+  letterSpacing: ".04em",
+  textTransform: "uppercase",
+  color: accent,
+  animation: "buzzFlash 900ms ease-in-out infinite",
+};
+
 const hostAnswerStyle: CSSProperties = {
   flex: "none",
   textAlign: "center",
@@ -107,7 +122,7 @@ export function ActiveClue({
   footer?: ReactNode;
   alwaysShowAnswer?: boolean;
 }) {
-  const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer } = details;
+  const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer, isDailyDouble } = details;
   // Once someone holds the Buzz, Board and Player hide the Clue text behind a big
   // banner instead — the Host keeps seeing it throughout (alwaysShowAnswer is only
   // ever true for the Host's own card).
@@ -119,13 +134,17 @@ export function ActiveClue({
     </>
   );
 
+  // The Daily Double signal only stands in for the plain waiting state — once someone
+  // buzzes or has already answered correctly, their status takes over as normal.
+  const showDailyDoubleBanner = isDailyDouble && !buzzedPlayer && !correctPlayer;
+
   const statusText: ReactNode = hideClueOnBuzz ? null : buzzedPlayer ? (
     buzzBanner
   ) : correctPlayer ? (
     <>
       <PlayerIdentity identity={correctPlayer.identity} /> got it right
     </>
-  ) : (
+  ) : showDailyDoubleBanner ? null : (
     "Waiting for a buzz…"
   );
 
@@ -144,6 +163,8 @@ export function ActiveClue({
       </div>
 
       {alwaysShowAnswer && !revealed && <div style={hostAnswerStyle}>{answer}</div>}
+
+      {showDailyDoubleBanner && !hideClueOnBuzz && <div style={dailyDoubleStyle}>Daily Double!</div>}
 
       {statusText && <div style={statusStyle}>{statusText}</div>}
 

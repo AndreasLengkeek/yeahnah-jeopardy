@@ -16,12 +16,21 @@ function clue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     buzzedPlayerId: null,
     excludedPlayerIds: [],
     correctPlayerId: null,
+    isDailyDouble: false,
     ...overrides,
   };
 }
 
 function state(activeClue: ActiveClue | null): GameState {
-  return { phase: "playing", players: [], content: [], board: [], activeClue, boardSoundMuted: false };
+  return {
+    phase: "playing",
+    players: [],
+    content: [],
+    board: [],
+    activeClue,
+    boardSoundMuted: false,
+    dailyDouble: null,
+  };
 }
 
 describe("useBoardAudio", () => {

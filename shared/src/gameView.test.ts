@@ -13,6 +13,7 @@ function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     buzzedPlayerId: null,
     excludedPlayerIds: [],
     correctPlayerId: null,
+    isDailyDouble: false,
     ...overrides,
   };
 }
@@ -29,19 +30,21 @@ function state(overrides: Partial<GameState> = {}): GameState {
     board: [],
     activeClue: activeClue(),
     boardSoundMuted: false,
+    dailyDouble: { categoryIndex: 3, tileIndex: 4 },
     ...overrides,
   };
 }
 
 describe("viewForRole", () => {
-  it("returns the Host view unchanged, including content and the true Answer, before Reveal", () => {
+  it("gives the Host everything but the secret Daily Double coordinate, including content and the true Answer, before Reveal", () => {
     const input = state();
 
     const view = viewForRole(input, "host");
 
-    expect(view).toBe(input);
     expect(view.content).toBe(content);
     expect(view.activeClue?.answer).toBe("Vilnius");
+    expect(view.players).toBe(input.players);
+    expect(view.board).toBe(input.board);
   });
 
   it("still gives the Host the true Answer after Reveal", () => {
@@ -98,5 +101,17 @@ describe("viewForRole", () => {
 
     expect(input.content).toBe(content);
     expect(input.activeClue?.answer).toBe("Vilnius");
+  });
+
+  it("never exposes the secret Daily Double coordinate to the Host view", () => {
+    expect(viewForRole(state(), "host").dailyDouble).toBeNull();
+  });
+
+  it("never exposes the secret Daily Double coordinate to the Board view", () => {
+    expect(viewForRole(state(), "board").dailyDouble).toBeNull();
+  });
+
+  it("never exposes the secret Daily Double coordinate to the Player view", () => {
+    expect(viewForRole(state(), "player").dailyDouble).toBeNull();
   });
 });

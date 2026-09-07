@@ -1,7 +1,16 @@
 import { identitiesMatch, isBlankIdentity, normalizeIdentity } from './playerIdentity.js';
 import { CATS, VALUES } from './trivia.js';
 import type { CategoryData } from './trivia.js';
-import type { ActiveClue, Category, ClueField, GameAction, GameState, Player, PlayerIdentity } from './types.js';
+import type {
+  ActiveClue,
+  Category,
+  ClueField,
+  DailyDoubleCoordinate,
+  GameAction,
+  GameState,
+  Player,
+  PlayerIdentity,
+} from './types.js';
 
 const CLUES_PER_CATEGORY = VALUES.length;
 
@@ -36,6 +45,15 @@ function buildBoard(content: CategoryData[]): Category[] {
   }));
 }
 
+// Draws a fresh random Daily Double coordinate for a just-built Board — every Tile on
+// it is equally likely, and every call (openLobby, resetGame) draws independently, so a
+// rebuild never reuses the previous pick on purpose (it's simply not consulted).
+function pickDailyDouble(board: Category[]): DailyDoubleCoordinate {
+  const categoryIndex = Math.floor(Math.random() * board.length);
+  const tileIndex = Math.floor(Math.random() * board[categoryIndex].tiles.length);
+  return { categoryIndex, tileIndex };
+}
+
 // A field counts as filled only once it holds non-whitespace content. Shared by the
 // Lobby gate below and the editor's per-field blank flags, so both agree on "blank".
 export function isBlank(value: string): boolean {
@@ -59,6 +77,7 @@ export function initialState(): GameState {
     board: [],
     activeClue: null,
     boardSoundMuted: false,
+    dailyDouble: null,
   };
 }
 
@@ -212,7 +231,8 @@ function applyOpenLobby(state: GameState): GameState {
   if (state.phase !== 'setup') return state;
   if (!isContentComplete(state.content)) return state;
 
-  return { ...state, phase: 'lobby', board: buildBoard(state.content) };
+  const board = buildBoard(state.content);
+  return { ...state, phase: 'lobby', board, dailyDouble: pickDailyDouble(board) };
 }
 
 function applyStartGame(state: GameState): GameState {
@@ -235,6 +255,10 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
   // before Reveal is a transmission concern handled by viewForRole (ADR-0006), not a
   // reducer rule.
   const clue = state.content[categoryIndex].clues[tileIndex];
+  const isDailyDouble =
+    state.dailyDouble !== null &&
+    state.dailyDouble.categoryIndex === categoryIndex &&
+    state.dailyDouble.tileIndex === tileIndex;
   const activeClue: ActiveClue = {
     categoryIndex,
     tileIndex,
@@ -244,6 +268,7 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
     buzzedPlayerId: null,
     excludedPlayerIds: [],
     correctPlayerId: null,
+    isDailyDouble,
   };
   return { ...state, activeClue };
 }
@@ -337,6 +362,7 @@ function applyReturnToSetup(state: GameState): GameState {
     players: state.phase === 'lobby' ? state.players : [],
     board: [],
     activeClue: null,
+    dailyDouble: null,
   };
 }
 
@@ -347,13 +373,15 @@ function applyReturnToSetup(state: GameState): GameState {
 function applyResetGame(state: GameState): GameState {
   if (state.phase === 'setup') return state;
 
+  const board = buildBoard(state.content);
   return {
     phase: 'lobby',
     players: [],
     content: state.content,
-    board: buildBoard(state.content),
+    board,
     activeClue: null,
     boardSoundMuted: state.boardSoundMuted,
+    dailyDouble: pickDailyDouble(board),
   };
 }
 

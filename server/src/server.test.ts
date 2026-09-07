@@ -410,4 +410,44 @@ describe("socket.io wiring", () => {
       expect(anonSel.activeClue?.answer).toBe("");
     });
   });
+
+  describe("Daily Double secrecy", () => {
+    it("never includes the secret Daily Double coordinate in any state broadcast to any role, before or after selection", async () => {
+      const host = await connect("host");
+      await host.nextState(); // raw-connect view
+      await host.nextState(); // post-identify view
+
+      host.socket.emit("openLobby");
+      const hostOpen = await host.nextState();
+      expect(hostOpen.dailyDouble).toBeNull();
+
+      const board = await connect("board");
+      await board.nextState();
+      await board.nextState();
+      const player = await connect("player");
+      await player.nextState();
+      await player.nextState();
+
+      host.socket.emit("join", textIdentity("Dana"));
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("join", textIdentity("Marcus"));
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("startGame");
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+
+      host.socket.emit("selectTile", 0, 0);
+      const [hostSel, boardSel, playerSel] = await Promise.all([
+        host.nextState(),
+        board.nextState(),
+        player.nextState(),
+      ]);
+
+      expect(hostSel.dailyDouble).toBeNull();
+      expect(boardSel.dailyDouble).toBeNull();
+      expect(playerSel.dailyDouble).toBeNull();
+      // Whichever Tile turned out to be the Daily Double, its ActiveClue carries the
+      // flag instead — that's the only sanctioned way the secret ever surfaces.
+      expect(typeof hostSel.activeClue?.isDailyDouble).toBe("boolean");
+    });
+  });
 });
