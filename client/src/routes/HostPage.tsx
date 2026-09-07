@@ -63,6 +63,19 @@ function closeClueButton(): ReactNode {
 }
 
 function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
+  // A Daily Double's Clue text stays behind its cover screen until the Host explicitly
+  // shows it — takes priority over every other footer state, since nothing else (no
+  // Buzz, no Reveal) can have happened yet while it's still covered.
+  if (activeClue.isDailyDouble && !activeClue.clueShown) {
+    return (
+      <div style={centeredRowStyle}>
+        <button onClick={() => socket.emit("showDailyDoubleClue")} style={pillButtonStyle(true)}>
+          Show Clue
+        </button>
+      </div>
+    );
+  }
+
   if (activeClue.buzzedPlayerId !== null) {
     return (
       <div style={centeredRowWithGapStyle}>

@@ -133,6 +133,10 @@ export function createGameServer() {
       dispatch({ type: "selectTile", categoryIndex, tileIndex });
     });
 
+    socket.on("showDailyDoubleClue", () => {
+      dispatch({ type: "showDailyDoubleClue" });
+    });
+
     socket.on("buzz", (playerId: string) => {
       dispatch({ type: "buzz", playerId });
     });

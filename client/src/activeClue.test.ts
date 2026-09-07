@@ -28,6 +28,7 @@ function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     excludedPlayerIds: [],
     correctPlayerId: null,
     isDailyDouble: false,
+    clueShown: true,
     ...overrides,
   };
 }
@@ -111,5 +112,17 @@ describe("resolveActiveClue", () => {
     const details = resolveActiveClue(activeClue({ isDailyDouble: false }), board(), players());
 
     expect(details.isDailyDouble).toBe(false);
+  });
+
+  it("surfaces clueShown true for a normal Clue", () => {
+    const details = resolveActiveClue(activeClue({ clueShown: true }), board(), players());
+
+    expect(details.clueShown).toBe(true);
+  });
+
+  it("surfaces clueShown false for a Daily Double Clue not yet revealed by the Host", () => {
+    const details = resolveActiveClue(activeClue({ isDailyDouble: true, clueShown: false }), board(), players());
+
+    expect(details.clueShown).toBe(false);
   });
 });

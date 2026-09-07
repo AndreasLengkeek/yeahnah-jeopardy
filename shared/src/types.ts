@@ -38,6 +38,10 @@ export interface ActiveClue {
   // Set from the secretly pre-picked Daily Double coordinate (see GameState.dailyDouble)
   // the moment this Tile is selected — the only place that secret ever surfaces.
   isDailyDouble: boolean;
+  // Gates the Clue text/Answer behind a "Daily Double!" cover screen until the Host
+  // manually reveals it (see `showDailyDoubleClue`). Always `true` on selection for a
+  // normal Clue — this only ever starts `false` for a Daily Double.
+  clueShown: boolean;
 }
 
 // The Board's secretly pre-picked Daily Double Tile, chosen fresh every time the Board
@@ -83,6 +87,7 @@ export type GameAction =
   | { type: 'toggleBoardSound' }
   | { type: 'startGame' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }
+  | { type: 'showDailyDoubleClue' }
   | { type: 'buzz'; playerId: string }
   | { type: 'reveal' }
   | { type: 'judge'; correct: boolean }

@@ -250,6 +250,18 @@ describe("gameEngine: startGame", () => {
 function startedGame(): ReturnType<typeof initialState> {
   let state = lobbyWithTwoPlayers();
   state = applyAction(state, { type: "startGame" });
+  // Most tests below aren't about the Daily Double at all, and its coordinate is
+  // random — neutralize it so selecting any Tile behaves like a normal Clue,
+  // deterministically. Tests that actually need the real secret pick use
+  // startedGameWithRealDailyDouble() instead.
+  return { ...state, dailyDouble: null };
+}
+
+// Same as startedGame(), but keeps the genuine random Daily Double pick — for tests
+// that specifically exercise Daily Double behavior.
+function startedGameWithRealDailyDouble(): ReturnType<typeof initialState> {
+  let state = lobbyWithTwoPlayers();
+  state = applyAction(state, { type: "startGame" });
   return state;
 }
 
@@ -323,7 +335,7 @@ describe("gameEngine: selectTile", () => {
 
 describe("gameEngine: Daily Double", () => {
   it("flags isDailyDouble true only when the secretly pre-picked Tile is the one selected, false for every other Tile", () => {
-    const base = startedGame();
+    const base = startedGameWithRealDailyDouble();
     const { categoryIndex: ddCategory, tileIndex: ddTile } = base.dailyDouble!;
 
     let dailyDoubleHits = 0;
@@ -371,6 +383,76 @@ describe("gameEngine: Daily Double", () => {
     } finally {
       Math.random = originalRandom;
     }
+  });
+
+  it("selecting a normal Clue shows its text immediately (clueShown true)", () => {
+    let state = startedGame(); // dailyDouble neutralized: every Tile behaves normally
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+
+    expect(state.activeClue?.clueShown).toBe(true);
+  });
+
+  it("selecting the Daily Double Tile hides its Clue behind the cover screen (clueShown false)", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+
+    const state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+
+    expect(state.activeClue?.isDailyDouble).toBe(true);
+    expect(state.activeClue?.clueShown).toBe(false);
+  });
+
+  it("showDailyDoubleClue reveals the Clue text once the Host triggers it", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    expect(state.activeClue?.clueShown).toBe(false);
+
+    state = applyAction(state, { type: "showDailyDoubleClue" });
+
+    expect(state.activeClue?.clueShown).toBe(true);
+  });
+
+  it("showDailyDoubleClue is a no-op with no active clue", () => {
+    const state = applyAction(startedGame(), { type: "showDailyDoubleClue" });
+
+    expect(state.activeClue).toBeNull();
+  });
+
+  it("showDailyDoubleClue is a no-op on a normal (non-Daily-Double) Clue", () => {
+    let state = startedGame();
+    state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
+
+    const next = applyAction(state, { type: "showDailyDoubleClue" });
+
+    expect(next).toBe(state);
+    expect(next.activeClue?.clueShown).toBe(true);
+  });
+
+  it("showDailyDoubleClue is a no-op once the Clue is already shown", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    state = applyAction(state, { type: "showDailyDoubleClue" });
+
+    const next = applyAction(state, { type: "showDailyDoubleClue" });
+
+    expect(next).toBe(state);
+  });
+
+  it("rejects a buzz on a Daily Double Clue until the Host reveals it, then allows it normally", () => {
+    const base = startedGameWithRealDailyDouble();
+    const { categoryIndex, tileIndex } = base.dailyDouble!;
+    let state = applyAction(base, { type: "selectTile", categoryIndex, tileIndex });
+    const [dana] = state.players;
+
+    const blocked = applyAction(state, { type: "buzz", playerId: dana.id });
+    expect(blocked.activeClue?.buzzedPlayerId).toBeNull();
+
+    state = applyAction(state, { type: "showDailyDoubleClue" });
+    const buzzed = applyAction(state, { type: "buzz", playerId: dana.id });
+
+    expect(buzzed.activeClue?.buzzedPlayerId).toBe(dana.id);
   });
 });
 

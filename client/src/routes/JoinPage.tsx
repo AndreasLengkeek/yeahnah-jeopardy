@@ -38,8 +38,8 @@ const editLinkStyle: CSSProperties = {
   cursor: "pointer",
 };
 
-// Loud and distinct from the plain buzz-status text below it, so a Player notices a
-// Daily Double the instant it's selected — matches the signal Host/Board show via the
+// Fills the same space the Buzz button/status normally occupy while the Host's Daily
+// Double cover screen is up — matches the signal Host/Board show via the shared
 // ActiveClue component (see client/src/components/ActiveClue.tsx).
 const dailyDoubleStyle: CSSProperties = {
   fontFamily: "'Zilla Slab', Georgia, serif",
@@ -131,7 +131,11 @@ export function JoinPage() {
   const iHaveTheBuzz = activeClue?.buzzedPlayerId === playerId;
   const otherBuzzedPlayer = iHaveTheBuzz ? undefined : clueDetails?.buzzedPlayer;
   const iAmExcluded = !!(playerId && activeClue?.excludedPlayerIds.includes(playerId));
-  const canBuzz = gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null && !iAmExcluded;
+  // A Daily Double's Clue stays behind its cover screen until the Host reveals it —
+  // nothing to Buzz on yet (see gameEngine.ts's showDailyDoubleClue).
+  const dailyDoubleCovered = !!activeClue?.isDailyDouble && !activeClue.clueShown;
+  const canBuzz =
+    gameStarted && activeClue !== null && activeClue.buzzedPlayerId === null && !iAmExcluded && !dailyDoubleCovered;
 
   return (
     <div style={shellStyle}>
@@ -199,11 +203,10 @@ export function JoinPage() {
                 ) : (
                   <div style={{ color: "#c9d2f5" }}>Waiting for the Host to start the Game…</div>
                 )
+              ) : dailyDoubleCovered ? (
+                <div style={dailyDoubleStyle}>Daily Double!</div>
               ) : (
                 <>
-                  {activeClue?.isDailyDouble && !iHaveTheBuzz && !otherBuzzedPlayer && !clueDetails?.correctPlayer && (
-                    <div style={dailyDoubleStyle}>Daily Double!</div>
-                  )}
                   <button
                     disabled={!canBuzz}
                     onClick={() => socket.emit("buzz", playerId)}

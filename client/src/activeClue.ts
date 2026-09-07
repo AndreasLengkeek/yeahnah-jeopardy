@@ -9,6 +9,9 @@ export interface ActiveClueDetails {
   buzzedPlayer: Player | null;
   correctPlayer: Player | null;
   isDailyDouble: boolean;
+  // Gates the Clue text behind a "Daily Double!" cover screen (see ActiveClue.tsx)
+  // until the Host reveals it — always true for a normal Clue.
+  clueShown: boolean;
 }
 
 function resolvePlayer(playerId: string | null, players: Player[]): Player | null {
@@ -31,5 +34,6 @@ export function resolveActiveClue(activeClue: ActiveClue, board: Category[], pla
     buzzedPlayer: resolvePlayer(activeClue.buzzedPlayerId, players),
     correctPlayer: resolvePlayer(activeClue.correctPlayerId, players),
     isDailyDouble: activeClue.isDailyDouble,
+    clueShown: activeClue.clueShown,
   };
 }

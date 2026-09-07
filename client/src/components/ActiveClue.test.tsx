@@ -13,6 +13,7 @@ function details(overrides: Partial<ActiveClueDetails> = {}): ActiveClueDetails 
     buzzedPlayer: null,
     correctPlayer: null,
     isDailyDouble: false,
+    clueShown: true,
     ...overrides,
   };
 }
@@ -123,25 +124,39 @@ describe("ActiveClue", () => {
     expect(screen.queryByText("Vilnius")).not.toBeInTheDocument();
   });
 
-  it("shows the Daily Double indicator instead of the waiting message when isDailyDouble is true", () => {
-    render(<ActiveClue details={details({ isDailyDouble: true })} />);
+  it("shows a full-card Daily Double cover instead of the Clue text while clueShown is false", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: false })} />);
 
     expect(screen.getByText("Daily Double!")).toBeInTheDocument();
+    expect(screen.queryByText("This Baltic capital sits on the Vilnia River")).not.toBeInTheDocument();
     expect(screen.queryByText("Waiting for a buzz…")).not.toBeInTheDocument();
   });
 
-  it("does not show the Daily Double indicator for a normal Clue", () => {
-    render(<ActiveClue details={details({ isDailyDouble: false })} />);
+  it("renders the footer even behind the Daily Double cover, so the Host's reveal control still shows", () => {
+    render(
+      <ActiveClue
+        details={details({ isDailyDouble: true, clueShown: false })}
+        footer={<button>Show Clue</button>}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Show Clue" })).toBeInTheDocument();
+  });
+
+  it("shows the Clue text and normal waiting status once the Host reveals a Daily Double (clueShown true)", () => {
+    render(<ActiveClue details={details({ isDailyDouble: true, clueShown: true })} />);
 
     expect(screen.queryByText("Daily Double!")).not.toBeInTheDocument();
+    expect(screen.getByText("This Baltic capital sits on the Vilnia River")).toBeInTheDocument();
     expect(screen.getByText("Waiting for a buzz…")).toBeInTheDocument();
   });
 
-  it("hands status back to the buzzed player once someone buzzes on a Daily Double Clue", () => {
+  it("buzzing on a revealed Daily Double behaves exactly like a normal Clue", () => {
     render(
       <ActiveClue
         details={details({
           isDailyDouble: true,
+          clueShown: true,
           buzzedPlayer: { id: "p1", identity: { kind: "text", name: "Dana" }, score: 0, connected: true },
         })}
       />,

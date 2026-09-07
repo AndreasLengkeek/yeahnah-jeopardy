@@ -77,6 +77,18 @@ describe("socket.io wiring", () => {
     return drain();
   }
 
+  // The Daily Double coordinate is secretly randomized; Tile (0, 0) may occasionally
+  // land on it, and buzzing is gated behind its cover screen. Tests that select a
+  // fixed Tile and buzz immediately call this first so they never flake.
+  async function revealIfDailyDouble(
+    driver: { socket: Socket; nextState: () => Promise<GameState> },
+    state: GameState,
+  ): Promise<void> {
+    if (!state.activeClue?.isDailyDouble) return;
+    driver.socket.emit("showDailyDoubleClue");
+    await driver.nextState();
+  }
+
   it("broadcasts resulting state to every connected socket as actions are dispatched", async () => {
     const dana = await connect();
     expect((await dana.nextState()).phase).toBe("setup"); // initial state pushed on connect
@@ -99,7 +111,9 @@ describe("socket.io wiring", () => {
     const danaId = byName(started.players, "Dana").id;
 
     dana.socket.emit("selectTile", 0, 0);
-    expect((await dana.nextState()).activeClue).toMatchObject({ categoryIndex: 0, tileIndex: 0 });
+    const selected = await dana.nextState();
+    expect(selected.activeClue).toMatchObject({ categoryIndex: 0, tileIndex: 0 });
+    await revealIfDailyDouble(dana, selected);
 
     dana.socket.emit("buzz", danaId);
     expect((await dana.nextState()).activeClue?.buzzedPlayerId).toBe(danaId);
@@ -204,7 +218,8 @@ describe("socket.io wiring", () => {
     await dana.nextState();
 
     dana.socket.emit("selectTile", 0, 0);
-    await dana.nextState();
+    const selected = await dana.nextState();
+    await revealIfDailyDouble(dana, selected);
 
     dana.socket.emit("buzz", danaId);
     await dana.nextState();
@@ -267,7 +282,8 @@ describe("socket.io wiring", () => {
     dana.socket.emit("startGame");
     await dana.nextState();
     dana.socket.emit("selectTile", 0, 0);
-    await dana.nextState();
+    const selected = await dana.nextState();
+    await revealIfDailyDouble(dana, selected);
     dana.socket.emit("buzz", danaId);
     const buzzed = await dana.nextState();
     expect(buzzed.activeClue?.buzzedPlayerId).toBe(danaId);
@@ -448,6 +464,68 @@ describe("socket.io wiring", () => {
       // Whichever Tile turned out to be the Daily Double, its ActiveClue carries the
       // flag instead — that's the only sanctioned way the secret ever surfaces.
       expect(typeof hostSel.activeClue?.isDailyDouble).toBe("boolean");
+    });
+  });
+
+  describe("Daily Double cover screen (showDailyDoubleClue)", () => {
+    it("hides a Daily Double's Clue text from every role until the Host shows it, then reveals it to all", async () => {
+      const host = await connect("host");
+      await host.nextState();
+      await host.nextState();
+      const board = await connect("board");
+      await board.nextState();
+      await board.nextState();
+      const player = await connect("player");
+      await player.nextState();
+      await player.nextState();
+
+      host.socket.emit("openLobby");
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("join", textIdentity("Dana"));
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("join", textIdentity("Marcus"));
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+      host.socket.emit("startGame");
+      await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+
+      // The Daily Double coordinate is secret and random — sweep every Tile on the
+      // seeded 5x5 Board, closing each miss (immediately closable: nobody buzzed),
+      // until the one Tile that comes back flagged is found.
+      let found = false;
+      for (let categoryIndex = 0; categoryIndex < 5 && !found; categoryIndex++) {
+        for (let tileIndex = 0; tileIndex < 5 && !found; tileIndex++) {
+          host.socket.emit("selectTile", categoryIndex, tileIndex);
+          const [hostSel, boardSel, playerSel] = await Promise.all([
+            host.nextState(),
+            board.nextState(),
+            player.nextState(),
+          ]);
+
+          if (!hostSel.activeClue?.isDailyDouble) {
+            host.socket.emit("closeClue");
+            await Promise.all([host.nextState(), board.nextState(), player.nextState()]);
+            continue;
+          }
+
+          found = true;
+          expect(hostSel.activeClue.clueShown).toBe(false);
+          expect(boardSel.activeClue?.clueShown).toBe(false);
+          expect(playerSel.activeClue?.clueShown).toBe(false);
+
+          host.socket.emit("showDailyDoubleClue");
+          const [hostShown, boardShown, playerShown] = await Promise.all([
+            host.nextState(),
+            board.nextState(),
+            player.nextState(),
+          ]);
+
+          expect(hostShown.activeClue?.clueShown).toBe(true);
+          expect(boardShown.activeClue?.clueShown).toBe(true);
+          expect(playerShown.activeClue?.clueShown).toBe(true);
+        }
+      }
+
+      expect(found).toBe(true);
     });
   });
 });

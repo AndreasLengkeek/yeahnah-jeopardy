@@ -78,18 +78,24 @@ const statusStyle: CSSProperties = {
   color: "#c9d2f5",
 };
 
-// Deliberately loud and distinct from the plain "Waiting for a buzz…" status it
-// replaces — a Daily Double is a one-off moment the Host and every Player need to
-// notice immediately, not something they might read past.
-const dailyDoubleStyle: CSSProperties = {
-  flex: "none",
-  textAlign: "center",
+// Deliberately loud — a Daily Double is a one-off moment the Host and every Player
+// need to notice immediately, filling the whole Clue Card until the Host reveals it.
+const dailyDoubleCoverStyle: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const dailyDoubleTitleStyle: CSSProperties = {
   fontFamily: "'Zilla Slab', Georgia, serif",
   fontWeight: 800,
-  fontSize: "clamp(20px, 3vh, 32px)",
+  fontSize: "clamp(32px, 6vh, 64px)",
   letterSpacing: ".04em",
   textTransform: "uppercase",
   color: accent,
+  textAlign: "center",
   animation: "buzzFlash 900ms ease-in-out infinite",
 };
 
@@ -122,7 +128,23 @@ export function ActiveClue({
   footer?: ReactNode;
   alwaysShowAnswer?: boolean;
 }) {
-  const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer, isDailyDouble } = details;
+  const { category, value, clueText, revealed, answer, buzzedPlayer, correctPlayer, isDailyDouble, clueShown } =
+    details;
+
+  // A Daily Double's Clue text stays behind a full-card cover screen until the Host
+  // reveals it (see gameEngine.ts's showDailyDoubleClue) — nothing to Buzz on, no
+  // waiting-for-a-buzz status, just the one unmistakable signal.
+  if (isDailyDouble && !clueShown) {
+    return (
+      <div style={cardStyle}>
+        <div style={dailyDoubleCoverStyle}>
+          <div style={dailyDoubleTitleStyle}>Daily Double!</div>
+        </div>
+        {footer}
+      </div>
+    );
+  }
+
   // Once someone holds the Buzz, Board and Player hide the Clue text behind a big
   // banner instead — the Host keeps seeing it throughout (alwaysShowAnswer is only
   // ever true for the Host's own card).
@@ -134,17 +156,13 @@ export function ActiveClue({
     </>
   );
 
-  // The Daily Double signal only stands in for the plain waiting state — once someone
-  // buzzes or has already answered correctly, their status takes over as normal.
-  const showDailyDoubleBanner = isDailyDouble && !buzzedPlayer && !correctPlayer;
-
   const statusText: ReactNode = hideClueOnBuzz ? null : buzzedPlayer ? (
     buzzBanner
   ) : correctPlayer ? (
     <>
       <PlayerIdentity identity={correctPlayer.identity} /> got it right
     </>
-  ) : showDailyDoubleBanner ? null : (
+  ) : (
     "Waiting for a buzz…"
   );
 
@@ -163,8 +181,6 @@ export function ActiveClue({
       </div>
 
       {alwaysShowAnswer && !revealed && <div style={hostAnswerStyle}>{answer}</div>}
-
-      {showDailyDoubleBanner && !hideClueOnBuzz && <div style={dailyDoubleStyle}>Daily Double!</div>}
 
       {statusText && <div style={statusStyle}>{statusText}</div>}
 

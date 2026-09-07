@@ -105,6 +105,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyStartGame(state);
     case 'selectTile':
       return applySelectTile(state, action.categoryIndex, action.tileIndex);
+    case 'showDailyDoubleClue':
+      return applyShowDailyDoubleClue(state);
     case 'buzz':
       return applyBuzz(state, action.playerId);
     case 'reveal':
@@ -269,8 +271,23 @@ function applySelectTile(state: GameState, categoryIndex: number, tileIndex: num
     excludedPlayerIds: [],
     correctPlayerId: null,
     isDailyDouble,
+    // A normal Clue's text is visible the instant it's selected, same as always. A
+    // Daily Double's stays behind the cover screen until the Host explicitly reveals
+    // it via `showDailyDoubleClue`.
+    clueShown: !isDailyDouble,
   };
   return { ...state, activeClue };
+}
+
+// Flips a Daily Double Clue's cover screen open, revealing its Clue text to every role
+// (see ActiveClue.clueShown). A no-op once already shown, on a normal Clue, or with no
+// Active Clue at all — matching the reducer's reject-by-no-op convention throughout.
+function applyShowDailyDoubleClue(state: GameState): GameState {
+  if (!state.activeClue) return state;
+  if (!state.activeClue.isDailyDouble) return state;
+  if (state.activeClue.clueShown) return state;
+
+  return { ...state, activeClue: { ...state.activeClue, clueShown: true } };
 }
 
 function applyBuzz(state: GameState, playerId: string): GameState {
@@ -280,6 +297,9 @@ function applyBuzz(state: GameState, playerId: string): GameState {
   if (state.activeClue.excludedPlayerIds.includes(playerId)) return state;
   if (state.activeClue.revealed) return state;
   if (state.activeClue.correctPlayerId !== null) return state;
+  // Nobody can Buzz on a Daily Double's Clue before the Host reveals it from behind
+  // the cover screen — there's nothing to Buzz in on yet.
+  if (!state.activeClue.clueShown) return state;
 
   return { ...state, activeClue: { ...state.activeClue, buzzedPlayerId: playerId } };
 }
