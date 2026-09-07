@@ -80,7 +80,7 @@ function closeClueButton(): ReactNode {
   );
 }
 
-function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
+export function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
   // A Daily Double's Clue text stays behind its cover screen until the Host explicitly
   // shows it — takes priority over every other footer state, since nothing else (no
   // Buzz, no Reveal) can have happened yet while it's still covered.
@@ -113,7 +113,13 @@ function hostFooter(activeClue: ActiveClueState, players: Player[]): ReactNode {
     );
   }
 
-  if (activeClue.buzzedPlayerId !== null) {
+  // A Daily Double never has a Buzz to key off of — its Wager stands in for the
+  // "who currently must be judged" gate a normal Clue gets from buzzedPlayerId.
+  const awaitingJudgment = activeClue.isDailyDouble
+    ? activeClue.wager !== null && !activeClue.revealed
+    : activeClue.buzzedPlayerId !== null;
+
+  if (awaitingJudgment) {
     return (
       <div style={centeredRowWithGapStyle}>
         <button onClick={() => socket.emit("judge", true)} style={pillButtonStyle(true)}>

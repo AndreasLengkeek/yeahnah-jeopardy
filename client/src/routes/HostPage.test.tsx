@@ -1,0 +1,67 @@
+import { render, screen } from "@testing-library/react";
+import type { ActiveClue, Player } from "@yeahnah/shared";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../socket", () => ({
+  socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+}));
+
+import { hostFooter } from "./HostPage";
+
+function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
+  return {
+    categoryIndex: 0,
+    tileIndex: 0,
+    clueText: "This Baltic capital sits on the Vilnia River",
+    answer: "Vilnius",
+    revealed: false,
+    buzzedPlayerId: null,
+    excludedPlayerIds: [],
+    correctPlayerId: null,
+    isDailyDouble: false,
+    clueShown: true,
+    wageringPlayerId: null,
+    wager: null,
+    ...overrides,
+  };
+}
+
+const players: Player[] = [{ id: "p1", identity: { kind: "text", name: "Ann" }, score: 0, connected: true }];
+
+describe("hostFooter", () => {
+  it("shows Correct/Incorrect once a Daily Double Wager is submitted", () => {
+    render(
+      <>{hostFooter(activeClue({ isDailyDouble: true, clueShown: true, wageringPlayerId: "p1", wager: 500 }), players)}</>,
+    );
+
+    expect(screen.getByRole("button", { name: "Correct" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Incorrect" })).toBeInTheDocument();
+  });
+
+  it("does not show Correct/Incorrect for a Daily Double before a Wager is submitted", () => {
+    render(<>{hostFooter(activeClue({ isDailyDouble: true, clueShown: true, wager: null }), players)}</>);
+
+    expect(screen.queryByRole("button", { name: "Correct" })).not.toBeInTheDocument();
+  });
+
+  it("hides Correct/Incorrect for a Daily Double once judged (revealed)", () => {
+    render(
+      <>
+        {hostFooter(
+          activeClue({ isDailyDouble: true, clueShown: true, wageringPlayerId: "p1", wager: 500, revealed: true }),
+          players,
+        )}
+      </>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Correct" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close Clue" })).toBeInTheDocument();
+  });
+
+  it("still shows Correct/Incorrect for a normal Clue once buzzed", () => {
+    render(<>{hostFooter(activeClue({ buzzedPlayerId: "p1" }), players)}</>);
+
+    expect(screen.getByRole("button", { name: "Correct" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Incorrect" })).toBeInTheDocument();
+  });
+});
