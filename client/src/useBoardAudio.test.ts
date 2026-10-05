@@ -31,7 +31,8 @@ function state(activeClue: ActiveClue | null): GameState {
     content: [],
     board: [],
     activeClue,
-    boardSoundMuted: false,
+    boardMusicMuted: false,
+    boardEffectsMuted: false,
     dailyDouble: null,
     doubleJeopardyDailyDoubles: null,
     twoRounds: false,
@@ -173,30 +174,105 @@ describe("useBoardAudio", () => {
     expect(playedSrcs()).toEqual(["/audio/buzz.mp3"]);
   });
 
-  it("plays no one-shot cue while board sound is muted", () => {
-    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
-      initialProps: { s: { ...state(clue()), boardSoundMuted: true } },
+  it("plays nothing before the Board's gesture unlock, whatever the mute switches say", () => {
+    const { rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: state(clue()) },
     });
 
-    act(() => result.current.enableSound());
-    playSpy.mockClear();
-
-    rerender({ s: { ...state(clue({ buzzedPlayerId: "p1" })), boardSoundMuted: true } });
-    rerender({ s: { ...state(clue({ correctPlayerId: "p1" })), boardSoundMuted: true } });
-    rerender({ s: { ...state(clue({ excludedPlayerIds: ["p1"] })), boardSoundMuted: true } });
+    rerender({ s: state(clue({ buzzedPlayerId: "p1" })) });
+    rerender({ s: state(clue({ correctPlayerId: "p1" })) });
+    rerender({ s: state(null) });
 
     expect(playSpy).not.toHaveBeenCalled();
   });
 
-  it("does not start the thinking loop while board sound is muted", () => {
+  it("keeps Board Effects playing while only Board Music is muted", () => {
     const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
-      initialProps: { s: { ...state(clue({ buzzedPlayerId: "p1" })), boardSoundMuted: true } },
+      initialProps: { s: { ...state(clue()), boardMusicMuted: true } },
     });
 
     act(() => result.current.enableSound());
     playSpy.mockClear();
 
-    rerender({ s: { ...state(null), boardSoundMuted: true } });
+    rerender({ s: { ...state(clue({ buzzedPlayerId: "p1" })), boardMusicMuted: true } });
+    rerender({ s: { ...state(null), boardMusicMuted: true } });
+
+    expect(playedSrcs()).toEqual(["/audio/buzz.mp3"]);
+  });
+
+  it("keeps Board Music looping while only Board Effects is muted", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue({ buzzedPlayerId: "p1" })), boardEffectsMuted: true } },
+    });
+
+    act(() => result.current.enableSound());
+    playSpy.mockClear();
+
+    rerender({ s: { ...state(clue({ correctPlayerId: "p1" })), boardEffectsMuted: true } });
+    rerender({ s: { ...state(clue({ excludedPlayerIds: ["p1"] })), boardEffectsMuted: true } });
+
+    expect(playedSrcs()).toEqual(["/audio/thinking.mp3"]);
+  });
+
+  it("plays nothing while both Board Music and Board Effects are muted", () => {
+    const muted = { boardMusicMuted: true, boardEffectsMuted: true };
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue({ buzzedPlayerId: "p1" })), ...muted } },
+    });
+
+    act(() => result.current.enableSound());
+    playSpy.mockClear();
+
+    rerender({ s: { ...state(null), ...muted } });
+    rerender({ s: { ...state(clue({ buzzedPlayerId: "p1" })), ...muted } });
+    rerender({ s: { ...state(clue({ correctPlayerId: "p1" })), ...muted } });
+
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it("resumes Board Music where it paused when the Host unmutes it", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: state(clue()) },
+    });
+
+    act(() => result.current.enableSound());
+    const thinking = playSpy.mock.instances
+      .map((audio) => audio as HTMLAudioElement)
+      .find((audio) => audio.src.endsWith("/audio/thinking.mp3"))!;
+    thinking.currentTime = 12;
+
+    rerender({ s: { ...state(clue()), boardMusicMuted: true } });
+    playSpy.mockClear();
+    rerender({ s: state(clue()) });
+
+    expect(playedSrcs()).toEqual(["/audio/thinking.mp3"]);
+    expect(thinking.currentTime).toBe(12);
+  });
+
+  it("skips a Board Effects cue that landed while muted rather than playing it on unmute", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue()), boardEffectsMuted: true } },
+    });
+
+    act(() => result.current.enableSound());
+    rerender({ s: { ...state(clue({ buzzedPlayerId: "p1" })), boardEffectsMuted: true } });
+    playSpy.mockClear();
+
+    rerender({ s: state(clue({ buzzedPlayerId: "p1" })) });
+
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it("skips a Judge outcome cue that landed while Board Effects was muted rather than playing it on unmute", () => {
+    const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+      initialProps: { s: { ...state(clue({ buzzedPlayerId: "p1" })), boardEffectsMuted: true } },
+    });
+
+    act(() => result.current.enableSound());
+    rerender({ s: { ...state(clue({ correctPlayerId: "p1" })), boardEffectsMuted: true } });
+    playSpy.mockClear();
+
+    rerender({ s: state(clue({ correctPlayerId: "p1" })) });
 
     expect(playSpy).not.toHaveBeenCalled();
   });

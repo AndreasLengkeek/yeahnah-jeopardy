@@ -1463,21 +1463,31 @@ describe("gameEngine: resetGame", () => {
   });
 });
 
-describe("gameEngine: toggleBoardSound", () => {
-  it.each(["setup", "lobby", "playing", "gameOver"] as const)("flips boardSoundMuted from the %s phase", (phase) => {
+describe.each([
+  { actionType: "toggleBoardMusic" as const, flag: "boardMusicMuted" as const, other: "boardEffectsMuted" as const },
+  { actionType: "toggleBoardEffects" as const, flag: "boardEffectsMuted" as const, other: "boardMusicMuted" as const },
+])("gameEngine: $actionType", ({ actionType, flag, other }) => {
+  it.each(["setup", "lobby", "playing", "roundBreak", "gameOver"] as const)(`flips ${flag} from the %s phase`, (phase) => {
     const states = {
       setup: initialState(),
       lobby: lobbyState(),
       playing: startedGame(),
+      roundBreak: roundBreakState(),
       gameOver: finishedGame(),
     };
     const before = states[phase];
 
-    const muted = applyAction(before, { type: "toggleBoardSound" });
-    const unmuted = applyAction(muted, { type: "toggleBoardSound" });
+    const muted = applyAction(before, { type: actionType });
+    const unmuted = applyAction(muted, { type: actionType });
 
-    expect(muted.boardSoundMuted).toBe(true);
-    expect(unmuted.boardSoundMuted).toBe(false);
+    expect(muted[flag]).toBe(true);
+    expect(unmuted[flag]).toBe(false);
+  });
+
+  it(`leaves ${other} untouched`, () => {
+    const muted = applyAction(initialState(), { type: actionType });
+
+    expect(muted[other]).toBe(false);
   });
 
   it.each([
@@ -1486,11 +1496,11 @@ describe("gameEngine: toggleBoardSound", () => {
     { actionName: "returnToSetup", before: finishedGame(), action: { type: "returnToSetup" as const } },
     { actionName: "resetGame", before: startedGame(), action: { type: "resetGame" as const } },
   ])("persists through $actionName", ({ before, action }) => {
-    const muted = applyAction(before, { type: "toggleBoardSound" });
+    const muted = applyAction(before, { type: actionType });
 
     const next = applyAction(muted, action);
 
-    expect(next.boardSoundMuted).toBe(true);
+    expect(next[flag]).toBe(true);
   });
 });
 
@@ -1502,7 +1512,8 @@ describe("gameEngine: initialState", () => {
     expect(state.board).toEqual([]);
     expect(state.players).toEqual([]);
     expect(state.activeClue).toBeNull();
-    expect(state.boardSoundMuted).toBe(false);
+    expect(state.boardMusicMuted).toBe(false);
+    expect(state.boardEffectsMuted).toBe(false);
     expect(state.dailyDouble).toBeNull();
     expect(state.doubleJeopardyDailyDoubles).toBeNull();
     expect(state.round).toBe(1);

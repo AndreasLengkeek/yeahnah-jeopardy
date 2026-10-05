@@ -206,7 +206,10 @@ describe("socket.io wiring", () => {
     expect(closed.activeClue).toBeNull();
   });
 
-  it("wires toggleBoardSound through to every socket role without redacting it", async () => {
+  it.each([
+    { event: "toggleBoardMusic" as const, flag: "boardMusicMuted" as const },
+    { event: "toggleBoardEffects" as const, flag: "boardEffectsMuted" as const },
+  ])("wires $event through to every socket role without redacting it", async ({ event, flag }) => {
     const host = await connect("host");
     await host.nextState();
     await host.nextState();
@@ -217,16 +220,16 @@ describe("socket.io wiring", () => {
     await player.nextState();
     await player.nextState();
 
-    host.socket.emit("toggleBoardSound");
+    host.socket.emit(event);
     const [hostMuted, boardMuted, playerMuted] = await Promise.all([
       host.nextState(),
       board.nextState(),
       player.nextState(),
     ]);
 
-    expect(hostMuted.boardSoundMuted).toBe(true);
-    expect(boardMuted.boardSoundMuted).toBe(true);
-    expect(playerMuted.boardSoundMuted).toBe(true);
+    expect(hostMuted[flag]).toBe(true);
+    expect(boardMuted[flag]).toBe(true);
+    expect(playerMuted[flag]).toBe(true);
   });
 
   it("carries a drawn signature identity through a join round-trip to the broadcast state", async () => {

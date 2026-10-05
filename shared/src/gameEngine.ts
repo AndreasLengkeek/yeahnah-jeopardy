@@ -127,7 +127,8 @@ export function initialState(): GameState {
     content: seedContent(),
     board: [],
     activeClue: null,
-    boardSoundMuted: false,
+    boardMusicMuted: false,
+    boardEffectsMuted: false,
     dailyDouble: null,
     doubleJeopardyDailyDoubles: null,
     twoRounds: false,
@@ -160,8 +161,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return applyImportBoardConfig(state, action.content);
     case 'openLobby':
       return applyOpenLobby(state);
-    case 'toggleBoardSound':
-      return applyToggleBoardSound(state);
+    case 'toggleBoardMusic':
+      return applyToggleBoardMusic(state);
+    case 'toggleBoardEffects':
+      return applyToggleBoardEffects(state);
     case 'startGame':
       return applyStartGame(state);
     case 'startDoubleJeopardy':
@@ -193,8 +196,12 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   }
 }
 
-function applyToggleBoardSound(state: GameState): GameState {
-  return { ...state, boardSoundMuted: !state.boardSoundMuted };
+function applyToggleBoardMusic(state: GameState): GameState {
+  return { ...state, boardMusicMuted: !state.boardMusicMuted };
+}
+
+function applyToggleBoardEffects(state: GameState): GameState {
+  return { ...state, boardEffectsMuted: !state.boardEffectsMuted };
 }
 
 function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
@@ -620,7 +627,8 @@ function applyResetGame(state: GameState): GameState {
     content: state.content,
     board,
     activeClue: null,
-    boardSoundMuted: state.boardSoundMuted,
+    boardMusicMuted: state.boardMusicMuted,
+    boardEffectsMuted: state.boardEffectsMuted,
     dailyDouble: pickDailyDouble(board),
     doubleJeopardyDailyDoubles: state.twoRounds ? pickDoubleJeopardyDailyDoubles(board) : null,
     twoRounds: state.twoRounds,

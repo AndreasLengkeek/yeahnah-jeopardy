@@ -149,7 +149,8 @@ export function hostFooter(activeClue: ActiveClueState, players: Player[]): Reac
 export function HostPage() {
   useIdentify("host");
   const state = useGameState();
-  const toggleBoardSound = () => socket.emit("toggleBoardSound");
+  const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
+  const toggleBoardEffects = () => socket.emit("toggleBoardEffects");
 
   if (!state) {
     return (
@@ -171,8 +172,10 @@ export function HostPage() {
       <Header
         subtitle="Host view"
         action={headerAction}
-        isBoardSoundMuted={state.boardSoundMuted}
-        onToggleBoardSound={toggleBoardSound}
+        isBoardMusicMuted={state.boardMusicMuted}
+        onToggleBoardMusic={toggleBoardMusic}
+        isBoardEffectsMuted={state.boardEffectsMuted}
+        onToggleBoardEffects={toggleBoardEffects}
       />
       {state.phase === "setup" ? (
         <BoardSetup

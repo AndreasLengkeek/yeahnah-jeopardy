@@ -32,25 +32,55 @@ describe("Header", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("renders a mute button whose accessible label reflects an unmuted board", () => {
-    render(<Header isBoardSoundMuted={false} onToggleBoardSound={() => {}} />);
+  function renderSoundToggles(overrides: Partial<Parameters<typeof Header>[0]> = {}) {
+    const props = {
+      isBoardMusicMuted: false,
+      onToggleBoardMusic: vi.fn(),
+      isBoardEffectsMuted: false,
+      onToggleBoardEffects: vi.fn(),
+      ...overrides,
+    };
+    render(<Header {...props} />);
+    return props;
+  }
 
-    expect(screen.getByRole("button", { name: "Mute Board Sound" })).toBeInTheDocument();
+  it.each(["Board Music", "Board Effects"])("renders an unpressed mute toggle for unmuted %s", (part) => {
+    renderSoundToggles();
+
+    expect(screen.getByRole("button", { name: `Mute ${part}` })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("renders an unmute button whose accessible label reflects a muted board", () => {
-    render(<Header isBoardSoundMuted onToggleBoardSound={() => {}} />);
+  it("renders a pressed unmute toggle for muted Board Music alongside unmuted Board Effects", () => {
+    renderSoundToggles({ isBoardMusicMuted: true });
 
-    expect(screen.getByRole("button", { name: "Unmute Board Sound" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unmute Board Music" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Mute Board Effects" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("calls the supplied handler when the button is clicked", async () => {
+  it("renders a pressed unmute toggle for muted Board Effects alongside unmuted Board Music", () => {
+    renderSoundToggles({ isBoardEffectsMuted: true });
+
+    expect(screen.getByRole("button", { name: "Unmute Board Effects" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Mute Board Music" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("calls only the Board Music handler when its toggle is clicked", async () => {
     const user = userEvent.setup();
-    const onToggleBoardSound = vi.fn();
-    render(<Header isBoardSoundMuted={false} onToggleBoardSound={onToggleBoardSound} />);
+    const props = renderSoundToggles();
 
-    await user.click(screen.getByRole("button", { name: "Mute Board Sound" }));
+    await user.click(screen.getByRole("button", { name: "Mute Board Music" }));
 
-    expect(onToggleBoardSound).toHaveBeenCalledTimes(1);
+    expect(props.onToggleBoardMusic).toHaveBeenCalledTimes(1);
+    expect(props.onToggleBoardEffects).not.toHaveBeenCalled();
+  });
+
+  it("calls only the Board Effects handler when its toggle is clicked", async () => {
+    const user = userEvent.setup();
+    const props = renderSoundToggles();
+
+    await user.click(screen.getByRole("button", { name: "Mute Board Effects" }));
+
+    expect(props.onToggleBoardEffects).toHaveBeenCalledTimes(1);
+    expect(props.onToggleBoardMusic).not.toHaveBeenCalled();
   });
 });

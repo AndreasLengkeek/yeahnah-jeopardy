@@ -81,5 +81,13 @@ _Avoid_: show the answer (the Host always _sees_ the Answer privately; Reveal na
 The Host's action that finalizes the Active Clue: marks its Tile used and clears it, zooming every screen back to the Board. Available whenever every joined Player has been excluded, nobody has attempted the Clue at all, it's been Revealed, or a Player has already answered it correctly. Never itself changes a score — that already happened (or never happens) at judge time; Close just ends the Clue's time on screen, whether or not the Host chose to Reveal first.
 
 **Board Sound**:
-The Board's own audio cues — a looping cue while nobody holds the Buzz, and a one-shot cue for a Buzz landing and for each Judge outcome, one of several variants chosen at random per cue. Silent until the Board's device confirms a user gesture (the browser's autoplay rule), and separately mutable at any time by the Host — one shared switch for the whole Game, the same in every phase, not a per-device or Player setting.
-_Avoid_: sound effects, audio (Board Sound names specifically the Board's cues, not a Host's or Player's own device)
+All of the Board's own audio, made up of exactly two parts — Board Music and Board Effects — each muted and unmuted independently. Silent until the Board's device confirms a user gesture (the browser's autoplay rule); that single unlock covers both parts.
+_Avoid_: sound effects, audio (Board Sound names specifically the Board's audio, not a Host's or Player's own device)
+
+**Board Music**:
+The part of Board Sound that loops while nobody holds the Buzz during play. Mutable at any time by the Host — one shared switch for the whole Game, on when the Game begins, unchanged across every phase, not a per-device or Player setting.
+_Avoid_: background music, thinking music
+
+**Board Effects**:
+The part of Board Sound made of one-shot cues: one for a Buzz landing and one for each Judge outcome, with one of several variants chosen at random per cue. Mutable by the Host independently of Board Music, by the same rules (one shared switch for the whole Game, on when the Game begins, unchanged across every phase). A cue whose moment passes while Board Effects is muted is skipped, never played late.
+_Avoid_: sound effects, sfx

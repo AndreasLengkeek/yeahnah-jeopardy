@@ -136,8 +136,12 @@ export function createGameServer() {
       dispatch({ type: "openLobby" });
     });
 
-    socket.on("toggleBoardSound", () => {
-      dispatch({ type: "toggleBoardSound" });
+    socket.on("toggleBoardMusic", () => {
+      dispatch({ type: "toggleBoardMusic" });
+    });
+
+    socket.on("toggleBoardEffects", () => {
+      dispatch({ type: "toggleBoardEffects" });
     });
 
     socket.on("startGame", () => {

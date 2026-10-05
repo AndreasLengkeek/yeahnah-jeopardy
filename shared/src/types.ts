@@ -76,7 +76,8 @@ export interface GameState {
   content: CategoryData[];
   board: Category[];
   activeClue: ActiveClue | null;
-  boardSoundMuted: boolean;
+  boardMusicMuted: boolean;
+  boardEffectsMuted: boolean;
   // The secret Daily Double pick for the current `board` — see DailyDoubleCoordinate.
   // null only while there's no Board yet (phase "setup").
   dailyDouble: DailyDoubleCoordinate | null;
@@ -119,7 +120,8 @@ export type GameAction =
     }
   | { type: 'importBoardConfig'; content: CategoryData[] }
   | { type: 'openLobby' }
-  | { type: 'toggleBoardSound' }
+  | { type: 'toggleBoardMusic' }
+  | { type: 'toggleBoardEffects' }
   | { type: 'startGame' }
   | { type: 'startDoubleJeopardy' }
   | { type: 'selectTile'; categoryIndex: number; tileIndex: number }

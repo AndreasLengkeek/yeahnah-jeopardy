@@ -15,8 +15,9 @@ function pickRandomAudio(audio: HTMLAudioElement[]) {
 //   buzz          — single one-shot file, fires the instant a Player buzzes in
 //   correct       — one-shot variants, one chosen at random when a Buzz is judged correct
 //   incorrect     — one-shot variants, one chosen at random when a Buzz is judged incorrect
-// Browsers block audio until a user gesture, so nothing plays until enableSound() has
-// run once — wired to the Board's Lobby-screen "Enable Sound" button.
+// thinking is Board Music; buzz/correct/incorrect are Board Effects — the Host mutes each
+// independently. Browsers block audio until a user gesture, so nothing plays until
+// enableSound() has run once — wired to the Board's Lobby-screen "Enable Sound" button.
 export function useBoardAudio(state: GameState | null) {
   const [enabled, setEnabled] = useState(false);
   const thinkingRef = useRef<HTMLAudioElement | null>(null);
@@ -53,9 +54,10 @@ export function useBoardAudio(state: GameState | null) {
   }
 
   const activeClue = state?.activeClue ?? null;
-  const boardSoundEnabled = enabled && !state?.boardSoundMuted;
+  const boardMusicEnabled = enabled && !state?.boardMusicMuted;
+  const boardEffectsEnabled = enabled && !state?.boardEffectsMuted;
   const shouldPlayThinking =
-    boardSoundEnabled &&
+    boardMusicEnabled &&
     state?.phase === "playing" &&
     (!activeClue || (activeClue.buzzedPlayerId === null && !activeClue.revealed));
 
@@ -68,7 +70,7 @@ export function useBoardAudio(state: GameState | null) {
   // fields against their previous values — there's no discrete "buzz happened" or "judge
   // happened" event to hook, just the broadcast state before and after it.
   useEffect(() => {
-    if (!boardSoundEnabled || !activeClue) {
+    if (!boardEffectsEnabled || !activeClue) {
       prevRef.current = activeClue
         ? {
             buzzedPlayerId: activeClue.buzzedPlayerId,
@@ -93,7 +95,7 @@ export function useBoardAudio(state: GameState | null) {
       excludedCount: activeClue.excludedPlayerIds.length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardSoundEnabled, activeClue?.buzzedPlayerId, activeClue?.correctPlayerId, activeClue?.excludedPlayerIds.length]);
+  }, [boardEffectsEnabled, activeClue?.buzzedPlayerId, activeClue?.correctPlayerId, activeClue?.excludedPlayerIds.length]);
 
   return { enabled, enableSound };
 }
