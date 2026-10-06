@@ -10,9 +10,9 @@ services:
     region: singapore
     # Exactly one instance: the Game lives in this process's memory.
     numInstances: 1
-    # --include=dev: the client build needs Vite/TypeScript from devDependencies, so
-    # install them even if NODE_ENV=production ever reaches the build.
-    buildCommand: npm ci --include=dev && npm run build
+    # Vite and its React plugin are runtime dependencies, so a production-only install
+    # is enough to build the client and run the server.
+    buildCommand: npm ci --omit=dev && npm run build
     # Root `npm start` runs the server workspace's start script: tsx, serving client/dist.
     startCommand: npm start
     healthCheckPath: /health

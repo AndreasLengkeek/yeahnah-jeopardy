@@ -29,7 +29,7 @@ From then on, every push to `main` builds and deploys automatically.
 ## Running the production build locally
 
 ```bash
-npm ci --include=dev && npm run build   # same as the Blueprint's build command
+npm ci --omit=dev && npm run build      # same as the Blueprint's build command
 HOST_PASSCODE=something npm start       # serves the app on :3001 (or $PORT)
 ```
 
