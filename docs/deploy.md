@@ -35,4 +35,4 @@ HOST_PASSCODE=something npm start       # serves the app on :3001 (or $PORT)
 
 ## Fallbacks
 
-If the free tier's cold starts get annoying, **Railway Hobby** (about $5 a month) runs the same service with no sleep. **Google Cloud Run** also works, pinned to a single instance. It cuts sockets after 60 minutes, but the screens reconnect automatically. Either option only needs the same build and start commands plus `HOST_PASSCODE`. Avoid Azure App Service Free (it allows 5 WebSockets), AWS App Runner (no WebSockets), and Vercel/Netlify (no long-lived sockets).
+If the free tier's cold starts get annoying, switch to **Railway Hobby** (about $5 a month, no sleep). **Google Cloud Run** also works, pinned to one instance; it cuts sockets after 60 minutes, but the screens reconnect automatically. Both run the same build and start commands with `HOST_PASSCODE` set.

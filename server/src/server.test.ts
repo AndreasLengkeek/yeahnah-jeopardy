@@ -951,8 +951,7 @@ describe("serving the built client", () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  // One origin serves the client, the socket, and the health endpoint (ADR-0014), and in
-  // dev Vite proxies the socket, so nothing needs cross-origin access.
+  // Single-origin deploy (ADR-0014): see the CORS note in server.ts.
   it.each(["/health", "/socket.io/?EIO=4&transport=polling"])("grants no cross-origin access to %s", async (path) => {
     await start({ clientDir });
 

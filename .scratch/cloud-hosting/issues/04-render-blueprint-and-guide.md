@@ -22,3 +22,5 @@
 - Guide: `docs/deploy.md`.
 - Removed `cors()` and socket.io's `cors: { origin: "*" }`, plus the `cors`/`@types/cors` deps. The client connects same-origin (`io()`), and in dev Vite proxies `/socket.io`. A new server test asserts that no cross-origin access is granted. Checked `npm run dev`: the polling handshake and a Host claim both work through the Vite proxy.
 - Local acceptance: ran the Blueprint's build and start commands with `HOST_PASSCODE` set and `PORT=3401`. `/host`, `/board`, `/join` returned the entry page, `/health` returned JSON, and assets were served. A Host claim was rejected with a wrong or missing passcode and accepted with the right one. Still to do: an actual deploy (ticket 05).
+- For ticket 05: on the first deploy, check the build log to confirm Render resolved `.node-version` `26` to a 26.x release. Render resolves ranges with `node-version-alias`, so a bare major should work. If it doesn't, pin a full version.
+- Left alone: `server`'s `@types/node` is still `^22` while the runtime is Node 26. Types only, no runtime effect.

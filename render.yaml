@@ -13,7 +13,7 @@ services:
     # --include=dev: the client build needs Vite/TypeScript from devDependencies, so
     # install them even if NODE_ENV=production ever reaches the build.
     buildCommand: npm ci --include=dev && npm run build
-    # Runs the server via tsx and serves the built client (see server/package.json).
+    # Root `npm start` runs the server workspace's start script: tsx, serving client/dist.
     startCommand: npm start
     healthCheckPath: /health
     branch: main
