@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { CATS, DOUBLE_JEOPARDY_VALUES } from "@yeahnah/shared";
 import type { GameState, IdentifyResult, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { createGameServer } from "./server.js";
 
 const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
@@ -16,8 +16,11 @@ describe("socket.io wiring", () => {
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
   let url: string;
   let sockets: Socket[] = [];
+  // Silences the server's `[game]` log lines, and lets a test inspect them.
+  let consoleLog: MockInstance<typeof console.log>;
 
   beforeEach(async () => {
+    consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
     ({ httpServer } = createGameServer());
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
@@ -28,6 +31,7 @@ describe("socket.io wiring", () => {
     sockets.forEach((socket) => socket.close());
     sockets = [];
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    consoleLog.mockRestore();
   });
 
   // Buffers "state" broadcasts from the moment the socket is created, since the
@@ -497,6 +501,29 @@ describe("socket.io wiring", () => {
     expect(next.activeClue).toBeNull();
   });
 
+  it("logs accepted Game events, and nothing for rejected or unlisted actions", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+    const logged = () => consoleLog.mock.calls.map(([line]) => line);
+
+    host.socket.emit("openLobby");
+    await host.nextState();
+    host.socket.emit("join", textIdentity("Dana"));
+    await host.nextState();
+    host.socket.emit("startGame"); // rejected: only one Player
+    host.socket.emit("join", textIdentity("Marcus"));
+    await host.nextState();
+    host.socket.emit("startGame");
+    await host.nextState();
+
+    expect(logged()).toEqual([
+      '[game] Player "Dana" joined (1 player)',
+      '[game] Player "Marcus" joined (2 players)',
+      "[game] Game started (2 players)",
+    ]);
+  });
+
   describe("Answer redaction by socket role (ADR-0006)", () => {
     const trueAnswer = CATS[0].clues[0].answer;
     const trueClueText = CATS[0].clues[0].text;
@@ -813,7 +840,9 @@ describe("socket.io wiring", () => {
       [hostState] = await drain();
       await expectIgnored(() => intruder.socket.emit("selectTile", 0, 0));
 
-      const { states: [selected] } = await selectFirstNonDailyDoubleTile(host, [intruder]);
+      const {
+        states: [selected],
+      } = await selectFirstNonDailyDoubleTile(host, [intruder]);
       const danaId = byName(selected.players, "Dana").id;
       host.socket.emit("buzz", danaId);
       [hostState] = await drain();
@@ -849,7 +878,9 @@ describe("socket.io wiring", () => {
       host.socket.emit("startGame");
       await drain();
 
-      const { states: [, boardSel] } = await selectFirstNonDailyDoubleTile(host, [board, player]);
+      const {
+        states: [, boardSel],
+      } = await selectFirstNonDailyDoubleTile(host, [board, player]);
       expect(boardSel.activeClue?.answer).toBe("");
       player.socket.emit("buzz", danaId);
       const [buzzed] = await drain();
@@ -884,7 +915,9 @@ describe("socket.io wiring", () => {
     it("accepts a Host claim without any passcode", async () => {
       const { socket, nextState } = await connect();
       await nextState();
-      const result = await new Promise<IdentifyResult>((resolve) => socket.emit("identify", "host", undefined, resolve));
+      const result = await new Promise<IdentifyResult>((resolve) =>
+        socket.emit("identify", "host", undefined, resolve),
+      );
       expect(result).toBe("accepted");
     });
   });
