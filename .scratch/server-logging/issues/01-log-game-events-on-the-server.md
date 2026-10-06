@@ -1,0 +1,36 @@
+# 01: Log Game events on the server
+
+**What to build:** Server logging that leaves a readable trail of a Game in the Render log. Today the server only logs at start-up (`server/src/index.ts`), so a deployed Game leaves nothing to look back on. Requested during the cloud-hosting smoke test (`.scratch/cloud-hosting/issues/05-first-deploy-smoke-test.md`).
+
+**Blocked by:** None (can start immediately)
+
+**Status:** ready-for-agent
+
+## Decisions
+
+- **Events:** only these get logged: Player join, Game start, picking a Clue, Buzz, judging, score changes, Game over, and reset. Everything else, including Board Setup edits, connects/disconnects and mute toggles, stays unlogged.
+- **No Answers or Clue text:** a judge line says whether the Player was right or wrong, never what the Answer was. A Clue pick names its Category and value only.
+- **Format:** plain `console.log` lines with a `[game]` prefix. No logger library, no levels, no env var. Examples:
+  - `[game] Player "Sam" joined (3 players)`
+  - `[game] Game started (3 players)`
+  - `[game] Clue picked: Animals for $400`
+  - `[game] "Sam" buzzed in`
+  - `[game] "Sam" judged correct (+$400, now $1200)`
+  - `[game] "Sam" judged incorrect (-$400, now $400)`
+  - `[game] Host set "Sam"'s score to $800`
+  - `[game] Game over — winner "Sam" ($2400)`
+  - `[game] Game reset`
+- **Signature Players** have no name, so refer to them by a short form of their id (for example, `Player a1b2c3`).
+
+## Implementation notes
+
+- `dispatch()` in `server/src/server.ts` is the single choke point every action passes through, and it already knows whether the action changed state. Log there, only for accepted actions, by comparing the state before and after (for example, phase going to `gameOver`, a score changing after `judge`). Game over is a phase change, not its own action, so detect it that way. Double Jeopardy's start can share the "Game start" style line if that's simple, but it's optional.
+- Keep the message formatting in a small pure function, (previous state, action, next state) → line or `null`, so it's easy to unit-test without sockets.
+
+## Acceptance
+
+- [ ] Each listed event produces exactly one `[game]` line in the format above. Rejected or no-op actions produce none.
+- [ ] No log line ever contains Answer text, Clue text or the Host Passcode.
+- [ ] Unlisted actions (Board Setup edits, mute toggles, reveal, close Clue, etc.) produce no log line.
+- [ ] The formatter has unit tests covering each event, including a signature Player and a judge in both directions.
+- [ ] Existing server tests stay quiet, with logging stubbed or silenced.
