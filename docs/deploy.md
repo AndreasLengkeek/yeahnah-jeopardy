@@ -32,7 +32,3 @@ From then on, every push to `main` builds and deploys automatically.
 npm ci --omit=dev && npm run build      # same as the Blueprint's build command
 HOST_PASSCODE=something npm start       # serves the app on :3001 (or $PORT)
 ```
-
-## Fallbacks
-
-If the free tier's cold starts get annoying, switch to **Railway Hobby** (about $5 a month, no sleep). **Google Cloud Run** also works, pinned to one instance; it cuts sockets after 60 minutes, but the screens reconnect automatically. Both run the same build and start commands with `HOST_PASSCODE` set.
