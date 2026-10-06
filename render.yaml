@@ -1,0 +1,26 @@
+# Render Blueprint: the whole app as one free-tier Node web service (ADR-0014).
+# Setup, the Host Passcode, and what sleeping/redeploys mean for a live Game:
+# docs/deploy.md. Spec: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: yeahnah-jeopardy
+    runtime: node
+    plan: free
+    # Closest Render region to NZ/Australia; buzz fairness depends on latency (ADR-0003).
+    region: singapore
+    # Exactly one instance: the Game lives in this process's memory.
+    numInstances: 1
+    # --include=dev: the client build needs Vite/TypeScript from devDependencies, so
+    # install them even if NODE_ENV=production ever reaches the build.
+    buildCommand: npm ci --include=dev && npm run build
+    # Runs the server via tsx and serves the built client (see server/package.json).
+    startCommand: npm start
+    healthCheckPath: /health
+    branch: main
+    autoDeployTrigger: commit
+    # Node version comes from .node-version at the repo root.
+    envVars:
+      # Secret: Render prompts for the value when the Blueprint is first created.
+      # Never commit it here.
+      - key: HOST_PASSCODE
+        sync: false

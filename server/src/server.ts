@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { extname, join, resolve } from "node:path";
-import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
@@ -38,7 +37,6 @@ export function createGameServer(options: GameServerOptions = {}) {
   let state: GameState = initialState();
 
   const app = express();
-  app.use(cors());
   app.get("/health", (_req, res) => res.json({ ok: true }));
 
   if (options.clientDir) {
@@ -57,7 +55,9 @@ export function createGameServer(options: GameServerOptions = {}) {
   }
 
   const httpServer = createServer(app);
-  const io = new Server(httpServer, { cors: { origin: "*" } });
+  // No CORS: the client, socket, and health endpoint share one origin (and Vite proxies
+  // the socket in dev), so no other origin needs access.
+  const io = new Server(httpServer);
 
   // The view a socket gets until (and unless) it declares something less restrictive.
   const DEFAULT_ROLE: SocketRole = "player";
