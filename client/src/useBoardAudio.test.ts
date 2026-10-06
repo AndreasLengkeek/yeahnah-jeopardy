@@ -1,5 +1,5 @@
 import type { ActiveClue, GameState } from "@yeahnah/shared";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useBoardAudio } from "./useBoardAudio";
 
@@ -22,6 +22,16 @@ function clue(overrides: Partial<ActiveClue> = {}): ActiveClue {
     wager: null,
     ...overrides,
   };
+}
+
+// jsdom has no navigator.getAutoplayPolicy; tests install one (or remove it, to exercise
+// the play() probe fallback). Defaults to a browser that blocks autoplay.
+function setAutoplayPolicy(policy: string | undefined) {
+  if (policy === undefined) {
+    delete (navigator as { getAutoplayPolicy?: unknown }).getAutoplayPolicy;
+  } else {
+    Object.defineProperty(navigator, "getAutoplayPolicy", { value: () => policy, configurable: true });
+  }
 }
 
 function state(activeClue: ActiveClue | null): GameState {
@@ -47,14 +57,19 @@ describe("useBoardAudio", () => {
   beforeEach(() => {
     playSpy = vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue();
     vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    setAutoplayPolicy("disallowed");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    setAutoplayPolicy(undefined);
   });
 
   function playedSrcs() {
-    return playSpy.mock.instances.map((audio) => new URL((audio as HTMLAudioElement).src).pathname);
+    // Cue files only — the auto-unlock's inaudible probe isn't a cue.
+    return playSpy.mock.instances
+      .map((audio) => new URL((audio as HTMLAudioElement).src).pathname)
+      .filter((path) => path.startsWith("/audio/"));
   }
 
   it("plays buzz.mp3 the instant a Player buzzes in on the current Active Clue", () => {
@@ -275,5 +290,57 @@ describe("useBoardAudio", () => {
     rerender({ s: state(clue({ correctPlayerId: "p1" })) });
 
     expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  describe("auto-unlock on load", () => {
+    it("enables Board Sound with no gesture when the browser's autoplay policy allows it", async () => {
+      setAutoplayPolicy("allowed");
+      const { result } = renderHook(() => useBoardAudio(state(clue())));
+
+      await waitFor(() => expect(result.current.enabled).toBe(true));
+      expect(playedSrcs()).toEqual(["/audio/thinking.mp3"]);
+    });
+
+    it("stays locked and plays nothing when the autoplay policy only allows muted playback", async () => {
+      setAutoplayPolicy("allowed-muted");
+      const { result } = renderHook(() => useBoardAudio(state(clue())));
+
+      await act(async () => {});
+      expect(result.current.enabled).toBe(false);
+      expect(playSpy).not.toHaveBeenCalled();
+    });
+
+    it("falls back to a play() probe where getAutoplayPolicy is missing, and enables on success", async () => {
+      setAutoplayPolicy(undefined);
+      const { result } = renderHook(() => useBoardAudio({ ...state(clue()), boardMusicMuted: true }));
+
+      await waitFor(() => expect(result.current.enabled).toBe(true));
+      // Only the inaudible probe ran: no cue was played to test the waters.
+      expect(playedSrcs()).toEqual([]);
+    });
+
+    it("stays locked when the play() probe is blocked", async () => {
+      setAutoplayPolicy(undefined);
+      playSpy.mockRejectedValue(new DOMException("blocked", "NotAllowedError"));
+      const { result } = renderHook(() => useBoardAudio(state(clue())));
+
+      await act(async () => {});
+      expect(result.current.enabled).toBe(false);
+    });
+
+    it("doesn't replay a Board Effects cue that landed before the auto-unlock", async () => {
+      setAutoplayPolicy(undefined);
+      let allow!: () => void;
+      playSpy.mockReturnValueOnce(new Promise<void>((resolve) => (allow = resolve)));
+      const { result, rerender } = renderHook(({ s }: { s: GameState }) => useBoardAudio(s), {
+        initialProps: { s: state(clue()) },
+      });
+
+      rerender({ s: state(clue({ buzzedPlayerId: "p1" })) });
+      await act(async () => allow());
+
+      expect(result.current.enabled).toBe(true);
+      expect(playedSrcs()).not.toContain("/audio/buzz.mp3");
+    });
   });
 });
