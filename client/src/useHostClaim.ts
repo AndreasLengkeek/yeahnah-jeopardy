@@ -18,7 +18,7 @@ export type HostClaim =
 export function useHostClaim(): { claim: HostClaim; submitPasscode: (passcode: string) => void } {
   const [claim, setClaim] = useState<HostClaim>({ status: "claiming" });
 
-  const claimWith = useCallback((passcode: string | undefined, typed: boolean) => {
+  const claimWith = useCallback((passcode: string | undefined, source: "remembered" | "typed") => {
     socket.emit("identify", "host", passcode, (result: IdentifyResult) => {
       if (result === "accepted") {
         if (passcode !== undefined) storeHostPasscode(passcode);
@@ -27,13 +27,18 @@ export function useHostClaim(): { claim: HostClaim; submitPasscode: (passcode: s
       }
 
       if (passcode !== undefined && getStoredHostPasscode() === passcode) clearStoredHostPasscode();
-      setClaim({ status: "prompt", wrongPasscode: typed });
+      setClaim({ status: "prompt", wrongPasscode: source === "typed" });
     });
   }, []);
 
   useEffect(() => {
+    // Every fresh connection starts on the redacted Player view, so the Host screen
+    // goes back to "claiming" (showing nothing of the Game) until this claim is
+    // answered — never rendering a redacted Board, or a Game the passcode no longer
+    // unlocks, in the meantime.
     function announce() {
-      claimWith(getStoredHostPasscode() ?? undefined, false);
+      setClaim({ status: "claiming" });
+      claimWith(getStoredHostPasscode() ?? undefined, "remembered");
     }
     if (socket.connected) announce();
     socket.on("connect", announce);
@@ -42,7 +47,7 @@ export function useHostClaim(): { claim: HostClaim; submitPasscode: (passcode: s
     };
   }, [claimWith]);
 
-  const submitPasscode = useCallback((passcode: string) => claimWith(passcode, true), [claimWith]);
+  const submitPasscode = useCallback((passcode: string) => claimWith(passcode, "typed"), [claimWith]);
 
   return { claim, submitPasscode };
 }

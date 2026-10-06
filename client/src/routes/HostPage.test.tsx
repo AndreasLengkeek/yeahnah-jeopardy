@@ -182,6 +182,10 @@ describe("HostPage Host Passcode prompt", () => {
     answerLatestClaim("accepted");
 
     fire("connect");
+    // A fresh connection starts on the redacted Player view, so nothing of the Game
+    // shows until the reclaim is acknowledged.
+    fire("state", viewForRole(initialState(), "player"));
+    expect(screen.queryByRole("button", { name: /Open Lobby/ })).not.toBeInTheDocument();
 
     expect(identifyClaims()).toHaveLength(2);
     expect(identifyClaims()[1]).toMatchObject({ role: "host", passcode: "kia-ora" });
