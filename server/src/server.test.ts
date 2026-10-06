@@ -1,4 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CATS, DOUBLE_JEOPARDY_VALUES } from "@yeahnah/shared";
 import type { GameState, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
@@ -706,5 +709,66 @@ describe("socket.io wiring", () => {
       expect(boardWagered.activeClue?.wager).toBe(100);
       expect(playerWagered.activeClue?.wager).toBe(100);
     });
+  });
+});
+
+describe("serving the built client", () => {
+  const ENTRY_PAGE = "<!doctype html><title>stub entry page</title>";
+  let clientDir: string;
+  let httpServer: ReturnType<typeof createGameServer>["httpServer"];
+  let url: string;
+
+  async function start(options?: Parameters<typeof createGameServer>[0]) {
+    ({ httpServer } = createGameServer(options));
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    url = `http://127.0.0.1:${port}`;
+  }
+
+  beforeEach(async () => {
+    clientDir = await mkdtemp(join(tmpdir(), "yeahnah-client-"));
+    await writeFile(join(clientDir, "index.html"), ENTRY_PAGE);
+    await mkdir(join(clientDir, "assets"));
+    await writeFile(join(clientDir, "assets", "app.js"), "console.log('stub');");
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    await rm(clientDir, { recursive: true, force: true });
+  });
+
+  it.each(["/", "/host", "/board", "/join"])("returns the entry page for %s", async (path) => {
+    await start({ clientDir });
+
+    const res = await fetch(url + path);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/html/);
+    expect(await res.text()).toBe(ENTRY_PAGE);
+  });
+
+  it("serves static assets from the client directory", async () => {
+    await start({ clientDir });
+
+    const res = await fetch(`${url}/assets/app.js`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/javascript/);
+    expect(await res.text()).toBe("console.log('stub');");
+  });
+
+  it("still answers the health endpoint", async () => {
+    await start({ clientDir });
+
+    const res = await fetch(`${url}/health`);
+
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("serves no client routes when no client directory is configured", async () => {
+    await start();
+
+    expect((await fetch(`${url}/host`)).status).toBe(404);
+    expect(await (await fetch(`${url}/health`)).json()).toEqual({ ok: true });
   });
 });

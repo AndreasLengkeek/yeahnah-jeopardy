@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { join, resolve } from "node:path";
 import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
@@ -13,12 +14,31 @@ import type {
   SocketRole,
 } from "@yeahnah/shared";
 
-export function createGameServer() {
+export interface GameServerOptions {
+  /** The built client's directory (e.g. `client/dist`). When set, the server serves its
+   * static files and falls back to its entry page for every client-side route; when
+   * absent (tests, dev — where Vite serves the client), no static serving at all. */
+  clientDir?: string;
+  /** The Host Passcode gating Host actions (ADR-0014) — handled by ticket 03. */
+  hostPasscode?: string;
+}
+
+export function createGameServer(options: GameServerOptions = {}) {
   let state: GameState = initialState();
 
   const app = express();
   app.use(cors());
   app.get("/health", (_req, res) => res.json({ ok: true }));
+
+  if (options.clientDir) {
+    const clientDir = resolve(options.clientDir);
+    const entryPage = join(clientDir, "index.html");
+    app.use(express.static(clientDir));
+    // Client-side routes (/host, /board, /join, …) all load the same entry page, so a
+    // refresh on any of them boots the app rather than 404ing. Socket.io handles its
+    // own /socket.io path before Express sees the request.
+    app.get("*", (_req, res) => res.sendFile(entryPage));
+  }
 
   const httpServer = createServer(app);
   const io = new Server(httpServer, { cors: { origin: "*" } });
