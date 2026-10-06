@@ -524,6 +524,50 @@ describe("socket.io wiring", () => {
     ]);
   });
 
+  it("logs a joined Player's socket disconnecting, and nothing for a non-Player socket", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+    host.socket.emit("openLobby");
+    await host.nextState();
+
+    const dana = await connect();
+    await dana.nextState();
+    await new Promise((resolve) => dana.socket.emit("join", textIdentity("Dana"), resolve));
+    const board = await connect("board");
+    await board.nextState();
+    await board.nextState();
+    consoleLog.mockClear();
+
+    board.socket.disconnect();
+    dana.socket.disconnect();
+    await vi.waitFor(() => expect(consoleLog).toHaveBeenCalled());
+
+    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual(['[game] "Dana" disconnected']);
+  });
+
+  it("logs a Player reconnecting once per new connection, ignoring a repeat from the same one", async () => {
+    const host = await connect("host");
+    await host.nextState();
+    await host.nextState();
+    host.socket.emit("openLobby");
+    await host.nextState();
+    const dana = await connect();
+    await dana.nextState();
+    const danaId = await new Promise<string>((resolve) =>
+      dana.socket.emit("join", textIdentity("Dana"), (result: JoinResult) => resolve(result.ok ? result.playerId : "")),
+    );
+    consoleLog.mockClear();
+
+    const phone = await connect();
+    await phone.nextState();
+    await new Promise((resolve) => phone.socket.emit("reconnect", danaId, resolve));
+    await new Promise((resolve) => phone.socket.emit("reconnect", danaId, resolve));
+    await new Promise((resolve) => dana.socket.emit("reconnect", danaId, resolve));
+
+    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual(['[game] "Dana" reconnected']);
+  });
+
   describe("Answer redaction by socket role (ADR-0006)", () => {
     const trueAnswer = CATS[0].clues[0].answer;
     const trueClueText = CATS[0].clues[0].text;

@@ -79,6 +79,20 @@ export function JoinPage() {
     });
   }, []);
 
+  // A socket that drops and auto-reconnects (a phone waking up) arrives as a fresh,
+  // anonymous connection — re-announce the Player on each new "connect" so the server
+  // knows which Player this socket is again.
+  useEffect(() => {
+    if (!playerId) return;
+    function reattach() {
+      socket.emit("reconnect", playerId);
+    }
+    socket.on("connect", reattach);
+    return () => {
+      socket.off("connect", reattach);
+    };
+  }, [playerId]);
+
   // A reset (→ Lobby) or the Host returning to Board Setup clears the roster — once a
   // Player who had joined no longer appears in the Game, send them back to the join
   // form to rejoin fresh.

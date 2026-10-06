@@ -1,7 +1,7 @@
 import { applyAction, initialState } from "@yeahnah/shared";
 import type { GameAction, GameState, PlayerIdentity } from "@yeahnah/shared";
 import { describe, expect, it } from "vitest";
-import { describeGameEvent } from "./gameLog.js";
+import { describeGameEvent, describePlayerConnection } from "./gameLog.js";
 
 const SIGNATURE_IMAGE = "data:image/png;base64,iVBORw0KGgo=";
 const text = (name: string): PlayerIdentity => ({ kind: "text", name });
@@ -236,5 +236,26 @@ describe("describeGameEvent", () => {
   it("logs nothing for a rejected (no-op) action", () => {
     const state = lobby();
     expect(describeGameEvent(state, { type: "startGame" }, state)).toBeNull();
+  });
+});
+
+describe("describePlayerConnection", () => {
+  it("logs a typed-name Player disconnecting and reconnecting", () => {
+    const state = playing();
+    const sam = idOf(state, "Sam");
+    expect(describePlayerConnection(state, sam, "disconnected")).toBe('[game] "Sam" disconnected');
+    expect(describePlayerConnection(state, sam, "reconnected")).toBe('[game] "Sam" reconnected');
+  });
+
+  it("refers to a Signature Player by a short form of their id", () => {
+    const state = run(lobby(), { type: "join", identity: signature });
+    const id = state.players[0].id;
+    expect(describePlayerConnection(state, id, "disconnected")).toBe(`[game] Player ${id.slice(0, 6)} disconnected`);
+  });
+
+  it("logs nothing for a Player no longer in the roster (e.g. after a reset)", () => {
+    const state = playing();
+    const sam = idOf(state, "Sam");
+    expect(describePlayerConnection(run(state, { type: "resetGame" }), sam, "disconnected")).toBeNull();
   });
 });

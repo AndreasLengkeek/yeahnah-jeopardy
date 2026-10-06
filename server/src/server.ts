@@ -14,7 +14,7 @@ import type {
   PlayerIdentity,
   SocketRole,
 } from "@yeahnah/shared";
-import { describeGameEvent } from "./gameLog.js";
+import { describeGameEvent, describePlayerConnection } from "./gameLog.js";
 
 export interface GameServerOptions {
   /** The built client's directory (e.g. `client/dist`). When set, the server serves its
@@ -66,6 +66,9 @@ export function createGameServer(options: GameServerOptions = {}) {
   // Each connected socket's self-declared role, set via the `identify` event.
   const roles = new Map<string, SocketRole>();
 
+  // The Player each socket last joined or reconnected as, so its disconnect can be logged.
+  const playerIds = new Map<string, string>();
+
   // Sends the current state to every connected socket, redacted per that socket's
   // declared role (ADR-0006) — replacing the old single io.emit("state", state).
   function broadcastState(): void {
@@ -114,6 +117,10 @@ export function createGameServer(options: GameServerOptions = {}) {
 
     socket.on("disconnect", () => {
       roles.delete(socket.id);
+      const playerId = playerIds.get(socket.id);
+      playerIds.delete(socket.id);
+      const line = playerId && describePlayerConnection(state, playerId, "disconnected");
+      if (line) console.log(line);
     });
 
     socket.on("join", (identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
@@ -129,15 +136,19 @@ export function createGameServer(options: GameServerOptions = {}) {
       }
 
       const player = state.players[state.players.length - 1];
+      playerIds.set(socket.id, player.id);
       ack?.({ ok: true, playerId: player.id });
     });
 
     socket.on("reconnect", (playerId: string, ack?: (result: JoinResult) => void) => {
+      const alreadyAttached = playerIds.get(socket.id) === playerId;
       if (!dispatch({ type: "reconnect", playerId })) {
         ack?.({ ok: false, error: "We couldn't find that session — please join again." });
         return;
       }
 
+      playerIds.set(socket.id, playerId);
+      if (!alreadyAttached) console.log(describePlayerConnection(state, playerId, "reconnected"));
       ack?.({ ok: true, playerId });
     });
 

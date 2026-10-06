@@ -8,7 +8,9 @@
 
 ## Decisions
 
-- **Events:** only these get logged: Player join, Game start, picking a Clue, Buzz, judging, score changes, Game over, and reset. Everything else, including Board Setup edits, connects/disconnects and mute toggles, stays unlogged.
+- **Events:** only these get logged: Player join, Game start, picking a Clue, Buzz, judging, score changes, Game over, and reset. Everything else, including Board Setup edits, other connects/disconnects and mute toggles, stays unlogged.
+- **Player disconnect (added after the first pass):** a joined Player's socket dropping logs `[game] "Sam" disconnected`. The server remembers which Player each socket joined or reconnected as. Sockets that never joined (Board, Host) and Players no longer in the roster log nothing.
+- **Player reconnect (added after the first pass):** an accepted `reconnect` logs `[game] "Sam" reconnected`, once per new connection. A repeat `reconnect` from a socket already attached to that Player isn't logged, because React's StrictMode sends two on each page load in dev. The Join page now re-sends `reconnect` every time its socket comes back, not just when the page loads, so a phone that sleeps and wakes is logged, and its next disconnect is tracked too.
 - **No Answers or Clue text:** a judge line says whether the Player was right or wrong, never what the Answer was. A Clue pick names its Category and value only.
 - **Format:** plain `console.log` lines with a `[game]` prefix. No logger library, no levels, no env var. Examples:
   - `[game] Player "Sam" joined (3 players)`

@@ -10,6 +10,19 @@ export function describeGameEvent(prev: GameState, action: GameAction, next: Gam
   return line === null ? null : `[game] ${line}`;
 }
 
+// A joined Player's connection dropping, or a new connection reattaching to them. Logged
+// per socket rather than per Game action: the same socket can repeat a `reconnect` (e.g.
+// React's StrictMode double-running the Join page's mount effect in dev), and that isn't
+// a new connection. Null once the Player has left the roster, e.g. after a reset.
+export function describePlayerConnection(
+  state: GameState,
+  playerId: string,
+  event: "disconnected" | "reconnected",
+): string | null {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  return player ? `[game] ${label(player)} ${event}` : null;
+}
+
 function describe(prev: GameState, action: GameAction, next: GameState): string | null {
   switch (action.type) {
     case "join": {
