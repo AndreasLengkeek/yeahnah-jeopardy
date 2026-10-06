@@ -9,14 +9,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Server tests: claiming `host` with the correct passcode is accepted and receives the Answer of an unrevealed Active Clue
-- [ ] Server tests: claiming `host` with a wrong or missing passcode is rejected and receives the redacted view
-- [ ] Server tests: a representative spread of Host actions (a Board Setup edit, opening the Lobby, starting the Game, selecting a Tile, judging, setting a score, resetting) from an unaccepted connection changes nothing
-- [ ] Server tests: join, buzz, submit wager, and claiming `board` work without a passcode while one is configured
-- [ ] Server tests: with no passcode configured, claiming `host` is accepted and all existing tests pass unchanged
-- [ ] Server logs a prominent warning on start-up when no Host Passcode is configured
-- [ ] Host screen tests (socket mocked): prompt appears on rejection; submitting re-claims with the passcode and remembers it on acceptance; a rejected remembered passcode is forgotten and the prompt shown; no prompt when accepted first try
-- [ ] Without the passcode, the Host screen shows only the prompt — no Board, Clues, Answers, or Board Setup
-- [ ] After a dropped connection, the Host screen reclaims the Host role automatically using the remembered passcode
+- [x] Server tests: claiming `host` with the correct passcode is accepted and receives the Answer of an unrevealed Active Clue
+- [x] Server tests: claiming `host` with a wrong or missing passcode is rejected and receives the redacted view
+- [x] Server tests: a representative spread of Host actions (a Board Setup edit, opening the Lobby, starting the Game, selecting a Tile, judging, setting a score, resetting) from an unaccepted connection changes nothing
+- [x] Server tests: join, buzz, submit wager, and claiming `board` work without a passcode while one is configured
+- [x] Server tests: with no passcode configured, claiming `host` is accepted and all existing tests pass unchanged
+- [x] Server logs a prominent warning on start-up when no Host Passcode is configured
+- [x] Host screen tests (socket mocked): prompt appears on rejection; submitting re-claims with the passcode and remembers it on acceptance; a rejected remembered passcode is forgotten and the prompt shown; no prompt when accepted first try
+- [x] Without the passcode, the Host screen shows only the prompt — no Board, Clues, Answers, or Board Setup
+- [x] After a dropped connection, the Host screen reclaims the Host role automatically using the remembered passcode

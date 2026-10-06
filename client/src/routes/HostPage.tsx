@@ -6,13 +6,14 @@ import { BoardSetup } from "../components/BoardSetup";
 import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
+import { HostPasscodePrompt } from "../components/HostPasscodePrompt";
 import { Lobby } from "../components/Lobby";
 import { PlayerIdentity } from "../components/PlayerIdentity";
 import { Scoreboard } from "../components/Scoreboard";
 import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
-import { useIdentify } from "../useIdentify";
+import { useHostClaim } from "../useHostClaim";
 
 function pillButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -147,12 +148,23 @@ export function hostFooter(activeClue: ActiveClueState, players: Player[]): Reac
 }
 
 export function HostPage() {
-  useIdentify("host");
+  const { claim, submitPasscode } = useHostClaim();
   const state = useGameState();
   const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
   const toggleBoardEffects = () => socket.emit("toggleBoardEffects");
 
-  if (!state) {
+  // Until this device is accepted as Host, nothing of the Game is rendered — the
+  // state it holds meanwhile is only the redacted Player view anyway (ADR-0014).
+  if (claim.status === "prompt") {
+    return (
+      <div style={shellStyle}>
+        <Header subtitle="Host view" />
+        <HostPasscodePrompt onSubmit={submitPasscode} wrongPasscode={claim.wrongPasscode} />
+      </div>
+    );
+  }
+
+  if (claim.status !== "accepted" || !state) {
     return (
       <div style={shellStyle}>
         <Header subtitle="Host view" />

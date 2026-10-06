@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { extname, join, resolve } from "node:path";
 import cors from "cors";
@@ -9,6 +10,7 @@ import type {
   ClueField,
   GameAction,
   GameState,
+  IdentifyResult,
   JoinResult,
   PlayerIdentity,
   SocketRole,
@@ -19,11 +21,20 @@ export interface GameServerOptions {
    * static files and falls back to its entry page for every client-side route; when
    * absent (tests, dev — where Vite serves the client), no static serving at all. */
   clientDir?: string;
-  /** The Host Passcode gating Host actions (ADR-0014) — handled by ticket 03. */
+  /** The Host Passcode (ADR-0014). Absent (or empty) → the Host is open to anyone. */
   hostPasscode?: string;
 }
 
+// Compares fixed-length digests so the check doesn't leak the passcode's length or
+// a matching prefix through timing.
+function passcodeMatches(supplied: unknown, expected: string): boolean {
+  if (typeof supplied !== "string") return false;
+  const digest = (value: string) => createHash("sha256").update(value).digest();
+  return timingSafeEqual(digest(supplied), digest(expected));
+}
+
 export function createGameServer(options: GameServerOptions = {}) {
+  const hostPasscode = options.hostPasscode || undefined;
   let state: GameState = initialState();
 
   const app = express();
@@ -77,10 +88,26 @@ export function createGameServer(options: GameServerOptions = {}) {
     roles.set(socket.id, DEFAULT_ROLE);
     socket.emit("state", viewForRole(state, DEFAULT_ROLE));
 
-    socket.on("identify", (role: SocketRole) => {
-      roles.set(socket.id, role);
-      socket.emit("state", viewForRole(state, role));
+    // Claiming `host` needs the Host Passcode (when one is configured); a rejected
+    // claim falls back to the default view. Sent on every connect, so a dropped Host
+    // reclaims its role with the passcode its device remembered.
+    socket.on("identify", (role: SocketRole, passcode?: unknown, ack?: (result: IdentifyResult) => void) => {
+      const accepted = role !== "host" || hostPasscode === undefined || passcodeMatches(passcode, hostPasscode);
+      const granted = accepted ? role : DEFAULT_ROLE;
+      roles.set(socket.id, granted);
+      socket.emit("state", viewForRole(state, granted));
+      if (typeof ack === "function") ack(accepted ? "accepted" : "rejected");
     });
+
+    // Registers a Host-only event: silently ignored (no state change, no broadcast)
+    // from a socket that hasn't been accepted as Host while a Host Passcode is set.
+    // With no passcode configured every socket may act as Host, exactly as before.
+    function onHostEvent<Args extends unknown[]>(event: string, handler: (...args: Args) => void): void {
+      socket.on(event, (...args: Args) => {
+        if (hostPasscode !== undefined && roles.get(socket.id) !== "host") return;
+        handler(...args);
+      });
+    }
 
     socket.on("disconnect", () => {
       roles.delete(socket.id);
@@ -126,66 +153,66 @@ export function createGameServer(options: GameServerOptions = {}) {
       ack?.({ ok: true, playerId });
     });
 
-    socket.on("newBoard", (categoryCount: number) => {
+    onHostEvent("newBoard", (categoryCount: number) => {
       dispatch({ type: "newBoard", categoryCount });
     });
 
-    socket.on("editCategoryName", (categoryIndex: number, name: string) => {
+    onHostEvent("editCategoryName", (categoryIndex: number, name: string) => {
       dispatch({ type: "editCategoryName", categoryIndex, name });
     });
 
-    socket.on("editClue", (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
+    onHostEvent("editClue", (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
       dispatch({ type: "editClue", categoryIndex, tileIndex, field, value });
     });
 
-    socket.on("setTwoRounds", (value: boolean) => {
+    onHostEvent("setTwoRounds", (value: boolean) => {
       dispatch({ type: "setTwoRounds", value });
     });
 
-    socket.on("editDoubleJeopardyCategoryName", (categoryIndex: number, name: string) => {
+    onHostEvent("editDoubleJeopardyCategoryName", (categoryIndex: number, name: string) => {
       dispatch({ type: "editDoubleJeopardyCategoryName", categoryIndex, name });
     });
 
-    socket.on(
+    onHostEvent(
       "editDoubleJeopardyClue",
       (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
         dispatch({ type: "editDoubleJeopardyClue", categoryIndex, tileIndex, field, value });
       },
     );
 
-    socket.on("importBoardConfig", (content: CategoryData[]) => {
+    onHostEvent("importBoardConfig", (content: CategoryData[]) => {
       dispatch({ type: "importBoardConfig", content });
     });
 
-    socket.on("openLobby", () => {
+    onHostEvent("openLobby", () => {
       dispatch({ type: "openLobby" });
     });
 
-    socket.on("toggleBoardMusic", () => {
+    onHostEvent("toggleBoardMusic", () => {
       dispatch({ type: "toggleBoardMusic" });
     });
 
-    socket.on("toggleBoardEffects", () => {
+    onHostEvent("toggleBoardEffects", () => {
       dispatch({ type: "toggleBoardEffects" });
     });
 
-    socket.on("startGame", () => {
+    onHostEvent("startGame", () => {
       dispatch({ type: "startGame" });
     });
 
-    socket.on("startDoubleJeopardy", () => {
+    onHostEvent("startDoubleJeopardy", () => {
       dispatch({ type: "startDoubleJeopardy" });
     });
 
-    socket.on("selectTile", (categoryIndex: number, tileIndex: number) => {
+    onHostEvent("selectTile", (categoryIndex: number, tileIndex: number) => {
       dispatch({ type: "selectTile", categoryIndex, tileIndex });
     });
 
-    socket.on("showDailyDoubleClue", () => {
+    onHostEvent("showDailyDoubleClue", () => {
       dispatch({ type: "showDailyDoubleClue" });
     });
 
-    socket.on("designateWagerer", (playerId: string) => {
+    onHostEvent("designateWagerer", (playerId: string) => {
       dispatch({ type: "designateWagerer", playerId });
     });
 
@@ -197,27 +224,27 @@ export function createGameServer(options: GameServerOptions = {}) {
       dispatch({ type: "buzz", playerId });
     });
 
-    socket.on("reveal", () => {
+    onHostEvent("reveal", () => {
       dispatch({ type: "reveal" });
     });
 
-    socket.on("judge", (correct: boolean) => {
+    onHostEvent("judge", (correct: boolean) => {
       dispatch({ type: "judge", correct });
     });
 
-    socket.on("closeClue", () => {
+    onHostEvent("closeClue", () => {
       dispatch({ type: "closeClue" });
     });
 
-    socket.on("setScore", (playerId: string, score: number) => {
+    onHostEvent("setScore", (playerId: string, score: number) => {
       dispatch({ type: "setScore", playerId, score });
     });
 
-    socket.on("returnToSetup", () => {
+    onHostEvent("returnToSetup", () => {
       dispatch({ type: "returnToSetup" });
     });
 
-    socket.on("resetGame", () => {
+    onHostEvent("resetGame", () => {
       dispatch({ type: "resetGame" });
     });
   });
