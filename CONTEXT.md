@@ -85,7 +85,7 @@ _Avoid_: show the answer (the Host always _sees_ the Answer privately; Reveal na
 The Host's action that finalizes the Active Clue: marks its Tile used and clears it, zooming every screen back to the Board. Available whenever every joined Player has been excluded, nobody has attempted the Clue at all, it's been Revealed, or a Player has already answered it correctly. Never itself changes a score — that already happened (or never happens) at judge time; Close just ends the Clue's time on screen, whether or not the Host chose to Reveal first.
 
 **Board Sound**:
-All of the Board's own audio, made up of exactly two parts — Board Music and Board Effects — each muted and unmuted independently. Silent until the Board's device confirms a user gesture (the browser's autoplay rule); that single unlock covers both parts.
+All of the Board's own audio, made up of exactly two parts — Board Music and Board Effects — each muted and unmuted independently. Silent until the browser's autoplay rule lets the Board's device play it: straight away on load where the browser already allows autoplay, otherwise after a tap anywhere on the Board, in any phase. That single unlock covers both parts.
 _Avoid_: sound effects, audio (Board Sound names specifically the Board's audio, not a Host's or Player's own device)
 
 **Board Music**:

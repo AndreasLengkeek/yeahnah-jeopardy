@@ -6,6 +6,26 @@ const BUZZ_SRC = "/audio/buzz.mp3";
 const CORRECT_SRCS = ["/audio/correct.mp3", "/audio/correct-2.m4a"];
 const INCORRECT_SRCS = ["/audio/incorrect.mp3", "/audio/incorrect-2.mp3", "/audio/incorrect-3.m4a"];
 
+// A fraction of a second of silence: the auto-unlock probes the autoplay rule with this
+// rather than a real cue, so a successful probe is never heard.
+const SILENT_PROBE_SRC =
+  "data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
+// Whether the browser will let this page play unmuted audio without a gesture — true when
+// the site has earned autoplay (Chrome's media engagement) or the user allowed it per site.
+async function autoplayAllowed(): Promise<boolean> {
+  const nav = navigator as Navigator & { getAutoplayPolicy?: (type: "mediaelement") => string };
+  if (nav.getAutoplayPolicy) return nav.getAutoplayPolicy("mediaelement") === "allowed";
+  const probe = new Audio(SILENT_PROBE_SRC);
+  try {
+    await probe.play();
+    probe.pause();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function pickRandomAudio(audio: HTMLAudioElement[]) {
   return audio[Math.floor(Math.random() * audio.length)];
 }
@@ -16,8 +36,9 @@ function pickRandomAudio(audio: HTMLAudioElement[]) {
 //   correct       — one-shot variants, one chosen at random when a Buzz is judged correct
 //   incorrect     — one-shot variants, one chosen at random when a Buzz is judged incorrect
 // thinking is Board Music; buzz/correct/incorrect are Board Effects — the Host mutes each
-// independently. Browsers block audio until a user gesture, so nothing plays until
-// enableSound() has run once — wired to the Board's Lobby-screen "Enable Sound" button.
+// independently. Browsers block audio until a user gesture, so nothing plays until the
+// Board is unlocked: automatically on mount where the browser already allows autoplay,
+// otherwise by enableSound() — wired to a tap anywhere on the Board.
 export function useBoardAudio(state: GameState | null) {
   const [enabled, setEnabled] = useState(false);
   const thinkingRef = useRef<HTMLAudioElement | null>(null);
@@ -37,6 +58,16 @@ export function useBoardAudio(state: GameState | null) {
     correctRef.current = CORRECT_SRCS.map((src) => new Audio(src));
     incorrectRef.current = INCORRECT_SRCS.map((src) => new Audio(src));
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    autoplayAllowed().then((allowed) => {
+      if (allowed && !cancelled) setEnabled(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function enableSound() {
     for (const audio of [
