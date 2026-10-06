@@ -50,6 +50,10 @@ _Avoid_: hidden tile, bonus tile
 The person driving the game: selects Tiles, sees each Clue's Answer as soon as it becomes Active, judges a Buzz as correct or incorrect without needing to Reveal first, and may Reveal an Answer publicly when no one currently holds the Buzz. May also directly set any Player's score to any value at any time the Scoreboard is visible — including mid-Clue and after Game Over — to correct a mis-judged Buzz or any other scoring mistake, with no confirmation step and no effect on Clue or Buzz state.
 _Avoid_: moderator, admin
 
+**Host Passcode**:
+The shared secret that proves a device belongs to the Host. Every Host action — including seeing Answers and editing the Board during Board Setup — requires it, while Player actions and the Board's display never do. Entered once per device and remembered there, so any number of devices holding it may act as Host at the same time.
+_Avoid_: password, admin key, login
+
 **Player**:
 A participant with a name and score who can Buzz on the Active Clue from their own device. A Player identifies themselves at join time either by typing a name or by drawing a Signature — never both — and whichever they chose is used everywhere their identity is shown. A Player may revisit and change this choice — a new typed name, a redrawn Signature, or switching between the two — any time before the Host starts the Game, subject to the same rules as a fresh join (no blank identity, no name collision with another Player).
 _Avoid_: contestant, user
