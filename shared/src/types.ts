@@ -62,10 +62,15 @@ export interface DailyDoubleCoordinate {
   tileIndex: number;
 }
 
-// A socket's self-declared role, sent once via the `identify` event at connection.
-// It gates which view of GameState the server sends that socket (see viewForRole /
-// ADR-0006); there is no authentication behind it.
+// A socket's role, declared via the `identify` event on every connection. It gates
+// which view of GameState the server sends that socket (see viewForRole / ADR-0006).
+// `board` and `player` are taken on trust; `host` is granted only when the server has
+// no Host Passcode configured or the claim carries the matching one (ADR-0014).
 export type SocketRole = 'host' | 'board' | 'player';
+
+// The server's answer to an `identify` claim. A rejected claim (only ever a `host`
+// claim with a wrong or missing Host Passcode) leaves the socket on the Player view.
+export type IdentifyResult = 'accepted' | 'rejected';
 
 export interface GameState {
   phase: GamePhase;

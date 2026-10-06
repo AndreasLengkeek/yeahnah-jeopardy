@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { CATS, DOUBLE_JEOPARDY_VALUES } from "@yeahnah/shared";
-import type { GameState, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
+import type { GameState, IdentifyResult, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameServer } from "./server.js";
@@ -705,6 +705,184 @@ describe("socket.io wiring", () => {
       expect(hostWagered.activeClue?.wager).toBe(100);
       expect(boardWagered.activeClue?.wager).toBe(100);
       expect(playerWagered.activeClue?.wager).toBe(100);
+    });
+  });
+
+  describe("Host Passcode (ADR-0014)", () => {
+    const PASSCODE = "kia-ora-2026";
+    const trueAnswer = CATS[0].clues[0].answer;
+
+    // Swaps the passcode-less server the outer beforeEach started for one configured
+    // with a Host Passcode, reusing the outer helpers (they read `url` lazily).
+    beforeEach(async () => {
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      ({ httpServer } = createGameServer({ hostPasscode: PASSCODE }));
+      await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+      const { port } = httpServer.address() as AddressInfo;
+      url = `http://127.0.0.1:${port}`;
+    });
+
+    // Connects, then claims `role` with `passcode`, resolving once the server has
+    // acknowledged the claim and pushed the resulting view (both drained here).
+    async function claim(role: SocketRole, passcode?: string) {
+      const connection = await connect();
+      await connection.nextState(); // raw-connect view
+      const result = await new Promise<IdentifyResult>((resolve) =>
+        connection.socket.emit("identify", role, passcode, resolve),
+      );
+      const view = await connection.nextState(); // post-identify view
+      return { ...connection, result, view };
+    }
+
+    // Events from one socket are handled in order, so once an acked round-trip on
+    // `socket` returns, everything it emitted before has been handled (or ignored).
+    function settle(socket: Socket): Promise<void> {
+      return new Promise((resolve) => socket.emit("reconnect", "no-such-player", () => resolve()));
+    }
+
+    it("accepts a Host claim with the correct passcode and sends it an unrevealed Active Clue's Answer", async () => {
+      const host = await claim("host", PASSCODE);
+      expect(host.result).toBe("accepted");
+
+      const [selected] = await selectFirstClue(host, []);
+
+      expect(selected.activeClue).toMatchObject({ answer: trueAnswer, revealed: false });
+    });
+
+    it.each([
+      { label: "a wrong", passcode: "guess" },
+      { label: "a missing", passcode: undefined },
+    ])("rejects a Host claim with $label passcode and keeps sending it the redacted view", async ({ passcode }) => {
+      const host = await claim("host", PASSCODE);
+      const intruder = await claim("host", passcode);
+      expect(intruder.result).toBe("rejected");
+
+      const [hostSel, intruderSel] = await selectFirstClue(host, [intruder]);
+
+      expect(hostSel.activeClue?.answer).toBe(trueAnswer);
+      expect(intruderSel.activeClue?.answer).toBe("");
+      expect(intruderSel.content).toEqual([]);
+    });
+
+    it("ignores Host actions from a connection that hasn't proven the passcode", async () => {
+      const host = await claim("host", PASSCODE);
+      const intruder = await claim("host", "guess");
+      const drain = () => Promise.all([host.nextState(), intruder.nextState()]);
+      let hostState = host.view;
+
+      // Each ignored batch is followed by one real Host action (toggling Board Music).
+      // Had anything in the batch changed state, its broadcast would arrive first and
+      // the next state would differ from "previous, with Board Music toggled".
+      async function expectIgnored(emitBatch: () => void): Promise<void> {
+        const previous = hostState;
+        emitBatch();
+        await settle(intruder.socket);
+        host.socket.emit("toggleBoardMusic");
+        [hostState] = await drain();
+        expect(hostState).toEqual({ ...previous, boardMusicMuted: !previous.boardMusicMuted });
+      }
+
+      // Board Setup
+      await expectIgnored(() => {
+        intruder.socket.emit("editCategoryName", 0, "Hacked");
+        intruder.socket.emit("editClue", 0, 0, "answer", "Hacked");
+        intruder.socket.emit("newBoard", 3);
+        intruder.socket.emit("importBoardConfig", []);
+        intruder.socket.emit("setTwoRounds", true);
+        intruder.socket.emit("openLobby");
+      });
+
+      // Lobby
+      host.socket.emit("openLobby");
+      await drain();
+      host.socket.emit("join", textIdentity("Dana"));
+      await drain();
+      host.socket.emit("join", textIdentity("Marcus"));
+      [hostState] = await drain();
+      await expectIgnored(() => {
+        intruder.socket.emit("startGame");
+        intruder.socket.emit("returnToSetup");
+        intruder.socket.emit("resetGame");
+      });
+
+      // Playing
+      host.socket.emit("startGame");
+      [hostState] = await drain();
+      await expectIgnored(() => intruder.socket.emit("selectTile", 0, 0));
+
+      const { states: [selected] } = await selectFirstNonDailyDoubleTile(host, [intruder]);
+      const danaId = byName(selected.players, "Dana").id;
+      host.socket.emit("buzz", danaId);
+      [hostState] = await drain();
+      await expectIgnored(() => {
+        intruder.socket.emit("judge", true);
+        intruder.socket.emit("reveal");
+        intruder.socket.emit("closeClue");
+        intruder.socket.emit("setScore", danaId, 99999);
+        intruder.socket.emit("resetGame");
+      });
+      expect(hostState.activeClue).toMatchObject({ buzzedPlayerId: danaId, revealed: false });
+      expect(byName(hostState.players, "Dana").score).toBe(0);
+    });
+
+    it("lets the Board connect and Players join and Buzz without any passcode", async () => {
+      const host = await claim("host", PASSCODE);
+      const board = await claim("board");
+      const player = await claim("player");
+      expect(board.result).toBe("accepted");
+      expect(player.result).toBe("accepted");
+      const drain = () => Promise.all([host, board, player].map((c) => c.nextState()));
+
+      host.socket.emit("openLobby");
+      await drain();
+      const joinAck = await new Promise<JoinResult>((resolve) =>
+        player.socket.emit("join", textIdentity("Dana"), resolve),
+      );
+      expect(joinAck.ok).toBe(true);
+      const danaId = (joinAck as Extract<JoinResult, { ok: true }>).playerId;
+      await drain();
+      player.socket.emit("join", textIdentity("Marcus"));
+      await drain();
+      host.socket.emit("startGame");
+      await drain();
+
+      const { states: [, boardSel] } = await selectFirstNonDailyDoubleTile(host, [board, player]);
+      expect(boardSel.activeClue?.answer).toBe("");
+      player.socket.emit("buzz", danaId);
+      const [buzzed] = await drain();
+      expect(buzzed.activeClue?.buzzedPlayerId).toBe(danaId);
+    });
+
+    it("lets a Player submit a Daily Double Wager without any passcode", async () => {
+      const host = await claim("host", PASSCODE);
+      const player = await claim("player");
+      const drain = () => Promise.all([host.nextState(), player.nextState()]);
+
+      host.socket.emit("openLobby");
+      await drain();
+      player.socket.emit("join", textIdentity("Dana"));
+      const [joined] = await drain();
+      const danaId = byName(joined.players, "Dana").id;
+      player.socket.emit("join", textIdentity("Marcus"));
+      await drain();
+      host.socket.emit("startGame");
+      await drain();
+
+      await selectUntilDailyDouble(host, [player]);
+      host.socket.emit("designateWagerer", danaId);
+      await drain();
+      player.socket.emit("submitWager", danaId, 100);
+      const [wagered] = await drain();
+      expect(wagered.activeClue?.wager).toBe(100);
+    });
+  });
+
+  describe("Host Passcode not configured", () => {
+    it("accepts a Host claim without any passcode", async () => {
+      const { socket, nextState } = await connect();
+      await nextState();
+      const result = await new Promise<IdentifyResult>((resolve) => socket.emit("identify", "host", undefined, resolve));
+      expect(result).toBe("accepted");
     });
   });
 });
