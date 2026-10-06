@@ -757,6 +757,14 @@ describe("serving the built client", () => {
     expect(await res.text()).toBe("console.log('stub');");
   });
 
+  it("answers a missing asset with 404 rather than the entry page", async () => {
+    await start({ clientDir });
+
+    const res = await fetch(`${url}/assets/stale-hash.js`);
+
+    expect(res.status).toBe(404);
+  });
+
   it("still answers the health endpoint", async () => {
     await start({ clientDir });
 

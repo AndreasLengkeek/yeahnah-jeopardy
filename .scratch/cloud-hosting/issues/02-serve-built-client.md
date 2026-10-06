@@ -8,11 +8,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The game server factory accepts an options object with an optional built-client directory
-- [ ] With a client directory configured, HTTP requests for `/`, `/host`, `/board`, and `/join` return the client's entry page; static assets are served; `/health` still answers — covered by tests at the existing server test seam using a stub directory
-- [ ] With no client directory configured, behaviour is exactly as today (existing tests pass unchanged)
-- [ ] The root build succeeds and produces the client bundle
-- [ ] A production start command runs the server via `tsx` against the built client; manually verified that the whole app plays from one local address (e.g. port 3001) with no Vite dev server running
-- [ ] `npm run dev`, `npm test`, and `npm run typecheck` still pass/work
+- [x] The game server factory accepts an options object with an optional built-client directory
+- [x] With a client directory configured, HTTP requests for `/`, `/host`, `/board`, and `/join` return the client's entry page; static assets are served; `/health` still answers — covered by tests at the existing server test seam using a stub directory
+- [x] With no client directory configured, behaviour is exactly as today (existing tests pass unchanged)
+- [x] The root build succeeds and produces the client bundle
+- [x] A production start command runs the server via `tsx` against the built client; manually verified that the whole app plays from one local address (e.g. port 3001) with no Vite dev server running
+- [x] `npm run dev`, `npm test`, and `npm run typecheck` still pass/work
+
+## Comments
+
+- Done on branch `cloud-hosting/02-serve-built-client`. `npm run build` builds only the client (`client/dist`); `npm start` runs `server` via `tsx` with `CLIENT_DIR=../client/dist`. Manually verified on port 3101 (not 3001, to avoid colliding with a parallel worktree): `/`, `/host`, `/board`, `/join`, a refresh of `/board` mid-Clue, assets, `/health`, and the socket all served from one address; played a Clue end to end (Open Lobby, join, Start Game, select Tile, Buzz, Correct) with no Vite running. `npm run dev` still serves via Vite with the proxied socket, and the server serves no client routes there.
+- Paths with a file extension never fall back to the entry page, so a missing or stale asset 404s instead of returning HTML.
+- For the blueprint ticket: the `start` script sets `CLIENT_DIR` inline with POSIX `VAR=x cmd` syntax and a path relative to `server/`. That works under `npm start` on Render (Linux) but not from a Windows shell. The blueprint can call `npm start`, or set `CLIENT_DIR` itself and run `tsx` directly.
+- Left for later: `app.use(cors())` and socket.io's `cors: { origin: "*" }` only exist for the old cross-origin dev setup and aren't needed on the single-origin deploy. That's out of this ticket's scope; worth revisiting with ticket 03/04.

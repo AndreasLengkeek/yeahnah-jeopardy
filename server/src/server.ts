@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
@@ -35,9 +35,14 @@ export function createGameServer(options: GameServerOptions = {}) {
     const entryPage = join(clientDir, "index.html");
     app.use(express.static(clientDir));
     // Client-side routes (/host, /board, /join, …) all load the same entry page, so a
-    // refresh on any of them boots the app rather than 404ing. Socket.io handles its
-    // own /socket.io path before Express sees the request.
-    app.get("*", (_req, res) => res.sendFile(entryPage));
+    // refresh on any of them boots the app rather than 404ing. Paths with a file
+    // extension are assets, so a missing one (e.g. a stale hash after a redeploy) 404s
+    // instead of getting HTML back. Socket.io handles its own /socket.io path before
+    // Express sees the request.
+    app.get("*", (req, res, next) => {
+      if (extname(req.path)) return next();
+      res.sendFile(entryPage);
+    });
   }
 
   const httpServer = createServer(app);
