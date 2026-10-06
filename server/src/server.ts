@@ -14,6 +14,7 @@ import type {
   PlayerIdentity,
   SocketRole,
 } from "@yeahnah/shared";
+import { describeGameEvent } from "./gameLog.js";
 
 export interface GameServerOptions {
   /** The built client's directory (e.g. `client/dist`). When set, the server serves its
@@ -73,12 +74,14 @@ export function createGameServer(options: GameServerOptions = {}) {
     }
   }
 
-  // Mirrors the engine's applyAction 1:1: apply, broadcast if it actually changed
-  // anything, and report back whether it did.
+  // Mirrors the engine's applyAction 1:1: apply, broadcast (and log, for the events
+  // worth logging) if it actually changed anything, and report back whether it did.
   function dispatch(action: GameAction): boolean {
     const next = applyAction(state, action);
     if (next === state) return false;
 
+    const line = describeGameEvent(state, action, next);
+    if (line) console.log(line);
     state = next;
     broadcastState();
     return true;

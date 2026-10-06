@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Decisions
 
@@ -29,8 +29,8 @@
 
 ## Acceptance
 
-- [ ] Each listed event produces exactly one `[game]` line in the format above. Rejected or no-op actions produce none.
-- [ ] No log line ever contains Answer text, Clue text or the Host Passcode.
-- [ ] Unlisted actions (Board Setup edits, mute toggles, reveal, close Clue, etc.) produce no log line.
-- [ ] The formatter has unit tests covering each event, including a signature Player and a judge in both directions.
-- [ ] Existing server tests stay quiet, with logging stubbed or silenced.
+- [x] Each listed event produces exactly one `[game]` line in the format above. Rejected or no-op actions produce none.
+- [x] No log line ever contains Answer text, Clue text or the Host Passcode.
+- [x] Unlisted actions (Board Setup edits, mute toggles, reveal, close Clue, etc.) produce no log line.
+- [x] The formatter has unit tests covering each event, including a signature Player and a judge in both directions.
+- [x] Existing server tests stay quiet, with logging stubbed or silenced.
