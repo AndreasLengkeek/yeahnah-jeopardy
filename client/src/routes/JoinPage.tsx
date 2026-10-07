@@ -97,9 +97,9 @@ export function JoinPage() {
     };
   }, [playerId]);
 
-  // A reset (→ Lobby) or the Host returning to Board Setup clears the roster — once a
-  // Player who had joined no longer appears in the Game, send them back to the join
-  // form to rejoin fresh.
+  // Safety net: Play again and Back to Board Setup keep the roster, so this shouldn't
+  // fire on those paths — but if a joined Player ever goes missing from the Lobby or
+  // Board Setup roster, send them back to the join form to rejoin fresh.
   useEffect(() => {
     const rosterCleared = state?.phase === "lobby" || state?.phase === "setup";
     if (state && playerId && rosterCleared && !state.players.some((player) => player.id === playerId)) {

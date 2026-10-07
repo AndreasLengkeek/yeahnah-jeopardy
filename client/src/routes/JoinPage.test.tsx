@@ -1,7 +1,7 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
-import type { IdentifyResult, JoinResult } from "@yeahnah/shared";
+import type { GameState, IdentifyResult, JoinResult } from "@yeahnah/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part.
@@ -100,5 +100,55 @@ describe("JoinPage reattaching a joined Player", () => {
     await act(async () => fakeSocket.listeners.get("connect")?.forEach((listener) => listener()));
 
     expect(reconnectEmits()).toEqual([]);
+  });
+});
+
+// Plays a Game from the Lobby through to Game Over with the real engine, closing every
+// Tile unanswered (the Daily Double neutralized so every Tile is a plain Clue).
+function playToGameOver(lobby: GameState): GameState {
+  let state: GameState = { ...applyAction(lobby, { type: "startGame" }), dailyDouble: null };
+  state.board.forEach((category, categoryIndex) =>
+    category.tiles.forEach((_tile, tileIndex) => {
+      state = applyAction(state, { type: "selectTile", categoryIndex, tileIndex });
+      state = applyAction(state, { type: "closeClue" });
+    }),
+  );
+  return state;
+}
+
+function lobbyWithDanaAndMarcus(): GameState {
+  let state = applyAction(initialState(), { type: "openLobby" });
+  state = applyAction(state, { type: "join", identity: { kind: "text", name: "Dana" } });
+  return applyAction(state, { type: "join", identity: { kind: "text", name: "Marcus" } });
+}
+
+describe("JoinPage across successive Games", () => {
+  async function broadcast(state: GameState) {
+    await act(async () => fakeSocket.listeners.get("state")?.forEach((listener) => listener(state)));
+  }
+
+  it("keeps a joined Player on the waiting screen across Play again and a return to Board Setup", async () => {
+    const gameOver = playToGameOver(lobbyWithDanaAndMarcus());
+    expect(gameOver.phase).toBe("gameOver");
+    const [dana] = gameOver.players;
+    storePlayerId("BRDK", dana.id);
+    renderAt("/BRDK/join");
+    await broadcast(gameOver);
+
+    const playAgain = applyAction(gameOver, { type: "resetGame" });
+    await broadcast(playAgain);
+
+    expect(screen.getByText("Waiting for the Host to start the Game…")).toBeInTheDocument();
+    expect(screen.getByText("Dana")).toBeInTheDocument();
+
+    const backInSetup = applyAction(playToGameOver(playAgain), { type: "returnToSetup" });
+    await broadcast(backInSetup);
+    expect(screen.getByText("The Host is still setting up the Board…")).toBeInTheDocument();
+
+    await broadcast(applyAction(backInSetup, { type: "openLobby" }));
+
+    expect(screen.getByText("Waiting for the Host to start the Game…")).toBeInTheDocument();
+    expect(screen.getByText("Dana")).toBeInTheDocument();
+    expect(getStoredPlayerId("BRDK")).toBe(dana.id);
   });
 });

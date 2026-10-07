@@ -253,9 +253,7 @@ describe("describePlayerConnection", () => {
     expect(describePlayerConnection(state, id, "disconnected")).toBe(`[game] Player ${id.slice(0, 6)} disconnected`);
   });
 
-  it("logs nothing for a Player no longer in the roster (e.g. after a reset)", () => {
-    const state = playing();
-    const sam = idOf(state, "Sam");
-    expect(describePlayerConnection(run(state, { type: "resetGame" }), sam, "disconnected")).toBeNull();
+  it("logs nothing for a Player id that isn't in the roster", () => {
+    expect(describePlayerConnection(playing(), "never-joined", "disconnected")).toBeNull();
   });
 });
