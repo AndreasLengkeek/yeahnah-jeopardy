@@ -419,4 +419,16 @@ describe("HostPage when its Room ends", () => {
 
     expectRoomHasEnded();
   });
+
+  it("shows Room has ended when reclaiming Host finds the Room has ended", () => {
+    localStorage.clear();
+    renderAt("/BRDK/host");
+    answerLatestClaim("rejected");
+
+    fireEvent.change(screen.getByLabelText("Room Passcode"), { target: { value: "kia-ora" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reclaim" }));
+    act(() => reclaimClaims()[0].ack({ ok: false, reason: "ended" }));
+
+    expectRoomHasEnded();
+  });
 });

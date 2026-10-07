@@ -1789,6 +1789,16 @@ describe("Rooms (ADR-0015)", () => {
 
       expect((await reclaim(unused)).result).toEqual({ ok: false, reason: "noRoom" });
     });
+
+    it("answers ended for a Room that has ended", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      host.socket.emit("closeRoom");
+      await settle(host.socket);
+
+      expect((await reclaim(room.code)).result).toEqual({ ok: false, reason: "ended" });
+    });
   });
 
   describe("capacity guards", () => {

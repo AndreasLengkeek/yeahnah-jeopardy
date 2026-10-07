@@ -102,8 +102,9 @@ export interface ReclaimHostClaim {
 
 // The server's answer to `reclaimHost`: the Room's existing Host Key (never a new one,
 // so its other Host devices keep working), the socket now accepted as Host there; or
-// why not.
-export type ReclaimHostResult = { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' };
+// why not — an ended Room's code answers 'ended', one never used 'noRoom'.
+export type ReclaimHostResult =
+  { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' | 'ended' };
 
 // What the server sends a Room's Host sockets (and only those), as the `roomInfo` event,
 // whenever the Room's connected devices change: how many Host devices, Board screens

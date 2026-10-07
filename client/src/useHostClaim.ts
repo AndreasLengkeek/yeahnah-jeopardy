@@ -6,8 +6,9 @@ import { socket } from "./socket";
 
 export type HostClaim = "claiming" | IdentifyResult;
 
-// Why reclaiming Host with the Room Passcode failed.
-export type ReclaimFailure = Extract<ReclaimHostResult, { ok: false }>["reason"];
+// Why reclaiming Host with the Room Passcode failed, while the Room is still live (an
+// ended Room turns the claim to "ended" instead).
+export type ReclaimFailure = Exclude<Extract<ReclaimHostResult, { ok: false }>["reason"], "ended">;
 
 // Claims Host of Room `code` on every connection, with whatever Host Key this device
 // remembers for that Room (possibly none) — the Host-screen counterpart of
@@ -20,7 +21,8 @@ export type ReclaimFailure = Extract<ReclaimHostResult, { ok: false }>["reason"]
 //
 // `reclaim(passcode)` is for a device without the key (Host Key needed): the Room
 // Passcode gets the Room's existing Host Key back, which is remembered, and the claim
-// becomes accepted; otherwise `onFailure` hears why not.
+// becomes accepted; if the Room has ended the claim becomes "ended"; otherwise
+// `onFailure` hears why not.
 export function useHostClaim(code: string): {
   claim: HostClaim;
   reclaim: (passcode: string, onFailure: (reason: ReclaimFailure) => void) => void;
@@ -67,7 +69,8 @@ export function useHostClaim(code: string): {
     (passcode: string, onFailure: (reason: ReclaimFailure) => void) => {
       socket.emit("reclaimHost", { code, passcode }, (result: ReclaimHostResult) => {
         if (!result.ok) {
-          onFailure(result.reason);
+          if (result.reason === "ended") setClaim("ended");
+          else onFailure(result.reason);
           return;
         }
         storeHostKey(code, result.hostKey);

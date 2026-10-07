@@ -358,7 +358,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       const code = normalizeCode(claim?.code);
       const room = code === undefined ? undefined : rooms.get(code);
       if (!room) {
-        ack({ ok: false, reason: "noRoom" });
+        ack({ ok: false, reason: code !== undefined && endedCodes.has(code) ? "ended" : "noRoom" });
         return;
       }
       if (roomPasscode !== undefined && !secretMatches(claim?.passcode, roomPasscode)) {
