@@ -7,15 +7,15 @@
 
 **Blocked by:** 01, 02, 03, 04, 05, 06, 07, 08, 09
 
-**Status:** ready-for-human
+**Status:** resolved
 
-- [ ] `ROOM_PASSCODE` is set on Render and a manual deploy succeeds
-- [ ] Creating a Room without the passcode is refused on the public URL
-- [ ] Two Rooms run at once, hosted from different devices, with Players joining over mobile data via the QR code and by typing the code
-- [ ] A Host link makes a second device a Host
-- [ ] Closing one Room leaves the other playing; the closed Room's TV shows "Room has ended" and its phones go to Room Code entry
-- [ ] The server log shows both Rooms' events prefixed by Room Code
-- [ ] The setup guide is updated
+- [x] `ROOM_PASSCODE` is set on Render and a manual deploy succeeds
+- [x] Creating a Room without the passcode is refused on the public URL
+- [x] Two Rooms run at once, hosted from different devices, with Players joining over mobile data via the QR code and by typing the code
+- [x] A Host link makes a second device a Host
+- [x] Closing one Room leaves the other playing; the closed Room's TV shows "Room has ended" and its phones go to Room Code entry
+- [x] The server log shows both Rooms' events prefixed by Room Code
+- [x] The setup guide is updated
 
 ## Comments
 
