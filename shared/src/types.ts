@@ -88,6 +88,18 @@ export type IdentifyResult = 'accepted' | 'rejected' | 'noRoom';
 // no Room was created.
 export type CreateRoomResult = { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' };
 
+// What a device without a Room's Host Key sends with `reclaimHost` to become its Host
+// again: the Room Code (any case) and the Room Passcode.
+export interface ReclaimHostClaim {
+  code: string;
+  passcode?: string;
+}
+
+// The server's answer to `reclaimHost`: the Room's existing Host Key (never a new one,
+// so its other Host devices keep working), the socket now accepted as Host there; or
+// why not.
+export type ReclaimHostResult = { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' };
+
 // What the server sends a Room's Host sockets (and only those), as the `roomInfo` event,
 // whenever the Room's connected devices change: how many Host devices, Board screens
 // and Player devices are connected right now. Kept apart from GameState so the engine

@@ -14,6 +14,8 @@ import type {
   IdentifyResult,
   JoinResult,
   PlayerIdentity,
+  ReclaimHostClaim,
+  ReclaimHostResult,
   RoomInfo,
   SocketRole,
 } from "@yeahnah/shared";
@@ -261,6 +263,13 @@ export function createGameServer(options: GameServerOptions = {}) {
 
       const role: SocketRole = claim?.role === "host" || claim?.role === "board" ? claim.role : "player";
       const accepted = role !== "host" || secretMatches(claim?.hostKey, room.hostKey);
+      bind(room, role, accepted);
+      reply(accepted ? "accepted" : "rejected");
+    });
+
+    // Binds this socket to `room` as `role` — or, if that claim wasn't accepted, on the
+    // default view and counted as no device — and sends it the Room's state.
+    function bind(room: Room, role: SocketRole, accepted: boolean): void {
       const granted = accepted ? role : DEFAULT_ROLE;
       bound = room;
       room.members.set(socket, granted);
@@ -268,7 +277,27 @@ export function createGameServer(options: GameServerOptions = {}) {
       else room.devices.delete(socket);
       socket.emit("state", viewForRole(publicGame(room), granted));
       syncRoomInfo(room, socket);
-      reply(accepted ? "accepted" : "rejected");
+    }
+
+    // A device that lost a Room's Host Key gets it back with the Room Passcode (open to
+    // anyone when none is configured). It's the Room's existing key, so every other Host
+    // device keeps working; this socket is accepted as Host straight away.
+    socket.on("reclaimHost", (claim: ReclaimHostClaim | undefined, ack?: (result: ReclaimHostResult) => void) => {
+      if (typeof ack !== "function") return;
+      const room = roomByCode(claim?.code);
+      if (!room) {
+        ack({ ok: false, reason: "noRoom" });
+        return;
+      }
+      if (roomPasscode !== undefined && !secretMatches(claim?.passcode, roomPasscode)) {
+        ack({ ok: false, reason: "wrongPasscode" });
+        return;
+      }
+
+      if (room !== bound) unbind();
+      bind(room, "host", true);
+      log(room, "[room] Host reclaimed");
+      ack({ ok: true, hostKey: room.hostKey });
     });
 
     socket.on("disconnect", unbind);

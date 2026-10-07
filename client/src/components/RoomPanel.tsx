@@ -1,12 +1,14 @@
 import type { RoomInfo } from "@yeahnah/shared";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import { getStoredHostKey } from "../hostKey";
 import { roomPath } from "../roomRoutes";
 import { accent, palette, subtitleStyle } from "../theme";
-import { mutedColor as muted, pillStyle } from "./forms";
+import { mutedColor as muted, pillStyle, textInputStyle } from "./forms";
 
 // The Host screen's Room panel (prototype variant C on `prototype/rooms`): the Room
-// Code and join address, who's here now, and a way to open the Board. Each part is a
-// RoomPanelSection; later sections (the Host link, the danger zone) slot in the same way.
+// Code and join address, who's here now, and hosting from other devices (the Host link
+// and the Board). Each part is a RoomPanelSection; later sections (the danger zone) slot
+// in the same way.
 
 const panelStyle: CSSProperties = {
   boxSizing: "border-box",
@@ -61,9 +63,12 @@ const stripStyle: CSSProperties = {
 };
 
 export function RoomPanelSection({ title, children }: { title: string; children: ReactNode }) {
+  const titleId = useId();
   return (
-    <section style={sectionStyle}>
-      <div style={subtitleStyle}>{title}</div>
+    <section aria-labelledby={titleId} style={sectionStyle}>
+      <div id={titleId} style={subtitleStyle}>
+        {title}
+      </div>
       {children}
     </section>
   );
@@ -92,6 +97,56 @@ function HereNow({ info }: { info: RoomInfo | null }) {
   );
 }
 
+// Other devices this Room's Host may run: more Host devices, through the Host link
+// (`/CODE/host#<hostKey>`, see useHostClaim), and the Board. The panel only shows once
+// this device is accepted as Host, so it holds the Room's Host Key by then.
+function HostingElsewhere({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const hostKey = getStoredHostKey(code);
+  const hostLink = hostKey ? `${window.location.origin}${roomPath(code, "host")}#${hostKey}` : null;
+
+  function copy() {
+    if (!hostLink) return;
+    navigator.clipboard?.writeText(hostLink).then(
+      () => setCopied(true),
+      () => {},
+    );
+  }
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <RoomPanelSection title="Hosting from another device">
+      {hostLink && (
+        <>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              readOnly
+              aria-label="Host link"
+              value={hostLink}
+              onFocus={(event) => event.target.select()}
+              style={{ ...textInputStyle, flex: 1, padding: "8px 12px", fontSize: 12 }}
+            />
+            <button type="button" onClick={copy} style={panelButtonStyle}>
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <div style={{ color: muted, fontSize: 12 }}>
+            Anyone with this link can run the Game. Don't show it on the Board.
+          </div>
+        </>
+      )}
+      <a href={roomPath(code, "board")} target="_blank" rel="noopener" style={panelButtonStyle}>
+        Open Board ↗
+      </a>
+    </RoomPanelSection>
+  );
+}
+
 interface RoomPanelProps {
   code: string;
   info: RoomInfo | null;
@@ -108,10 +163,8 @@ function PanelBody({ code, info, children, style }: RoomPanelProps & { style: CS
       </RoomPanelSection>
       <RoomPanelSection title="Here now">
         <HereNow info={info} />
-        <a href={roomPath(code, "board")} target="_blank" rel="noopener" style={panelButtonStyle}>
-          Open Board ↗
-        </a>
       </RoomPanelSection>
+      <HostingElsewhere code={code} />
       {children}
     </aside>
   );

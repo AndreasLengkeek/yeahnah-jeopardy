@@ -16,7 +16,7 @@ httpServer.listen(PORT, () => {
         "",
         "!".repeat(72),
         "!!  WARNING: no ROOM_PASSCODE is set. Anyone who can reach this server",
-        "!!  can create Rooms on it.",
+        "!!  can create Rooms on it, and reclaim Host of any Room.",
         "!!  Fine for local development; set ROOM_PASSCODE on any public deploy.",
         "!".repeat(72),
         "",
