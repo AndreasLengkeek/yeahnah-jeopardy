@@ -2,11 +2,11 @@ import type { JoinResult, PlayerIdentity as PlayerIdentityValue } from "@yeahnah
 import { wagerRange } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { resolveActiveClue } from "../activeClue";
 import { GameOver } from "../components/GameOver";
 import { JoinForm } from "../components/JoinForm";
 import { PlayerIdentity } from "../components/PlayerIdentity";
-import { RoomNotice } from "../components/RoomNotice";
 import { WagerForm } from "../components/WagerForm";
 import { formatScore } from "../format";
 import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
@@ -15,6 +15,7 @@ import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
 import { useIdentify } from "../useIdentify";
 import { useRoomCode } from "../useRoomCode";
+import type { RoomCodeEntryState } from "./RoomCodeEntryPage";
 
 function buzzButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -171,6 +172,11 @@ export function JoinPage() {
     // gameEngine.ts's applyBuzz).
     !activeClue.isDailyDouble;
 
+  // A code with no live Room sends the Player back to Room Code entry to try another.
+  if (identified === "noRoom") {
+    return <Navigate to="/join" replace state={{ noRoom: true } satisfies RoomCodeEntryState} />;
+  }
+
   return (
     <div style={shellStyle}>
       <div style={titleStyle}>{gameTitle}</div>
@@ -185,9 +191,7 @@ export function JoinPage() {
           textAlign: "center",
         }}
       >
-        {identified === "noRoom" ? (
-          <RoomNotice>No Room with that code</RoomNotice>
-        ) : reconnecting ? (
+        {reconnecting ? (
           <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
         ) : inSetup ? (
           <div style={{ color: "#c9d2f5" }}>The Host is still setting up the Board…</div>

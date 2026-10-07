@@ -1,5 +1,7 @@
 import { resolveActiveClue } from "../activeClue";
 import { ClueCardStage } from "../components/ClueCardStage";
+import { CodeTiles } from "../components/CodeTiles";
+import { mutedColor } from "../components/forms";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { JoinQrCode } from "../components/JoinQrCode";
@@ -7,7 +9,7 @@ import { Lobby } from "../components/Lobby";
 import { RoomNotice } from "../components/RoomNotice";
 import { roomPath } from "../roomRoutes";
 import { Scoreboard } from "../components/Scoreboard";
-import { shellStyle } from "../theme";
+import { shellStyle, subtitleStyle } from "../theme";
 import { useBoardAudio } from "../useBoardAudio";
 import { useGameState } from "../useGameState";
 import { useIdentify } from "../useIdentify";
@@ -45,8 +47,16 @@ export function BoardPage() {
         <div>The Host is setting up the Board…</div>
       ) : state.phase === "lobby" ? (
         <>
+          {/* The Room Code as big as the QR code, so it can be read from the couch. */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 48, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+              <div style={{ ...subtitleStyle, textAlign: "center" }}>Go to {window.location.host} and enter</div>
+              <CodeTiles code={code} size={96} />
+            </div>
+            <div style={{ color: mutedColor, fontFamily: "'Zilla Slab', Georgia, serif", fontSize: 22 }}>or</div>
+            <JoinQrCode url={joinUrl} />
+          </div>
           <Lobby players={state.players} />
-          <JoinQrCode url={joinUrl} />
         </>
       ) : state.phase === "roundBreak" ? (
         <div>Waiting for Double Jeopardy…</div>

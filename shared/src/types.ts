@@ -6,8 +6,10 @@ export type GamePhase = 'setup' | 'lobby' | 'playing' | 'roundBreak' | 'gameOver
 
 // How a Player identifies themselves, chosen once at join time and never both: a typed
 // name carries the trimmed string; a drawn Signature carries a small raster image as a
-// data URL. Rendered everywhere a Player's identity is shown via the shared
-// PlayerIdentity component.
+// data URL. In the state the server broadcasts, a Signature's `image` is instead a
+// Room-scoped, versioned image address the server serves over HTTP (ADR-0015), so each
+// device fetches each Signature once. Either way it's an image source, rendered
+// everywhere a Player's identity is shown via the shared PlayerIdentity component.
 export type PlayerIdentity = { kind: 'text'; name: string } | { kind: 'signature'; image: string };
 
 export interface Player {

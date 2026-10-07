@@ -78,4 +78,14 @@ describe("Scoreboard", () => {
 
     expect(onEditScore).not.toHaveBeenCalled();
   });
+
+  it("renders a Signature Player as an image fetched from its address", () => {
+    const image = "/rooms/BRDK/signatures/p1/Zq3xW9";
+    const players: Player[] = [{ id: "p1", identity: { kind: "signature", image }, score: 400, connected: true }];
+
+    render(<Scoreboard players={players} />);
+
+    expect(screen.getByRole("img", { name: "Signature" })).toHaveAttribute("src", image);
+    expect(screen.getByText("$400")).toBeInTheDocument();
+  });
 });

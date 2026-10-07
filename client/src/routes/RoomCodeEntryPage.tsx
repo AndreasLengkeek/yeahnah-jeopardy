@@ -1,13 +1,22 @@
-import { Header } from "../components/Header";
+import { useLocation } from "react-router-dom";
+import { centeredStyle } from "../components/forms";
 import { RoomCodeForm } from "../components/RoomCodeForm";
-import { shellStyle } from "../theme";
+import { gameTitle, shellStyle, titleStyle } from "../theme";
 
-// Room Code entry (`/join`): where a Player without the Join QR code types the code.
+// What a Room's join page passes along when it sends the Player back here.
+export type RoomCodeEntryState = { noRoom?: boolean };
+
+// Room Code entry (`/join`): where a Player without the Join QR code types the code, and
+// where a join page whose code isn't live sends them back to.
 export function RoomCodeEntryPage() {
+  const { state } = useLocation() as { state: RoomCodeEntryState | null };
+
   return (
     <div style={shellStyle}>
-      <Header />
-      <RoomCodeForm />
+      <div style={titleStyle}>{gameTitle}</div>
+      <div style={centeredStyle}>
+        <RoomCodeForm error={state?.noRoom ? "No Room with that code" : null} />
+      </div>
     </div>
   );
 }
