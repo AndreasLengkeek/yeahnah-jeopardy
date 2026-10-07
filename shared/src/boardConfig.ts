@@ -1,5 +1,5 @@
 import { MAX_CATEGORIES, MIN_CATEGORIES } from './gameEngine.js';
-import { categoryNameFits, clueFieldFits, MAX_CATEGORY_NAME_LENGTH, MAX_CLUE_FIELD_LENGTH } from './limits.js';
+import { brokenContentCap, MAX_CATEGORY_NAME_LENGTH, MAX_CLUE_FIELD_LENGTH } from './limits.js';
 import { VALUES } from './trivia.js';
 import type { CategoryData, ClueData } from './trivia.js';
 
@@ -57,20 +57,15 @@ function shapeError(): ParseBoardConfigResult {
   return { ok: false, error: "That file doesn't look like a Board Config." };
 }
 
+const CAP_ERRORS = {
+  categoryName: `Category names can be at most ${MAX_CATEGORY_NAME_LENGTH} characters.`,
+  clueField: `Clues and Answers can be at most ${MAX_CLUE_FIELD_LENGTH} characters.`,
+};
+
 // The first per-field size cap (see limits.ts) any Round breaks, as an error naming it.
 function lengthError(rounds: CategoryData[][]): ParseBoardConfigResult | null {
-  const categories = rounds.flat();
-  if (!categories.every((category) => categoryNameFits(category.name))) {
-    return { ok: false, error: `Category names can be at most ${MAX_CATEGORY_NAME_LENGTH} characters.` };
-  }
-  if (
-    !categories.every((category) =>
-      category.clues.every((clue) => clueFieldFits(clue.text) && clueFieldFits(clue.answer)),
-    )
-  ) {
-    return { ok: false, error: `Clues and Answers can be at most ${MAX_CLUE_FIELD_LENGTH} characters.` };
-  }
-  return null;
+  const broken = brokenContentCap(rounds.flat());
+  return broken ? { ok: false, error: CAP_ERRORS[broken] } : null;
 }
 
 function parseContent(raw: unknown): CategoryData[] | 'count-error' | null {

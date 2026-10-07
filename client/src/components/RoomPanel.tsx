@@ -1,8 +1,9 @@
+import { EMPTY_ROOM_LIMIT_MINUTES } from "@yeahnah/shared";
 import type { RoomInfo } from "@yeahnah/shared";
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
-import { getStoredHostKey } from "../hostKey";
+import { hostKeys } from "../roomStorage";
 import { roomPath } from "../roomRoutes";
-import { accent, palette, subtitleStyle } from "../theme";
+import { accent, errorColor, palette, subtitleStyle } from "../theme";
 import { mutedColor as muted, pillStyle, textInputStyle } from "./forms";
 
 // The Host screen's Room panel (prototype variant C on `prototype/rooms`): the Room
@@ -62,7 +63,7 @@ const stripStyle: CSSProperties = {
   cursor: "pointer",
 };
 
-const danger = "#ff8a7a";
+const danger = errorColor;
 
 const dangerButtonStyle: CSSProperties = {
   ...panelButtonStyle,
@@ -97,7 +98,9 @@ function DangerZone({ code, onCloseRoom }: { code: string; onCloseRoom: () => vo
           Close Room…
         </button>
       )}
-      <div style={{ color: muted, fontSize: 12 }}>Otherwise it ends by itself 30 min after everyone leaves.</div>
+      <div style={{ color: muted, fontSize: 12 }}>
+        Otherwise it ends by itself {EMPTY_ROOM_LIMIT_MINUTES} min after everyone leaves.
+      </div>
     </section>
   );
 }
@@ -142,7 +145,7 @@ function HereNow({ info }: { info: RoomInfo | null }) {
 // this device is accepted as Host, so it holds the Room's Host Key by then.
 function HostingElsewhere({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
-  const hostKey = getStoredHostKey(code);
+  const hostKey = hostKeys.get(code);
   const hostLink = hostKey ? `${window.location.origin}${roomPath(code, "host")}#${hostKey}` : null;
 
   function copy() {

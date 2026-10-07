@@ -1,13 +1,14 @@
 import type { IdentifyResult, ReclaimHostResult } from "@yeahnah/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearStoredHostKey, getStoredHostKey, storeHostKey } from "./hostKey";
+import { hostKeys } from "./roomStorage";
 import { socket } from "./socket";
 
 export type HostClaim = "claiming" | IdentifyResult;
 
-// Why reclaiming Host with the Room Passcode failed.
-export type ReclaimFailure = Extract<ReclaimHostResult, { ok: false }>["reason"];
+// Why reclaiming Host with the Room Passcode failed, while the Room is still live (an
+// ended Room turns the claim to "ended" instead).
+export type ReclaimFailure = Exclude<Extract<ReclaimHostResult, { ok: false }>["reason"], "ended">;
 
 // Claims Host of Room `code` on every connection, with whatever Host Key this device
 // remembers for that Room (possibly none) — the Host-screen counterpart of
@@ -20,7 +21,8 @@ export type ReclaimFailure = Extract<ReclaimHostResult, { ok: false }>["reason"]
 //
 // `reclaim(passcode)` is for a device without the key (Host Key needed): the Room
 // Passcode gets the Room's existing Host Key back, which is remembered, and the claim
-// becomes accepted; otherwise `onFailure` hears why not.
+// becomes accepted; if the Room has ended the claim becomes "ended"; otherwise
+// `onFailure` hears why not.
 export function useHostClaim(code: string): {
   claim: HostClaim;
   reclaim: (passcode: string, onFailure: (reason: ReclaimFailure) => void) => void;
@@ -33,7 +35,7 @@ export function useHostClaim(code: string): {
   useEffect(() => {
     const linkKey = hash.slice(1);
     if (!linkKey) return;
-    storeHostKey(code, decodeURIComponent(linkKey));
+    hostKeys.set(code, decodeURIComponent(linkKey));
     navigate({ pathname, search }, { replace: true });
   }, [code, pathname, search, hash, navigate]);
 
@@ -43,10 +45,10 @@ export function useHostClaim(code: string): {
     // rendering a redacted Board in the meantime.
     function announce() {
       setClaim("claiming");
-      const hostKey = getStoredHostKey(code) ?? undefined;
+      const hostKey = hostKeys.get(code) ?? undefined;
       socket.emit("identify", { code, role: "host", hostKey }, (result: IdentifyResult) => {
-        if (result === "rejected" && hostKey !== undefined && getStoredHostKey(code) === hostKey) {
-          clearStoredHostKey(code);
+        if (result === "rejected" && hostKey !== undefined && hostKeys.get(code) === hostKey) {
+          hostKeys.clear(code);
         }
         setClaim(result);
       });
@@ -60,6 +62,9 @@ export function useHostClaim(code: string): {
     return () => {
       socket.off("connect", announce);
       socket.off("roomEnded", ended);
+      // The connection is shared app-wide and outlives this screen, so tell the server
+      // this device has left the Room (e.g. back to the home page).
+      socket.emit("leaveRoom");
     };
   }, [code]);
 
@@ -67,10 +72,11 @@ export function useHostClaim(code: string): {
     (passcode: string, onFailure: (reason: ReclaimFailure) => void) => {
       socket.emit("reclaimHost", { code, passcode }, (result: ReclaimHostResult) => {
         if (!result.ok) {
-          onFailure(result.reason);
+          if (result.reason === "ended") setClaim("ended");
+          else onFailure(result.reason);
           return;
         }
-        storeHostKey(code, result.hostKey);
+        hostKeys.set(code, result.hostKey);
         setClaim("accepted");
       });
     },

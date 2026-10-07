@@ -164,6 +164,15 @@ describe("HostPage Host Key claim", () => {
     expect(localStorage.getItem(hostKeyStorage("QZTM"))).toBe("key-qztm");
   });
 
+  it("leaves its Room when the Host screen closes", () => {
+    const { unmount } = renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    unmount();
+
+    expect(fakeSocket.emit.mock.calls.map(([event]) => event)).toEqual(["identify", "leaveRoom"]);
+  });
+
   it("claims with no Host Key when this device holds none for the Room", () => {
     renderAt("/BRDK/host");
     expect(identifyClaims()[0].claim).toEqual({ code: "BRDK", role: "host", hostKey: undefined });
@@ -416,6 +425,18 @@ describe("HostPage when its Room ends", () => {
     renderAt("/brdk/host");
 
     answerLatestClaim("ended");
+
+    expectRoomHasEnded();
+  });
+
+  it("shows Room has ended when reclaiming Host finds the Room has ended", () => {
+    localStorage.clear();
+    renderAt("/BRDK/host");
+    answerLatestClaim("rejected");
+
+    fireEvent.change(screen.getByLabelText("Room Passcode"), { target: { value: "kia-ora" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reclaim" }));
+    act(() => reclaimClaims()[0].ack({ ok: false, reason: "ended" }));
 
     expectRoomHasEnded();
   });

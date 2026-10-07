@@ -1,31 +1,16 @@
 import type { PlayerIdentity as PlayerIdentityValue } from "@yeahnah/shared";
-import { isBlankIdentity, MAX_NAME_LENGTH, normalizeIdentity, signatureTooBig } from "@yeahnah/shared";
+import {
+  isBlankIdentity,
+  MAX_NAME_LENGTH,
+  normalizeIdentity,
+  SIGNATURE_TOO_BIG_MESSAGE,
+  signatureTooBig,
+} from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
-import { accent } from "../theme";
+import { errorColor } from "../theme";
+import { inputStyle, submitButtonStyle } from "./forms";
 import { SignatureCanvas, type SignatureCanvasHandle } from "./SignatureCanvas";
-
-const inputStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,.2)",
-  background: "rgba(255,255,255,.06)",
-  color: "#fff",
-  fontSize: 16,
-};
-
-const submitButtonStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 999,
-  border: 0,
-  fontWeight: 800,
-  fontSize: 14,
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  background: accent,
-  color: "#07103f",
-  cursor: "pointer",
-};
 
 const linkButtonStyle: CSSProperties = {
   alignSelf: "center",
@@ -122,9 +107,7 @@ export function JoinForm({
         Join
       </button>
       {(tooBig || error) && (
-        <div style={{ color: "#ff8a7a", fontSize: 13 }}>
-          {tooBig ? "That drawing is too big — try a simpler drawing." : error}
-        </div>
+        <div style={{ color: errorColor, fontSize: 13 }}>{tooBig ? SIGNATURE_TOO_BIG_MESSAGE : error}</div>
       )}
     </form>
   );

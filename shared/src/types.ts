@@ -88,6 +88,10 @@ export type IdentifyResult = 'accepted' | 'rejected' | 'ended' | 'noRoom';
 // The Room-ended notice is the `roomEnded` event (no payload): sent to every socket in a
 // Room as it ends, for any reason (closed by its Host, or expired), as they're unbound.
 
+// Leaving a Room is the `leaveRoom` event (no payload): a Room screen sends it as it
+// closes in the app, since the connection outlives it. The server unbinds the socket
+// as if it had disconnected (Room info, the 30-minute emptiness check).
+
 // The server's answer to `createRoom`: the new Room's code and its Host Key, or why
 // no Room was created.
 export type CreateRoomResult =
@@ -102,8 +106,9 @@ export interface ReclaimHostClaim {
 
 // The server's answer to `reclaimHost`: the Room's existing Host Key (never a new one,
 // so its other Host devices keep working), the socket now accepted as Host there; or
-// why not.
-export type ReclaimHostResult = { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' };
+// why not — an ended Room's code answers 'ended', one never used 'noRoom'.
+export type ReclaimHostResult =
+  { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' | 'ended' };
 
 // What the server sends a Room's Host sockets (and only those), as the `roomInfo` event,
 // whenever the Room's connected devices change: how many Host devices, Board screens

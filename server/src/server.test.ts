@@ -1136,6 +1136,31 @@ describe("Rooms (ADR-0015)", () => {
     return new Promise((resolve) => socket.emit("reconnect", "no-such-player", () => resolve()));
   }
 
+  // Closes a device's connection and waits until the server has let it go.
+  async function leave(socket: Socket) {
+    const connected = io.of("/").sockets.size;
+    socket.close();
+    await vi.waitFor(() => expect(io.of("/").sockets.size).toBe(connected - 1));
+  }
+
+  // A new Room with its Lobby open, and no device left in it, ready for Players to join.
+  async function lobbyRoom(): Promise<Created> {
+    const room = await created();
+    const host = await enter(room.code, "host", room.hostKey);
+    host.socket.emit("openLobby");
+    await settle(host.socket);
+    await leave(host.socket);
+    return room;
+  }
+
+  // A Player device in Room `code` that has joined as `name` (the Lobby must be open).
+  async function joinedPlayer(code: string, name: string) {
+    const player = await enter(code, "player");
+    const result = await new Promise<JoinResult>((resolve) => player.socket.emit("join", textIdentity(name), resolve));
+    if (!result.ok) throw new Error(`${name} couldn't join: ${result.error}`);
+    return { ...player, playerId: result.playerId };
+  }
+
   const trueAnswer = CATS[0].clues[0].answer;
 
   describe("claiming a role in a Room", () => {
@@ -1296,7 +1321,7 @@ describe("Rooms (ADR-0015)", () => {
 
     it("tells the Host how many Host, Board and Player devices are connected as they come and go", async () => {
       await start();
-      const room = await created();
+      const room = await lobbyRoom();
 
       const host = await enter(room.code, "host", room.hostKey);
       expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 0));
@@ -1304,7 +1329,7 @@ describe("Rooms (ADR-0015)", () => {
       const board = await enter(room.code, "board");
       expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 0));
 
-      const player = await enter(room.code, "player");
+      const player = await joinedPlayer(room.code, "Dana");
       expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 1));
 
       const laptop = await enter(room.code, "host", room.hostKey);
@@ -1324,13 +1349,13 @@ describe("Rooms (ADR-0015)", () => {
 
     it("never sends room info to Board or Player sockets, or to a rejected Host claim, which isn't counted", async () => {
       await start();
-      const room = await created();
+      const room = await lobbyRoom();
       const host = await enter(room.code, "host", room.hostKey);
       await host.nextRoomInfo();
 
       const board = await enter(room.code, "board");
       await host.nextRoomInfo();
-      const player = await enter(room.code, "player");
+      const player = await joinedPlayer(room.code, "Dana");
       await host.nextRoomInfo();
       const intruder = await enter(room.code, "host", "guess");
       await settle(intruder.socket);
@@ -1344,17 +1369,38 @@ describe("Rooms (ADR-0015)", () => {
       expect(late.roomInfo).toEqual([]);
     });
 
+    it("counts a Player device only once it has joined or reconnected as a Player", async () => {
+      await start({ maxPlayersPerRoom: 1 });
+      const room = await lobbyRoom();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextRoomInfo();
+
+      const browsing = await enter(room.code, "player");
+      await settle(browsing.socket);
+      const dana = await joinedPlayer(room.code, "Dana");
+      await host.nextRoomInfo();
+      // Refused as full: still not a Player device.
+      await new Promise((resolve) => browsing.socket.emit("join", textIdentity("Marcus"), resolve));
+      dana.socket.close();
+      await host.nextRoomInfo();
+      const back = await enter(room.code, "player");
+      await new Promise((resolve) => back.socket.emit("reconnect", dana.playerId, resolve));
+      await host.nextRoomInfo();
+
+      expect(host.roomInfo).toEqual([counts(1, 0, 0), counts(1, 0, 1), counts(1, 0, 0), counts(1, 0, 1)]);
+    });
+
     it("never mixes one Room's devices into another Room's counts", async () => {
       await start();
       const a = await created();
-      const b = await created();
+      const b = await lobbyRoom();
       const hostA = await enter(a.code, "host", a.hostKey);
       const hostB = await enter(b.code, "host", b.hostKey);
       await hostA.nextRoomInfo();
       await hostB.nextRoomInfo();
 
       const boardB = await enter(b.code, "board");
-      await enter(b.code, "player");
+      await joinedPlayer(b.code, "Dana");
       expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 0));
       expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 1));
       boardB.socket.close();
@@ -1380,6 +1426,29 @@ describe("Rooms (ADR-0015)", () => {
 
       expect(await hostA.nextRoomInfo()).toEqual(counts(1, 0, 0));
       expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 0));
+    });
+
+    it("drops a device that leaves its Room screen, which then hears nothing more from the Room", async () => {
+      await start();
+      const room = await lobbyRoom();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextRoomInfo();
+      const board = await enter(room.code, "board");
+      await host.nextRoomInfo();
+      const player = await joinedPlayer(room.code, "Dana");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 1));
+
+      board.socket.emit("leaveRoom");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 1));
+      player.socket.emit("leaveRoom");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 0));
+
+      const statesBefore = board.received.length;
+      host.socket.emit("toggleBoardMusic");
+      await host.nextState();
+      await Promise.all([board, player].map((c) => settle(c.socket)));
+      expect(board.received).toHaveLength(statesBefore);
+      expect(consoleLog.mock.calls.map(([line]) => line)).toContain(`[${room.code}] [game] "Dana" disconnected`);
     });
   });
 
@@ -1516,18 +1585,11 @@ describe("Rooms (ADR-0015)", () => {
       expect((await enter(room.code, "board")).result).toBe("ended");
     });
 
-    // Closes a device's connection and waits until the server has let it go.
-    async function leave(socket: Socket) {
-      const connected = io.of("/").sockets.size;
-      socket.close();
-      await vi.waitFor(() => expect(io.of("/").sockets.size).toBe(connected - 1));
-    }
-
     it("counts the 30 minutes from when the last Host or Player device left", async () => {
       await startWithClock();
-      const room = await created();
+      const room = await lobbyRoom();
       const host = await enter(room.code, "host", room.hostKey);
-      const player = await enter(room.code, "player");
+      const player = await joinedPlayer(room.code, "Aroha");
       const board = await enter(room.code, "board");
 
       now += 20 * MINUTE;
@@ -1548,17 +1610,13 @@ describe("Rooms (ADR-0015)", () => {
 
     it("restarts the 30 minutes when a Player reconnects", async () => {
       await startWithClock();
-      const room = await created();
-      const player = await enter(room.code, "player");
-      const joined = await new Promise<JoinResult>((resolve) =>
-        player.socket.emit("join", textIdentity("Aroha"), resolve),
-      );
-      const playerId = (joined as Extract<JoinResult, { ok: true }>).playerId;
+      const room = await lobbyRoom();
+      const player = await joinedPlayer(room.code, "Aroha");
       await leave(player.socket);
 
       now += 25 * MINUTE;
       const back = await enter(room.code, "player");
-      await new Promise((resolve) => back.socket.emit("reconnect", playerId, resolve));
+      await new Promise((resolve) => back.socket.emit("reconnect", player.playerId, resolve));
       now += 2 * MINUTE;
       await leave(back.socket);
 
@@ -1572,15 +1630,46 @@ describe("Rooms (ADR-0015)", () => {
 
     it("keeps a Room whose Host's phone died while its Players are connected", async () => {
       await startWithClock();
-      const room = await created();
+      const room = await lobbyRoom();
       const host = await enter(room.code, "host", room.hostKey);
-      await enter(room.code, "player");
+      await joinedPlayer(room.code, "Aroha");
       await leave(host.socket);
 
       now += 3 * HOUR;
       sweep();
 
       expect(await isLive(room.code)).toBe(true);
+    });
+
+    it("counts the 30 minutes from when the last Player left the Room screen, still connected", async () => {
+      await startWithClock();
+      const room = await lobbyRoom();
+      const player = await joinedPlayer(room.code, "Aroha");
+      const board = await enter(room.code, "board");
+
+      now += 10 * MINUTE;
+      player.socket.emit("leaveRoom");
+      await settle(player.socket);
+
+      now += 30 * MINUTE - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+      const ended = roomEnded(board.socket);
+      now += 1;
+      sweep();
+      await ended;
+    });
+
+    it("doesn't let a Player device that never joined keep the Room alive", async () => {
+      await startWithClock();
+      const room = await created();
+      await enter(room.code, "player");
+      const board = await enter(room.code, "board");
+
+      const ended = roomEnded(board.socket);
+      now += 30 * MINUTE;
+      sweep();
+      await ended;
     });
 
     it("logs an empty Room's expiry with its reason", async () => {
@@ -1648,7 +1737,7 @@ describe("Rooms (ADR-0015)", () => {
       expect(await isLive(room.code)).toBe(false);
     });
 
-    it("counts a Host device being accepted into the Room as a Host action", async () => {
+    it("doesn't count a Host device identifying or reconnecting as a Host action", async () => {
       await startWithClock();
       const room = await created();
       await enter(room.code, "player");
@@ -1656,9 +1745,9 @@ describe("Rooms (ADR-0015)", () => {
       now += 3 * HOUR;
       await enter(room.code, "host", room.hostKey);
 
-      now += 4 * HOUR - 1;
+      now += 1 * HOUR;
       sweep();
-      expect(await isLive(room.code)).toBe(true);
+      expect(await isLive(room.code)).toBe(false);
     });
 
     it("counts reclaiming Host as a Host action", async () => {
@@ -1788,6 +1877,16 @@ describe("Rooms (ADR-0015)", () => {
       const unused = room.code === "BCDF" ? "BCDG" : "BCDF";
 
       expect((await reclaim(unused)).result).toEqual({ ok: false, reason: "noRoom" });
+    });
+
+    it("answers ended for a Room that has ended", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      host.socket.emit("closeRoom");
+      await settle(host.socket);
+
+      expect((await reclaim(room.code)).result).toEqual({ ok: false, reason: "ended" });
     });
   });
 

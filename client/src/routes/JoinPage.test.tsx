@@ -23,7 +23,7 @@ const fakeSocket = vi.hoisted(() => {
 
 vi.mock("../socket", () => ({ socket: fakeSocket }));
 
-import { getStoredPlayerId, storePlayerId } from "../playerIdentity";
+import { playerIds } from "../roomStorage";
 import { renderAt } from "../test/renderAt";
 
 const emitted = (event: string) => fakeSocket.emit.mock.calls.filter(([name]) => name === event);
@@ -48,11 +48,11 @@ describe("JoinPage in its Room", () => {
   });
 
   it("reattaches only the Player this device joined this Room as", () => {
-    storePlayerId("QZTM", "player-in-qztm");
+    playerIds.set("QZTM", "player-in-qztm");
     renderAt("/BRDK/join");
     expect(reconnectEmits()).toEqual([]);
 
-    storePlayerId("BRDK", "player-in-brdk");
+    playerIds.set("BRDK", "player-in-brdk");
     renderAt("/BRDK/join");
     expect(reconnectEmits().map(([, playerId]) => playerId)).toEqual(["player-in-brdk"]);
   });
@@ -71,8 +71,8 @@ describe("JoinPage in its Room", () => {
     act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(withDana)));
     act(() => (ack as (result: JoinResult) => void)({ ok: true, playerId: "dana-id" }));
 
-    expect(getStoredPlayerId("BRDK")).toBe("dana-id");
-    expect(getStoredPlayerId("QZTM")).toBeNull();
+    expect(playerIds.get("BRDK")).toBe("dana-id");
+    expect(playerIds.get("QZTM")).toBeNull();
   });
 
   it("shows Room full, over the Room's dimmed code, when the Room has no seat left", async () => {
@@ -106,11 +106,11 @@ describe("JoinPage in its Room", () => {
     expect(screen.getByLabelText("Room Code")).toBeInTheDocument();
     expect(screen.queryByText("No Room with that code")).not.toBeInTheDocument();
     expect(screen.queryByText(/has ended/)).not.toBeInTheDocument();
-    expect(getStoredPlayerId("BRDK")).toBeNull();
+    expect(playerIds.get("BRDK")).toBeNull();
   }
 
   it("goes straight to Room Code entry when the Room-ended notice arrives", () => {
-    storePlayerId("BRDK", "player-1");
+    playerIds.set("BRDK", "player-1");
     renderAt("/BRDK/join");
     const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
     act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
@@ -121,7 +121,7 @@ describe("JoinPage in its Room", () => {
   });
 
   it("goes straight to Room Code entry when the address is an ended Room's", () => {
-    storePlayerId("BRDK", "player-1");
+    playerIds.set("BRDK", "player-1");
     renderAt("/BRDK/join");
     const [, , ack] = emitted("identify")[0];
     act(() => (ack as (result: IdentifyResult) => void)("ended"));
@@ -132,7 +132,7 @@ describe("JoinPage in its Room", () => {
 
 describe("JoinPage reattaching a joined Player", () => {
   it("reattaches on load, and again each time a dropped connection comes back", async () => {
-    storePlayerId("BRDK", "player-1");
+    playerIds.set("BRDK", "player-1");
     renderAt("/BRDK/join");
     expect(reconnectEmits().map(([, playerId]) => playerId)).toEqual(["player-1"]);
 
@@ -177,7 +177,7 @@ describe("JoinPage across successive Games", () => {
     const gameOver = playToGameOver(lobbyWithDanaAndMarcus());
     expect(gameOver.phase).toBe("gameOver");
     const [dana] = gameOver.players;
-    storePlayerId("BRDK", dana.id);
+    playerIds.set("BRDK", dana.id);
     renderAt("/BRDK/join");
     await broadcast(gameOver);
 
@@ -195,6 +195,6 @@ describe("JoinPage across successive Games", () => {
 
     expect(screen.getByText("Waiting for the Host to start the Game…")).toBeInTheDocument();
     expect(screen.getByText("Dana")).toBeInTheDocument();
-    expect(getStoredPlayerId("BRDK")).toBe(dana.id);
+    expect(playerIds.get("BRDK")).toBe(dana.id);
   });
 });

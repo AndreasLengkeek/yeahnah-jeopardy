@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
+import { NO_ROOM_COPY, WRONG_PASSCODE_COPY } from "../copy";
 import type { ReclaimFailure } from "../useHostClaim";
 import { CodeTiles } from "./CodeTiles";
 import { centeredStyle, errorStyle, mutedColor, pillStyle, screenTitleStyle, textInputStyle } from "./forms";
 
 const failureCopy: Record<ReclaimFailure, string> = {
-  wrongPasscode: "That isn't the Room Passcode. Try again.",
-  noRoom: "No Room with that code",
+  wrongPasscode: WRONG_PASSCODE_COPY,
+  noRoom: NO_ROOM_COPY,
 };
 
 // The Host screen for a device without the Room's Host Key (prototype variant B on

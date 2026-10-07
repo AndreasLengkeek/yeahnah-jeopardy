@@ -71,6 +71,15 @@ describe("BoardPage in its Room", () => {
     expect(claims).toEqual([{ code: "BRDK", role: "board" }]);
   });
 
+  it("leaves its Room when the Board screen closes", async () => {
+    const { unmount } = renderAt("/BRDK/board");
+    expect(fakeSocket.emit).not.toHaveBeenCalledWith("leaveRoom");
+
+    unmount();
+
+    expect(fakeSocket.emit.mock.calls.map(([event]) => event)).toEqual(["identify", "leaveRoom"]);
+  });
+
   it("shows a Join QR code for its own Room's join page in the Lobby", async () => {
     await loadBoard(gameIn("lobby"));
 

@@ -5,10 +5,17 @@ import express from "express";
 import { Server, type Socket } from "socket.io";
 import {
   applyAction,
+  EMPTY_ROOM_LIMIT_MINUTES,
+  HOST_IDLE_LIMIT_HOURS,
   initialState,
   MAX_NAME_LENGTH,
+  NO_ROOM_MESSAGE,
   nameTooLong,
   normalizeIdentity,
+  normalizeRoomCode,
+  ROOM_CODE_ALPHABET,
+  ROOM_CODE_LENGTH,
+  SIGNATURE_TOO_BIG_MESSAGE,
   signatureTooBig,
   viewForRole,
 } from "@yeahnah/shared";
@@ -48,16 +55,9 @@ export interface GameServerOptions {
 const DEFAULT_MAX_ROOMS = 20;
 const DEFAULT_MAX_PLAYERS_PER_ROOM = 12;
 
-// A Room ends by itself once no Host or Player device has been connected for this
-// long (a Board left on a TV doesn't count, so it can't keep a Room alive forever).
-const EMPTY_ROOM_LIMIT_MS = 30 * 60 * 1000;
-// ...or once this long passes with no Host action, even with devices still connected.
-const HOST_IDLE_LIMIT_MS = 4 * 60 * 60 * 1000;
-
-// Consonants only, so a code never spells a word, and without Y (a part-time vowel).
-// Dropping the vowels also drops I and O, the letters most easily misread as 1 and 0.
-const ROOM_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ";
-const ROOM_CODE_LENGTH = 4;
+// The Room time limits (see limits.ts), in the clock's milliseconds.
+const EMPTY_ROOM_LIMIT_MS = EMPTY_ROOM_LIMIT_MINUTES * 60 * 1000;
+const HOST_IDLE_LIMIT_MS = HOST_IDLE_LIMIT_HOURS * 60 * 60 * 1000;
 
 // A Room (ADR-0015): one Game, the Host Key that proves Host of it, and every socket
 // bound to it with the role it was granted there.
@@ -67,7 +67,8 @@ interface Room {
   game: GameState;
   members: Map<Socket, SocketRole>;
   // The connected devices counted in Room info, by the role each was accepted as. A
-  // rejected Host claim is a member (on the Player view) but no device here.
+  // rejected Host claim is a member (on the Player view) but no device here, and so is
+  // a Player socket until it has joined or reconnected as a Player.
   devices: Map<Socket, SocketRole>;
   // The Room info last sent to its Host sockets, to send again only on a change.
   roomInfo: RoomInfo;
@@ -76,8 +77,9 @@ interface Room {
   signatureVersions: Map<string, { image: string; version: string }>;
   // Since when no Host or Player device has been connected, or undefined while one is.
   emptySince: number | undefined;
-  // When the Room's Host last acted: creation, a Host device accepted (by Host Key or
-  // reclaim), or an accepted Host event.
+  // When the Room's Host last acted: creation, an accepted Host event, or reclaiming
+  // Host with the Room Passcode. A Host device merely (re)identifying doesn't count, so
+  // a forgotten Host tab reconnecting can't keep a Room alive forever.
   lastHostAction: number;
 }
 
@@ -127,7 +129,7 @@ export function createGameServer(options: GameServerOptions = {}) {
 
   // Room Codes match whatever their case.
   function normalizeCode(code: unknown): string | undefined {
-    return typeof code === "string" ? code.trim().toUpperCase() : undefined;
+    return typeof code === "string" ? normalizeRoomCode(code) : undefined;
   }
 
   // A Signature Player's current image version (see `signaturePath`).
@@ -269,22 +271,22 @@ export function createGameServer(options: GameServerOptions = {}) {
     // reconnected as there, so its disconnect can be logged. A socket bound to no Room
     // (e.g. the home page's) can only create one.
     let bound: Room | undefined;
-    let playerId: string | undefined;
+    let boundPlayerId: string | undefined;
 
     function unbind(): void {
       if (!bound) return;
       bound.members.delete(socket);
       bound.devices.delete(socket);
       syncRoomInfo(bound);
-      if (playerId) log(bound, describePlayerConnection(bound.game, playerId, "disconnected"));
+      if (boundPlayerId) log(bound, describePlayerConnection(bound.game, boundPlayerId, "disconnected"));
       bound = undefined;
-      playerId = undefined;
+      boundPlayerId = undefined;
     }
 
     // Its Room ended: nothing left to leave, or to log a disconnect from.
     releaseOnRoomEnd.set(socket, () => {
       bound = undefined;
-      playerId = undefined;
+      boundPlayerId = undefined;
     });
 
     socket.on("createRoom", (passcode: unknown, ack?: (result: CreateRoomResult) => void) => {
@@ -338,16 +340,27 @@ export function createGameServer(options: GameServerOptions = {}) {
     });
 
     // Binds this socket to `room` as `role` — or, if that claim wasn't accepted, on the
-    // default view and counted as no device — and sends it the Room's state.
+    // default view and counted as no device — and sends it the Room's state. A Host or
+    // Board counts as a device straight away; a Player device only once it has joined
+    // or reconnected as a Player here (see `countAsPlayer`).
     function bind(room: Room, role: SocketRole, accepted: boolean): void {
       const granted = accepted ? role : DEFAULT_ROLE;
+      const wasPlayer = bound === room && room.devices.get(socket) === "player";
       bound = room;
       room.members.set(socket, granted);
-      if (accepted) room.devices.set(socket, role);
-      else room.devices.delete(socket);
-      if (accepted && role === "host") room.lastHostAction = now();
+      if (accepted && role !== "player") room.devices.set(socket, role);
+      else if (!(wasPlayer && granted === "player")) room.devices.delete(socket);
       socket.emit("state", viewForRole(publicGame(room), granted));
       syncRoomInfo(room, socket);
+    }
+
+    // Counts this socket as one of `room`'s Player devices, once it has joined or
+    // reconnected as a Player there: a phone that only opened the join page (or was
+    // turned away as Room full) isn't counted, and doesn't keep the Room alive.
+    function countAsPlayer(room: Room): void {
+      if (room.members.get(socket) !== "player" || room.devices.get(socket) === "player") return;
+      room.devices.set(socket, "player");
+      syncRoomInfo(room);
     }
 
     // A device that lost a Room's Host Key gets it back with the Room Passcode (open to
@@ -358,7 +371,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       const code = normalizeCode(claim?.code);
       const room = code === undefined ? undefined : rooms.get(code);
       if (!room) {
-        ack({ ok: false, reason: "noRoom" });
+        ack({ ok: false, reason: code !== undefined && endedCodes.has(code) ? "ended" : "noRoom" });
         return;
       }
       if (roomPasscode !== undefined && !secretMatches(claim?.passcode, roomPasscode)) {
@@ -368,9 +381,16 @@ export function createGameServer(options: GameServerOptions = {}) {
 
       if (room !== bound) unbind();
       bind(room, "host", true);
+      // Entering the Room Passcode is a deliberate Host act, unlike the automatic
+      // identify on every connect.
+      room.lastHostAction = now();
       log(room, "[room] Host reclaimed");
       ack({ ok: true, hostKey: room.hostKey });
     });
+
+    // Sent when a Room screen closes in the app (e.g. back to the home page) while the
+    // shared connection stays open: the device leaves the Room as if it had disconnected.
+    socket.on("leaveRoom", () => unbind());
 
     socket.on("disconnect", () => {
       unbind();
@@ -386,7 +406,8 @@ export function createGameServer(options: GameServerOptions = {}) {
           return;
         }
         const ack = args[args.length - 1];
-        if (typeof ack === "function") ack({ ok: false, error: "There's no Room with that code." });
+        const notInRoom: Extract<JoinResult, { ok: false }> = { ok: false, error: NO_ROOM_MESSAGE };
+        if (typeof ack === "function") ack(notInRoom);
       });
     }
 
@@ -406,7 +427,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       if (!wasLobby) return { ok: false, error: "The game has already started." };
       const normalized = normalizeIdentity(identity);
       if (signatureTooBig(normalized)) {
-        return { ok: false, reason: "signatureTooBig", error: "That drawing is too big — try a simpler drawing." };
+        return { ok: false, reason: "signatureTooBig", error: SIGNATURE_TOO_BIG_MESSAGE };
       }
       if (nameTooLong(normalized)) {
         return { ok: false, error: `That name is too long — keep it to ${MAX_NAME_LENGTH} characters.` };
@@ -432,31 +453,36 @@ export function createGameServer(options: GameServerOptions = {}) {
       }
 
       const player = room.game.players[room.game.players.length - 1];
-      playerId = player.id;
+      boundPlayerId = player.id;
+      countAsPlayer(room);
       ack?.({ ok: true, playerId: player.id });
     });
 
-    onRoomEvent("reconnect", (room, id: string, ack?: (result: JoinResult) => void) => {
-      const alreadyAttached = playerId === id;
-      if (!dispatch(room, { type: "reconnect", playerId: id })) {
+    onRoomEvent("reconnect", (room, playerId: string, ack?: (result: JoinResult) => void) => {
+      const alreadyAttached = boundPlayerId === playerId;
+      if (!dispatch(room, { type: "reconnect", playerId })) {
         ack?.({ ok: false, error: "We couldn't find that session — please join again." });
         return;
       }
 
-      playerId = id;
-      if (!alreadyAttached) log(room, describePlayerConnection(room.game, id, "reconnected"));
-      ack?.({ ok: true, playerId: id });
+      boundPlayerId = playerId;
+      countAsPlayer(room);
+      if (!alreadyAttached) log(room, describePlayerConnection(room.game, playerId, "reconnected"));
+      ack?.({ ok: true, playerId });
     });
 
-    onRoomEvent("editIdentity", (room, id: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
-      const wasLobby = room.game.phase === "lobby";
-      if (!dispatch(room, { type: "editIdentity", playerId: id, identity })) {
-        ack?.(identityRefusal(wasLobby, identity));
-        return;
-      }
+    onRoomEvent(
+      "editIdentity",
+      (room, playerId: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
+        const wasLobby = room.game.phase === "lobby";
+        if (!dispatch(room, { type: "editIdentity", playerId, identity })) {
+          ack?.(identityRefusal(wasLobby, identity));
+          return;
+        }
 
-      ack?.({ ok: true, playerId: id });
-    });
+        ack?.({ ok: true, playerId });
+      },
+    );
 
     onHostEvent("newBoard", (room, categoryCount: number) => {
       dispatch(room, { type: "newBoard", categoryCount });
@@ -517,16 +543,16 @@ export function createGameServer(options: GameServerOptions = {}) {
       dispatch(room, { type: "showDailyDoubleClue" });
     });
 
-    onHostEvent("designateWagerer", (room, id: string) => {
-      dispatch(room, { type: "designateWagerer", playerId: id });
+    onHostEvent("designateWagerer", (room, playerId: string) => {
+      dispatch(room, { type: "designateWagerer", playerId });
     });
 
-    onRoomEvent("submitWager", (room, id: string, amount: number) => {
-      dispatch(room, { type: "submitWager", playerId: id, amount });
+    onRoomEvent("submitWager", (room, playerId: string, amount: number) => {
+      dispatch(room, { type: "submitWager", playerId, amount });
     });
 
-    onRoomEvent("buzz", (room, id: string) => {
-      dispatch(room, { type: "buzz", playerId: id });
+    onRoomEvent("buzz", (room, playerId: string) => {
+      dispatch(room, { type: "buzz", playerId });
     });
 
     onHostEvent("reveal", (room) => {
@@ -541,8 +567,8 @@ export function createGameServer(options: GameServerOptions = {}) {
       dispatch(room, { type: "closeClue" });
     });
 
-    onHostEvent("setScore", (room, id: string, score: number) => {
-      dispatch(room, { type: "setScore", playerId: id, score });
+    onHostEvent("setScore", (room, playerId: string, score: number) => {
+      dispatch(room, { type: "setScore", playerId, score });
     });
 
     onHostEvent("returnToSetup", (room) => {
@@ -564,9 +590,9 @@ export function createGameServer(options: GameServerOptions = {}) {
     const time = now();
     for (const room of [...rooms.values()]) {
       if (room.emptySince !== undefined && time - room.emptySince >= EMPTY_ROOM_LIMIT_MS) {
-        endRoom(room, "expired: empty for 30 minutes");
+        endRoom(room, `expired: empty for ${EMPTY_ROOM_LIMIT_MINUTES} minutes`);
       } else if (time - room.lastHostAction >= HOST_IDLE_LIMIT_MS) {
-        endRoom(room, "expired: no Host action for 4 hours");
+        endRoom(room, `expired: no Host action for ${HOST_IDLE_LIMIT_HOURS} hours`);
       }
     }
   }

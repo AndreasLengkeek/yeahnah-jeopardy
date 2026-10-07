@@ -1,10 +1,10 @@
 import type { Player } from "@yeahnah/shared";
 import { useState } from "react";
 import { formatScore } from "../format";
-import { accent, palette } from "../theme";
+import { accent, errorColor, palette } from "../theme";
 import { PlayerIdentity } from "./PlayerIdentity";
 
-const scoreColor = (score: number) => (score < 0 ? "#ff8a7a" : accent);
+const scoreColor = (score: number) => (score < 0 ? errorColor : accent);
 
 // A text identity labels controls (e.g. the editable score's aria-label) by name; a
 // drawn Signature carries no text, so it falls back to a fixed label.

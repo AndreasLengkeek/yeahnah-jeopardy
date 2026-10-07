@@ -1,30 +1,9 @@
 import type { CSSProperties, FormEvent } from "react";
 import { useState } from "react";
 import { formatScore } from "../format";
-import { accent } from "../theme";
+import { inputStyle as formInputStyle, submitButtonStyle } from "./forms";
 
-const inputStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,.2)",
-  background: "rgba(255,255,255,.06)",
-  color: "#fff",
-  fontSize: 16,
-  textAlign: "center",
-};
-
-const submitButtonStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 999,
-  border: 0,
-  fontWeight: 800,
-  fontSize: 14,
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  background: accent,
-  color: "#07103f",
-  cursor: "pointer",
-};
+const inputStyle: CSSProperties = { ...formInputStyle, textAlign: "center" };
 
 const disabledSubmitButtonStyle: CSSProperties = {
   ...submitButtonStyle,

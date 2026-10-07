@@ -1,9 +1,10 @@
 import type { CSSProperties } from "react";
-import { accent } from "../theme";
+import { accent, errorColor } from "../theme";
 
-// Form styling shared by the home page, Room Code entry and the Room notices. The
-// code-first screens (prototype variant B) use the centred column, pills and text input
-// at the bottom; the plain form styles above them still serve the Room notices.
+// Form styling shared by the home page, Room Code entry, the Room notices and the Player
+// forms (Join, Wager). The code-first screens (prototype variant B) use the centred
+// column, pills and text input at the bottom; the plain form styles above them serve the
+// Room notices and the Player forms.
 
 export const formStyle: CSSProperties = {
   display: "flex",
@@ -32,20 +33,10 @@ export const inputStyle: CSSProperties = {
   fontSize: 16,
 };
 
-export const submitButtonStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 999,
-  border: 0,
-  fontWeight: 800,
-  fontSize: 14,
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  background: accent,
-  color: "#07103f",
-  cursor: "pointer",
-};
+// The full-width primary button under a Player form (Join, Wager).
+export const submitButtonStyle: CSSProperties = { ...pillStyle("primary"), padding: "14px 16px" };
 
-export const errorStyle: CSSProperties = { color: "#ff8a7a", fontSize: 13, textAlign: "center" };
+export const errorStyle: CSSProperties = { color: errorColor, fontSize: 13, textAlign: "center" };
 
 export const mutedColor = "#c9d2f5";
 

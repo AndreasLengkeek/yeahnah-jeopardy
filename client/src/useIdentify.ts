@@ -28,6 +28,9 @@ export function useIdentify(code: string, role: SocketRole): IdentifyStatus {
     return () => {
       socket.off("connect", announce);
       socket.off("roomEnded", ended);
+      // The connection is shared app-wide and outlives this screen, so tell the server
+      // this device has left the Room (e.g. back to the home page).
+      socket.emit("leaveRoom");
     };
   }, [code, role]);
 

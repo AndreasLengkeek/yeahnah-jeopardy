@@ -1,3 +1,4 @@
+import { normalizeRoomCode, ROOM_CODE_LENGTH } from "@yeahnah/shared";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -5,7 +6,7 @@ import { roomPath } from "../roomRoutes";
 import { CodeTiles } from "./CodeTiles";
 import { errorStyle, pillStyle, screenTitleStyle } from "./forms";
 
-// Room Code entry, code-first: the typed code shows in four Board Tiles, and Join takes
+// Room Code entry, code-first: the typed code shows in Board Tiles, and Join takes
 // the Player to that Room's join page. Lower case is fine — codes are letters only, shown
 // and matched upper case. An invisible input lies over the Tiles, so tapping them brings
 // up the keyboard.
@@ -31,10 +32,9 @@ export function RoomCodeForm({ error }: { error?: string | null }) {
           value={code}
           onChange={(event) =>
             setCode(
-              event.target.value
-                .toUpperCase()
+              normalizeRoomCode(event.target.value)
                 .replace(/[^A-Z]/g, "")
-                .slice(0, 4),
+                .slice(0, ROOM_CODE_LENGTH),
             )
           }
           autoFocus

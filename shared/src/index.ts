@@ -6,3 +6,4 @@ export * from './gameEngine.js';
 export * from './gameView.js';
 export * from './boardConfig.js';
 export * from './limits.js';
+export * from './roomCode.js';

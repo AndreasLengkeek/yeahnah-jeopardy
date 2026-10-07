@@ -2,6 +2,7 @@ import { canCloseClue } from "@yeahnah/shared";
 import type { ActiveClue as ActiveClueState, GameState, Player } from "@yeahnah/shared";
 import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
+import { NO_ROOM_COPY } from "../copy";
 import { BoardSetup } from "../components/BoardSetup";
 import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
@@ -183,7 +184,7 @@ export function HostPage() {
     return (
       <div style={shellStyle}>
         <Header subtitle="Host view" />
-        <RoomNotice>No Room with that code</RoomNotice>
+        <RoomNotice>{NO_ROOM_COPY}</RoomNotice>
       </div>
     );
   }
