@@ -77,6 +77,13 @@ describe("BoardPage in its Room", () => {
     expect(screen.getByRole("img", { name: `Scan to join: ${window.location.origin}/BRDK/join` })).toBeInTheDocument();
   });
 
+  it("shows its Room Code as Tiles in the Lobby, with where to type it", async () => {
+    await loadBoard(gameIn("lobby"));
+
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByText(`Go to ${window.location.host} and enter`)).toBeInTheDocument();
+  });
+
   it("says so when no Room has the code", async () => {
     renderAt("/BRDK/board");
     const [, , ack] = fakeSocket.emit.mock.calls.find(([event]) => event === "identify")!;
