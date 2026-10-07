@@ -13,11 +13,15 @@ See `.scratch/concurrent-rooms/spec.md`, ADR-0015 (Consequences), and **Host Key
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: reclaiming with the right Room Passcode returns the same Host Key and the socket is accepted as Host; a wrong passcode is refused; other Host sockets keep working
-- [ ] Server tests: with no Room Passcode configured, reclaiming succeeds
-- [ ] Client tests (socket mocked): opening a Host link stores the key for that Room and strips the fragment; the Host claim uses it
-- [ ] Client tests: a rejected Host claim shows Host Key needed and nothing of the Game; Reclaim with the right passcode stores the returned key and shows the Host screen; a wrong passcode shows an error
-- [ ] Client tests: the panel shows the Host link with Copy and the warning
-- [ ] The start-up warning mentions open reclaiming when no Room Passcode is set
+- [x] Server tests: reclaiming with the right Room Passcode returns the same Host Key and the socket is accepted as Host; a wrong passcode is refused; other Host sockets keep working
+- [x] Server tests: with no Room Passcode configured, reclaiming succeeds
+- [x] Client tests (socket mocked): opening a Host link stores the key for that Room and strips the fragment; the Host claim uses it
+- [x] Client tests: a rejected Host claim shows Host Key needed and nothing of the Game; Reclaim with the right passcode stores the returned key and shows the Host screen; a wrong passcode shows an error
+- [x] Client tests: the panel shows the Host link with Copy and the warning
+- [x] The start-up warning mentions open reclaiming when no Room Passcode is set
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

@@ -17,14 +17,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: creating a Room with the right Room Passcode returns a Room Code and Host Key; the wrong passcode is refused; with none configured, creation is open
-- [ ] Server tests: claiming Host of a Room with its Host Key is accepted and receives Answers; a wrong or missing Host Key is rejected and receives the redacted view; claiming on a code with no live Room answers "no Room"
-- [ ] Server tests: two Rooms side by side — Host actions, joins and Buzzes in one never change the other, neither Room's sockets receive the other's broadcasts, and Room A's Host Key doesn't work in Room B
-- [ ] Every existing socket wiring test passes, moved inside a created Room
-- [ ] Client tests (socket mocked): home creates a Room and navigates to its Host screen; Room Code entry navigates to `/CODE/join`; the Host, Board and Join pages identify with the Room Code from the address; remembered Host Keys and Player ids are scoped per Room Code
-- [ ] The Board's Join QR code encodes `<origin>/<code>/join`
-- [ ] Bare `/host` and `/board` redirect to `/`
-- [ ] Log lines carry the Room Code; the start-up warning mentions Room creation
-- [ ] The Render blueprint uses `ROOM_PASSCODE` and has auto-deploy off
+- [x] Server tests: creating a Room with the right Room Passcode returns a Room Code and Host Key; the wrong passcode is refused; with none configured, creation is open
+- [x] Server tests: claiming Host of a Room with its Host Key is accepted and receives Answers; a wrong or missing Host Key is rejected and receives the redacted view; claiming on a code with no live Room answers "no Room"
+- [x] Server tests: two Rooms side by side — Host actions, joins and Buzzes in one never change the other, neither Room's sockets receive the other's broadcasts, and Room A's Host Key doesn't work in Room B
+- [x] Every existing socket wiring test passes, moved inside a created Room
+- [x] Client tests (socket mocked): home creates a Room and navigates to its Host screen; Room Code entry navigates to `/CODE/join`; the Host, Board and Join pages identify with the Room Code from the address; remembered Host Keys and Player ids are scoped per Room Code
+- [x] The Board's Join QR code encodes `<origin>/<code>/join`
+- [x] Bare `/host` and `/board` redirect to `/`
+- [x] Log lines carry the Room Code; the start-up warning mentions Room creation
+- [x] The Render blueprint uses `ROOM_PASSCODE` and has auto-deploy off
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

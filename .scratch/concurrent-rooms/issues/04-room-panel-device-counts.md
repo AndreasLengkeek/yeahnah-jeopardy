@@ -12,10 +12,14 @@ It's shown in full during Board Setup, the Lobby, the round break and Game Over.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: Host sockets receive room info whose counts change as Host, Board and Player sockets connect and disconnect
-- [ ] Server tests: Board and Player sockets never receive room info, and counts never mix across Rooms
-- [ ] Client tests (socket mocked): the panel shows the Room Code, join address and the three counts; Open Board links to `/CODE/board`
-- [ ] Client tests: during play the panel is collapsed to the Room Code strip and expands on demand
-- [ ] Checked by hand on a phone-sized Host screen during play
+- [x] Server tests: Host sockets receive room info whose counts change as Host, Board and Player sockets connect and disconnect
+- [x] Server tests: Board and Player sockets never receive room info, and counts never mix across Rooms
+- [x] Client tests (socket mocked): the panel shows the Room Code, join address and the three counts; Open Board links to `/CODE/board`
+- [x] Client tests: during play the panel is collapsed to the Room Code strip and expands on demand
+- [x] Checked by hand on a phone-sized Host screen during play
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

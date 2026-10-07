@@ -7,10 +7,14 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests (clock advanced, sweep called): a Room with no Host or Player sockets ends at 30 minutes and not before; its sockets get the Room-ended notice
-- [ ] Server tests: a Room with only a Board socket connected still ends at 30 minutes
-- [ ] Server tests: a Player reconnecting resets the 30-minute countdown
-- [ ] Server tests: a Room with Players connected but no Host action ends at 4 hours, and a Host action resets that clock
-- [ ] The entry point runs the sweep on an interval; expiry log lines give the reason
+- [x] Server tests (clock advanced, sweep called): a Room with no Host or Player sockets ends at 30 minutes and not before; its sockets get the Room-ended notice
+- [x] Server tests: a Room with only a Board socket connected still ends at 30 minutes
+- [x] Server tests: a Player reconnecting resets the 30-minute countdown
+- [x] Server tests: a Room with Players connected but no Host action ends at 4 hours, and a Host action resets that clock
+- [x] The entry point runs the sweep on an interval; expiry log lines give the reason
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

@@ -13,10 +13,14 @@ See `.scratch/concurrent-rooms/spec.md` (Screens).
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Client tests: the home page's Tile entry navigates to `/CODE/join` for a live Room, and shows "No Room with that code" for an unknown one
-- [ ] Client tests: "Hosting tonight?" reveals the Room Passcode field; Create navigates to the new Room's Host screen; a wrong passcode shows an inline error
-- [ ] Client tests: the Board Lobby shows the Room Code and a QR code for the Room's join address
-- [ ] Lower-case input is accepted and shown upper case
-- [ ] Looks like prototype variant B (home, join, and board-lobby screens) at phone and TV widths
+- [x] Client tests: the home page's Tile entry navigates to `/CODE/join` for a live Room, and shows "No Room with that code" for an unknown one
+- [x] Client tests: "Hosting tonight?" reveals the Room Passcode field; Create navigates to the new Room's Host screen; a wrong passcode shows an inline error
+- [x] Client tests: the Board Lobby shows the Room Code and a QR code for the Room's join address
+- [x] Lower-case input is accepted and shown upper case
+- [x] Looks like prototype variant B (home, join, and board-lobby screens) at phone and TV widths
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

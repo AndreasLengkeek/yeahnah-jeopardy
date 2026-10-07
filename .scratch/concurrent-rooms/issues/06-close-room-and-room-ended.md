@@ -12,10 +12,14 @@ Reloading an ended Room's address shows the same thing. The danger zone notes th
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: Close Room from a Host ends the Room and every socket in it receives the Room-ended notice; from a non-Host it's ignored
-- [ ] Server tests: after closing, declaring a role on that code answers "ended"; a never-used code answers "no such Room"; a new Room can take the code
-- [ ] Client tests (socket mocked): Close Room asks for confirmation, Cancel backs out, and confirming sends the event
-- [ ] Client tests: on the Room-ended notice, or an "ended" answer on load, Host and Board pages show Room has ended, and a Player page goes to Room Code entry
-- [ ] Log line on close
+- [x] Server tests: Close Room from a Host ends the Room and every socket in it receives the Room-ended notice; from a non-Host it's ignored
+- [x] Server tests: after closing, declaring a role on that code answers "ended"; a never-used code answers "no such Room"; a new Room can take the code
+- [x] Client tests (socket mocked): Close Room asks for confirmation, Cancel backs out, and confirming sends the event
+- [x] Client tests: on the Room-ended notice, or an "ended" answer on load, Host and Board pages show Room has ended, and a Player page goes to Room Code entry
+- [x] Log line on close
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

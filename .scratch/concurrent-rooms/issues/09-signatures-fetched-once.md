@@ -8,9 +8,13 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: state broadcasts carry an image address, not the data URL, for a Signature Player
-- [ ] Server tests: an HTTP request to that address returns the image with caching headers; a different Room's code or an unknown Player returns 404
-- [ ] Server tests: redrawing a Signature changes the address
-- [ ] Client tests: a Signature Player still renders as an image in the Lobby and Scoreboard
+- [x] Server tests: state broadcasts carry an image address, not the data URL, for a Signature Player
+- [x] Server tests: an HTTP request to that address returns the image with caching headers; a different Room's code or an unknown Player returns 404
+- [x] Server tests: redrawing a Signature changes the address
+- [x] Client tests: a Signature Player still renders as an image in the Lobby and Scoreboard
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

@@ -7,10 +7,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Engine tests: reset after Game Over keeps every Player at $0 in a fresh Lobby, and a new Player can still join
-- [ ] Engine tests: reset from the other phases it's allowed in keeps the roster at $0
-- [ ] Engine tests: Back to Board Setup from Game Over keeps every Player at $0
-- [ ] Existing engine tests that expected an empty roster after reset are updated
-- [ ] Player page test (socket mocked): a joined Player stays on the waiting screen across a reset and a return to Board Setup
+- [x] Engine tests: reset after Game Over keeps every Player at $0 in a fresh Lobby, and a new Player can still join
+- [x] Engine tests: reset from the other phases it's allowed in keeps the roster at $0
+- [x] Engine tests: Back to Board Setup from Game Over keeps every Player at $0
+- [x] Existing engine tests that expected an empty roster after reset are updated
+- [x] Player page test (socket mocked): a joined Player stays on the waiting screen across a reset and a return to Board Setup
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).

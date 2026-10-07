@@ -12,9 +12,13 @@ See `.scratch/concurrent-rooms/spec.md` (Configuration, Payload size).
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server tests: creating a Room at the Room cap is refused as at capacity, and succeeds again once a Room ends
-- [ ] Server tests: the 13th join is refused as full; a joined Player's reconnect at full succeeds
-- [ ] Server tests: an over-cap Signature is refused at join and at edit; over-long text is refused for names, Category names, Clues and Answers, including through Board Config import
-- [ ] Client tests (socket mocked): the home page shows the capacity error; the join page shows Room full; the join form shows the Signature-too-big error
+- [x] Server tests: creating a Room at the Room cap is refused as at capacity, and succeeds again once a Room ends
+- [x] Server tests: the 13th join is refused as full; a joined Player's reconnect at full succeeds
+- [x] Server tests: an over-cap Signature is refused at join and at edit; over-long text is refused for names, Category names, Clues and Answers, including through Board Config import
+- [x] Client tests (socket mocked): the home page shows the capacity error; the join page shows Room full; the join form shows the Signature-too-big error
+
+## Comments
+
+- Implemented on the integration branch `concurrent-rooms` (review fixes merged at a4d513e).
