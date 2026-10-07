@@ -1058,13 +1058,12 @@ describe("socket.io wiring (inside a created Room)", () => {
 describe("Rooms (ADR-0015)", () => {
   const ROOM_PASSCODE = "kia-ora-2026";
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
-  let closeRoom: ReturnType<typeof createGameServer>["closeRoom"];
   let url: string;
   let sockets: Socket[] = [];
   let consoleLog: MockInstance<typeof console.log>;
 
   async function start(options?: Parameters<typeof createGameServer>[0]) {
-    ({ httpServer, closeRoom } = createGameServer(options));
+    ({ httpServer } = createGameServer(options));
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
     url = `http://127.0.0.1:${port}`;
@@ -1533,7 +1532,10 @@ describe("Rooms (ADR-0015)", () => {
 
       expect(await createRoom()).toEqual({ ok: false, reason: "atCapacity" });
 
-      closeRoom(first.code);
+      const host = await enter(first.code, "host", first.hostKey);
+      const ended = new Promise((resolve) => host.socket.once("roomEnded", resolve));
+      host.socket.emit("closeRoom");
+      await ended;
       expect((await createRoom()).ok).toBe(true);
     });
 

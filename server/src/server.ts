@@ -506,11 +506,5 @@ export function createGameServer(options: GameServerOptions = {}) {
     });
   });
 
-  // Ends a live Room, freeing its slot under the live-Room cap. Its code no longer
-  // matches on identify, and its Signature images stop being served.
-  function closeRoom(code: string): void {
-    rooms.delete(code);
-  }
-
-  return { app, httpServer, io, closeRoom };
+  return { app, httpServer, io };
 }
