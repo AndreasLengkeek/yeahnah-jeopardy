@@ -2,12 +2,11 @@ import type { RoomInfo } from "@yeahnah/shared";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { roomPath } from "../roomRoutes";
 import { accent, palette, subtitleStyle } from "../theme";
+import { mutedColor as muted, pillStyle } from "./forms";
 
 // The Host screen's Room panel (prototype variant C on `prototype/rooms`): the Room
 // Code and join address, who's here now, and a way to open the Board. Each part is a
 // RoomPanelSection; later sections (the Host link, the danger zone) slot in the same way.
-
-const muted = "#c9d2f5";
 
 const panelStyle: CSSProperties = {
   boxSizing: "border-box",
@@ -35,18 +34,13 @@ const codeStyle: CSSProperties = {
   letterSpacing: ".14em",
 };
 
-const ghostButtonStyle: CSSProperties = {
+// The panel's small ghost pill, also for links styled as buttons.
+export const panelButtonStyle: CSSProperties = {
+  ...pillStyle("ghost"),
   padding: "10px 14px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,.3)",
-  fontWeight: 800,
   fontSize: 12,
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  color: "rgba(255,255,255,.85)",
   textDecoration: "none",
   textAlign: "center",
-  whiteSpace: "nowrap",
 };
 
 const stripStyle: CSSProperties = {
@@ -114,7 +108,7 @@ function PanelBody({ code, info, children, style }: RoomPanelProps & { style: CS
       </RoomPanelSection>
       <RoomPanelSection title="Here now">
         <HereNow info={info} />
-        <a href={roomPath(code, "board")} target="_blank" rel="noopener" style={ghostButtonStyle}>
+        <a href={roomPath(code, "board")} target="_blank" rel="noopener" style={panelButtonStyle}>
           Open Board ↗
         </a>
       </RoomPanelSection>
