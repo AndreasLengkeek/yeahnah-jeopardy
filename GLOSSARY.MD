@@ -5,16 +5,24 @@ A real-time multiplayer Jeopardy-style party game: a shared Board driven by a Ho
 ## Language
 
 **Game**:
-One playthrough, start to finish, by whichever Players have joined — either a single Round or two Rounds back to back (see Round), chosen during Board Setup. v1 has exactly one Game active at a time, and it holds no state beyond server memory — restarting the server ends it.
-_Avoid_: session (v1 has no concurrent games, so that distinction doesn't exist yet)
+One playthrough, start to finish, by whichever Players have joined — either a single Round or two Rounds back to back (see Round), chosen during Board Setup. Always belongs to exactly one Room, which holds one Game at a time; when the Host resets after Game Over, the next Game starts in the same Room's Lobby with every Player from the last Game still joined, back at $0, and room for new Players to join. Holds no state beyond server memory — restarting the server ends it.
+_Avoid_: session, room (the Room is the container a Game is played in, not the Game itself)
+
+**Room**:
+The container a Host, the Board's screen(s), and Players all attach to, identified by its Room Code. Holds exactly one Game at a time and outlives any one Game — successive Games played back to back reuse the same Room, its Room Code, and its attached devices. Several Rooms may be live on the server at once, each fully isolated: nothing in one Room is visible to or affected by another. A Room ends when its Host closes it, once no Host or Player device has been connected to it for 30 minutes (a Board screen left open doesn't keep a Room alive), or once 4 hours pass without any Host action; its Game ends with it, and its Room Code then leads only to a notice that the Room has ended until the code is reused by a new Room.
+_Avoid_: lobby (the Lobby is one phase of a Game, not the Room), session, game
+
+**Room Code**:
+The short code that identifies a Room and is the only thing a device needs to find it — carried in every screen's address and encoded in the Board's Join QR code. Knowing it lets a device watch the Board or join as a Player, never act as Host.
+_Avoid_: join code, game code, PIN
 
 **Round**:
 One pass through a Board, from the first Tile selected to the last Tile closed, played at a fixed pair of Value ranges with its own set of Categories and its own Daily Double(s). The Host chooses during Board Setup whether the Game has a single Round (Values $100–$500, 1 Daily Double, no "Round" language shown anywhere) or two — Round 1 ($100–$500, 1 Daily Double) followed by **Double Jeopardy** ($200–$1000, 2 Daily Doubles) — with scores carrying over from Round 1 into Double Jeopardy unchanged. The Host manually starts Double Jeopardy once every Round 1 Tile is closed; it never starts automatically.
 _Avoid_: session, game (a Round is part of a Game, not the whole thing), "Round 2" (its proper name is Double Jeopardy)
 
 **Board Setup**:
-The Game's state before the Lobby opens: the Host creates a new Board or imports a Board Config, edits it in-app — including choosing its Category count — until every Tile has a Clue and Answer, and only then may open the Lobby for Players to join. The Category count is fixed for as long as the Lobby stays open, but not permanently: the Host may resume Board Setup from the Lobby at any time before starting the Game, reopening the Category count and every other field, and already-joined Players stay joined across the round trip. Opens pre-loaded with a complete, editable Board (the bundled example on first boot, or whichever Board was last played) rather than starting blank.
-_Avoid_: create room, room (v1 has exactly one Game at a time — see Game — so this isn't a multi-tenant "room")
+The Game's state before the Lobby opens: the Host creates a new Board or imports a Board Config, edits it in-app — including choosing its Category count — until every Tile has a Clue and Answer, and only then may open the Lobby for Players to join. The Category count is fixed for as long as the Lobby stays open, but not permanently: the Host may resume Board Setup from the Lobby at any time before starting the Game, reopening the Category count and every other field, and already-joined Players stay joined across the round trip. The Host may also return to Board Setup after Game Over to edit the Board for the next Game, and Players stay joined across that trip too. Opens pre-loaded with a complete, editable Board (the Board last played in this Room, or the bundled example in a brand-new Room — never another Room's Board) rather than starting blank.
+_Avoid_: create room (Board Setup is a phase of a Game; the Room already exists before it starts)
 
 **Board Config**:
 The file a Host imports or exports during Board Setup to save a Board's authored content — each Round's Categories' names and their five Clues' text and Answers, plus a second such Category set for Double Jeopardy when the Game has two Rounds. Holds Board content only, never Game state (no used Tiles, no scores, no Buzz/score progress, no Daily Double placement), and is the only durable copy of a Board: v1 keeps no board library server-side beyond memory. A Board Config authored before Double Jeopardy existed has no second Category set and imports as a single-Round Game.
@@ -50,9 +58,13 @@ _Avoid_: hidden tile, bonus tile
 The person driving the game: selects Tiles, sees each Clue's Answer as soon as it becomes Active, judges a Buzz as correct or incorrect without needing to Reveal first, and may Reveal an Answer publicly when no one currently holds the Buzz. May also directly set any Player's score to any value at any time the Scoreboard is visible — including mid-Clue and after Game Over — to correct a mis-judged Buzz or any other scoring mistake, with no confirmation step and no effect on Clue or Buzz state.
 _Avoid_: moderator, admin
 
-**Host Passcode**:
-The shared secret that proves a device belongs to the Host. Every Host action — including seeing Answers and editing the Board during Board Setup — requires it, while Player actions and the Board's display never do. Entered once per device and remembered there, so any number of devices holding it may act as Host at the same time.
-_Avoid_: password, admin key, login
+**Room Passcode**:
+The shared secret, set by whoever runs the server, that permits creating a Room — and, as an escape hatch, reclaiming Host of any live Room whose Host Key has been lost. Otherwise says nothing about which Room a device may Host (that's the Host Key's job), and is never needed to watch the Board or join as a Player.
+_Avoid_: host passcode, password, admin key, login
+
+**Host Key**:
+The secret, issued by the server when a Room is created, that proves a device is that Room's Host. Every Host action in the Room — including seeing Answers and editing the Board during Board Setup — requires it, while Player actions and the Board's display never do. Remembered on the device that created the Room and passed to any other device through a Host link, so any number of devices holding it may act as Host at the same time. Valid only for its own Room and only while that Room lives.
+_Avoid_: host passcode, host token, password
 
 **Player**:
 A participant with a name and score who can Buzz on the Active Clue from their own device. A Player identifies themselves at join time either by typing a name or by drawing a Signature — never both — and whichever they chose is used everywhere their identity is shown. A Player may revisit and change this choice — a new typed name, a redrawn Signature, or switching between the two — any time before the Host starts the Game, subject to the same rules as a fresh join (no blank identity, no name collision with another Player).
