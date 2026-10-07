@@ -9,6 +9,7 @@ import type {
   IdentifyResult,
   JoinResult,
   PlayerIdentity,
+  ReclaimHostResult,
   RoomInfo,
   SocketRole,
 } from "@yeahnah/shared";
@@ -1703,6 +1704,77 @@ describe("Rooms (ADR-0015)", () => {
       const room = (await createRoom()) as Extract<CreateRoomResult, { ok: true }>;
 
       expect(consoleLog.mock.calls.map(([line]) => line)).toEqual([`[${room.code}] [room] Room created`]);
+    });
+  });
+
+  describe("reclaiming Host", () => {
+    // Reclaims Host of Room `code` on a fresh socket, buffering its "state" pushes.
+    async function reclaim(code: string, passcode?: string) {
+      const socket = open();
+      const states: GameState[] = [];
+      socket.on("state", (state: GameState) => states.push(state));
+      const result = await new Promise<ReclaimHostResult>((resolve) =>
+        socket.emit("reclaimHost", { code, passcode }, resolve),
+      );
+      return { socket, result, states };
+    }
+
+    it("hands back the Room's existing Host Key and accepts the socket as Host", async () => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+      const room = await created(ROOM_PASSCODE);
+
+      const reclaimer = await reclaim(room.code.toLowerCase(), ROOM_PASSCODE);
+
+      expect(reclaimer.result).toEqual({ ok: true, hostKey: room.hostKey });
+      // Accepted as Host: a Host event from it changes the Game, and it sees the Answers.
+      reclaimer.socket.emit("openLobby");
+      await settle(reclaimer.socket);
+      expect(reclaimer.states.at(-1)?.phase).toBe("lobby");
+      expect(reclaimer.states[0].content[0].clues[0].answer).toBe(trueAnswer);
+    });
+
+    it("leaves the Room's other Host sockets working", async () => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+      const room = await created(ROOM_PASSCODE);
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextState();
+
+      await reclaim(room.code, ROOM_PASSCODE);
+      host.socket.emit("openLobby");
+
+      expect((await host.nextState()).phase).toBe("lobby");
+    });
+
+    it.each([
+      { label: "a wrong", passcode: "guess" },
+      { label: "a missing", passcode: undefined },
+    ])("refuses $label Room Passcode, leaving the socket no Host", async ({ passcode }) => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+      const room = await created(ROOM_PASSCODE);
+
+      const intruder = await reclaim(room.code, passcode);
+      intruder.socket.emit("openLobby");
+      await settle(intruder.socket);
+
+      expect(intruder.result).toEqual({ ok: false, reason: "wrongPasscode" });
+      expect(intruder.states).toEqual([]);
+      const board = await enter(room.code, "board");
+      expect((await board.nextState()).phase).toBe("setup");
+    });
+
+    it("is open to anyone when no Room Passcode is configured", async () => {
+      await start();
+      const room = await created();
+
+      expect((await reclaim(room.code)).result).toEqual({ ok: true, hostKey: room.hostKey });
+    });
+
+    it("answers noRoom for a code with no live Room", async () => {
+      await start();
+      const room = await created();
+      const unused = room.code === "BCDF" ? "BCDG" : "BCDF";
+
+      expect((await reclaim(unused)).result).toEqual({ ok: false, reason: "noRoom" });
     });
   });
 
