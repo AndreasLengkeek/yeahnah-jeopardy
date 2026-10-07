@@ -67,7 +67,8 @@ interface Room {
   game: GameState;
   members: Map<Socket, SocketRole>;
   // The connected devices counted in Room info, by the role each was accepted as. A
-  // rejected Host claim is a member (on the Player view) but no device here.
+  // rejected Host claim is a member (on the Player view) but no device here, and so is
+  // a Player socket until it has joined or reconnected as a Player.
   devices: Map<Socket, SocketRole>;
   // The Room info last sent to its Host sockets, to send again only on a change.
   roomInfo: RoomInfo;
@@ -339,15 +340,27 @@ export function createGameServer(options: GameServerOptions = {}) {
     });
 
     // Binds this socket to `room` as `role` — or, if that claim wasn't accepted, on the
-    // default view and counted as no device — and sends it the Room's state.
+    // default view and counted as no device — and sends it the Room's state. A Host or
+    // Board counts as a device straight away; a Player device only once it has joined
+    // or reconnected as a Player here (see `countAsPlayer`).
     function bind(room: Room, role: SocketRole, accepted: boolean): void {
       const granted = accepted ? role : DEFAULT_ROLE;
+      const wasPlayer = bound === room && room.devices.get(socket) === "player";
       bound = room;
       room.members.set(socket, granted);
-      if (accepted) room.devices.set(socket, role);
-      else room.devices.delete(socket);
+      if (accepted && role !== "player") room.devices.set(socket, role);
+      else if (!(wasPlayer && granted === "player")) room.devices.delete(socket);
       socket.emit("state", viewForRole(publicGame(room), granted));
       syncRoomInfo(room, socket);
+    }
+
+    // Counts this socket as one of `room`'s Player devices, once it has joined or
+    // reconnected as a Player there: a phone that only opened the join page (or was
+    // turned away as Room full) isn't counted, and doesn't keep the Room alive.
+    function countAsPlayer(room: Room): void {
+      if (room.members.get(socket) !== "player" || room.devices.get(socket) === "player") return;
+      room.devices.set(socket, "player");
+      syncRoomInfo(room);
     }
 
     // A device that lost a Room's Host Key gets it back with the Room Passcode (open to
@@ -436,6 +449,7 @@ export function createGameServer(options: GameServerOptions = {}) {
 
       const player = room.game.players[room.game.players.length - 1];
       playerId = player.id;
+      countAsPlayer(room);
       ack?.({ ok: true, playerId: player.id });
     });
 
@@ -447,6 +461,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       }
 
       playerId = id;
+      countAsPlayer(room);
       if (!alreadyAttached) log(room, describePlayerConnection(room.game, id, "reconnected"));
       ack?.({ ok: true, playerId: id });
     });
