@@ -1,6 +1,6 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { CreateRoomResult } from "@yeahnah/shared";
+import type { CreateRoomResult, IdentifyResult } from "@yeahnah/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part.
@@ -33,12 +33,23 @@ beforeEach(() => {
 });
 
 describe("home page", () => {
+  it("keeps Room creation tucked behind a quiet link until asked for", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+    expect(screen.queryByLabelText("Room Passcode")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Hosting tonight\? Create a Room/ }));
+
+    expect(screen.getByLabelText("Room Passcode")).toBeInTheDocument();
+  });
+
   it("creates a Room with the Room Passcode and lands on its Host screen, holding its Host Key", async () => {
     const user = userEvent.setup();
     renderAt("/");
 
+    await user.click(screen.getByRole("button", { name: /Hosting tonight\?/ }));
     await user.type(screen.getByLabelText("Room Passcode"), "kia-ora");
-    await user.click(screen.getByRole("button", { name: "Create a Room" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
     const [[, passcode, ack]] = emitted("createRoom");
     expect(passcode).toBe("kia-ora");
@@ -52,8 +63,9 @@ describe("home page", () => {
     const user = userEvent.setup();
     renderAt("/");
 
+    await user.click(screen.getByRole("button", { name: /Hosting tonight\?/ }));
     await user.type(screen.getByLabelText("Room Passcode"), "guess");
-    await user.click(screen.getByRole("button", { name: "Create a Room" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
     const [[, , ack]] = emitted("createRoom");
     act(() => (ack as (result: CreateRoomResult) => void)({ ok: false, reason: "wrongPasscode" }));
 
@@ -69,6 +81,30 @@ describe("home page", () => {
     await user.click(screen.getByRole("button", { name: "Join" }));
 
     expect(emitted("identify").at(-1)?.[1]).toEqual({ code: "BRDK", role: "player" });
+  });
+
+  it("takes letters only, upper case, at most four", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+
+    await user.type(screen.getByLabelText("Room Code"), "b r1dkx");
+
+    expect(screen.getByLabelText("Room Code")).toHaveValue("BRDK");
+  });
+
+  it("says so when no Room has the typed code, back on Room Code entry", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+
+    await user.type(screen.getByLabelText("Room Code"), "zzzz");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    const [, claim, ack] = emitted("identify").at(-1)!;
+    expect(claim).toEqual({ code: "ZZZZ", role: "player" });
+    act(() => (ack as (result: IdentifyResult) => void)("noRoom"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("No Room with that code");
+    expect(screen.getByLabelText("Room Code")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: /Hosting tonight\?/ })).not.toBeInTheDocument();
   });
 });
 
@@ -88,7 +124,7 @@ describe("routes", () => {
   it.each(["/host", "/board", "/no/such/page"])("sends %s to the home page", (path) => {
     renderAt(path);
 
-    expect(screen.getByRole("button", { name: "Create a Room" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Hosting tonight\? Create a Room/ })).toBeInTheDocument();
     expect(emitted("identify")).toEqual([]);
   });
 });
