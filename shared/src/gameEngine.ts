@@ -1,3 +1,4 @@
+import { categoryNameFits, clueFieldFits, contentFits, nameTooLong, signatureTooBig } from './limits.js';
 import { identitiesMatch, isBlankIdentity, normalizeIdentity } from './playerIdentity.js';
 import { CATS, DOUBLE_JEOPARDY_VALUES, VALUES } from './trivia.js';
 import type { CategoryData } from './trivia.js';
@@ -75,7 +76,7 @@ function buildBoard(content: CategoryData[], round: 1 | 2): Category[] {
 }
 
 function contentForRound(state: GameState): CategoryData[] {
-  return state.round === 1 ? state.content : state.doubleJeopardyContent ?? [];
+  return state.round === 1 ? state.content : (state.doubleJeopardyContent ?? []);
 }
 
 // Draws a fresh random Daily Double coordinate for a just-built Board — every Tile on
@@ -206,7 +207,7 @@ function applyToggleBoardEffects(state: GameState): GameState {
 
 function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
   const normalized = normalizeIdentity(identity);
-  if (isBlankIdentity(normalized)) return state;
+  if (isBlankIdentity(normalized) || nameTooLong(normalized) || signatureTooBig(normalized)) return state;
   if (state.phase !== 'lobby') return state;
   if (state.players.some((player) => identitiesMatch(player.identity, normalized))) return state;
 
@@ -219,7 +220,7 @@ function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
 // rules as a fresh join, checked against every other Player, not themself.
 function applyEditIdentity(state: GameState, playerId: string, identity: PlayerIdentity): GameState {
   const normalized = normalizeIdentity(identity);
-  if (isBlankIdentity(normalized)) return state;
+  if (isBlankIdentity(normalized) || nameTooLong(normalized) || signatureTooBig(normalized)) return state;
   if (state.phase !== 'lobby') return state;
   if (!state.players.some((player) => player.id === playerId)) return state;
   if (state.players.some((player) => player.id !== playerId && identitiesMatch(player.identity, normalized))) {
@@ -266,7 +267,7 @@ function applyNewBoard(state: GameState, categoryCount: number): GameState {
 
 function applyEditCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.content[categoryIndex]) return state;
+  if (!state.content[categoryIndex] || !categoryNameFits(name)) return state;
 
   return {
     ...state,
@@ -282,7 +283,7 @@ function applyEditClue(
   value: string,
 ): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.content[categoryIndex]?.clues[tileIndex]) return state;
+  if (!state.content[categoryIndex]?.clues[tileIndex] || !clueFieldFits(value)) return state;
 
   return {
     ...state,
@@ -317,7 +318,7 @@ function applySetTwoRounds(state: GameState, value: boolean): GameState {
 // that's null (i.e., twoRounds is false).
 function applyEditDoubleJeopardyCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.doubleJeopardyContent?.[categoryIndex]) return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex] || !categoryNameFits(name)) return state;
 
   return {
     ...state,
@@ -337,7 +338,7 @@ function applyEditDoubleJeopardyClue(
   value: string,
 ): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.doubleJeopardyContent?.[categoryIndex]?.clues[tileIndex]) return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex]?.clues[tileIndex] || !clueFieldFits(value)) return state;
 
   return {
     ...state,
@@ -360,6 +361,9 @@ function applyEditDoubleJeopardyClue(
 // not a separate error state.
 function applyImportBoardConfig(state: GameState, content: CategoryData[]): GameState {
   if (state.phase !== 'setup') return state;
+  // The same per-field caps as editing, re-checked here because the payload arrives
+  // already parsed by the client.
+  if (!contentFits(content)) return state;
 
   return {
     ...state,
