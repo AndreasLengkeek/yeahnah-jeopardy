@@ -76,7 +76,8 @@ interface Room {
   signatureVersions: Map<string, { image: string; version: string }>;
   // Since when no Host or Player device has been connected, or undefined while one is.
   emptySince: number | undefined;
-  // When the Room's Host last acted: creation, a Host device accepted, or a Host event.
+  // When the Room's Host last acted: creation, a Host device accepted (by Host Key or
+  // reclaim), or an accepted Host event.
   lastHostAction: number;
 }
 

@@ -1660,6 +1660,19 @@ describe("Rooms (ADR-0015)", () => {
       sweep();
       expect(await isLive(room.code)).toBe(true);
     });
+
+    it("counts reclaiming Host as a Host action", async () => {
+      await startWithClock();
+      const room = await created();
+      await enter(room.code, "player");
+
+      now += 3 * HOUR;
+      await new Promise((resolve) => open().emit("reclaimHost", { code: room.code }, resolve));
+
+      now += 4 * HOUR - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+    });
   });
 
   describe("creating a Room", () => {
