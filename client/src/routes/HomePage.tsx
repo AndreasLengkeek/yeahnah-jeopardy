@@ -26,7 +26,11 @@ export function HomePage() {
     socket.emit("createRoom", passcode, (result: CreateRoomResult) => {
       setCreating(false);
       if (!result.ok) {
-        setError("That isn't the Room Passcode. Try again.");
+        setError(
+          result.reason === "atCapacity"
+            ? "Every Room slot is taken right now — try again in a bit."
+            : "That isn't the Room Passcode. Try again.",
+        );
         return;
       }
       storeHostKey(result.code, result.hostKey);

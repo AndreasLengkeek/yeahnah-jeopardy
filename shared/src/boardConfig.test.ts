@@ -53,6 +53,22 @@ describe("parseBoardConfig", () => {
     expect(result.ok).toBe(false);
   });
 
+  it.each([
+    { label: "Category name", edit: { name: "C".repeat(61) }, error: "Category names can be at most 60 characters." },
+    {
+      label: "Clue",
+      edit: { clues: [{ text: "x".repeat(501), answer: "a" }, ...CATS[0].clues.slice(1)] },
+      error: "Clues and Answers can be at most 500 characters.",
+    },
+  ])("rejects an over-long $label, naming the limit", ({ edit, error }) => {
+    const raw = serializeBoardConfig(
+      ROUND_1,
+      ROUND_1.map((category) => ({ ...category, ...edit })),
+    );
+
+    expect(parseBoardConfig(raw)).toEqual({ ok: false, error });
+  });
+
   it("rejects text that isn't valid JSON", () => {
     const result = parseBoardConfig("not json");
 
