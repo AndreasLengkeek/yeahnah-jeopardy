@@ -1058,12 +1058,14 @@ describe("socket.io wiring (inside a created Room)", () => {
 describe("Rooms (ADR-0015)", () => {
   const ROOM_PASSCODE = "kia-ora-2026";
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
+  let sweep: ReturnType<typeof createGameServer>["sweep"];
+  let io: ReturnType<typeof createGameServer>["io"];
   let url: string;
   let sockets: Socket[] = [];
   let consoleLog: MockInstance<typeof console.log>;
 
   async function start(options?: Parameters<typeof createGameServer>[0]) {
-    ({ httpServer } = createGameServer(options));
+    ({ httpServer, sweep, io } = createGameServer(options));
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
     url = `http://127.0.0.1:${port}`;
@@ -1476,6 +1478,186 @@ describe("Rooms (ADR-0015)", () => {
       await ended;
 
       expect(consoleLog.mock.calls.map(([line]) => line)).toContain(`[${room.code}] [room] Room closed by the Host`);
+    });
+  });
+
+  describe("Rooms ending by themselves", () => {
+    const MINUTE = 60 * 1000;
+    const HOUR = 60 * MINUTE;
+    // The server's clock, advanced by hand; `sweep` is what the entry point runs on an
+    // interval.
+    let now: number;
+    const startWithClock = () => {
+      now = 1_000_000;
+      return start({ now: () => now });
+    };
+    const roomEnded = (socket: Socket) => new Promise<void>((resolve) => socket.once("roomEnded", () => resolve()));
+    // Whether the Room is still live, judged by what a newcomer Board is told.
+    const isLive = async (code: string) => (await enter(code, "board")).result === "accepted";
+
+    it("ends a Room with only a Board connected 30 minutes after it was created, and not before", async () => {
+      await startWithClock();
+      const room = await created();
+      const board = await enter(room.code, "board");
+      let endedNotices = 0;
+      board.socket.on("roomEnded", () => endedNotices++);
+
+      now += 30 * MINUTE - 1;
+      sweep();
+      await settle(board.socket);
+      expect(endedNotices).toBe(0);
+      expect(await isLive(room.code)).toBe(true);
+
+      const ended = roomEnded(board.socket);
+      now += 1;
+      sweep();
+      await ended;
+      expect((await enter(room.code, "board")).result).toBe("ended");
+    });
+
+    // Closes a device's connection and waits until the server has let it go.
+    async function leave(socket: Socket) {
+      const connected = io.of("/").sockets.size;
+      socket.close();
+      await vi.waitFor(() => expect(io.of("/").sockets.size).toBe(connected - 1));
+    }
+
+    it("counts the 30 minutes from when the last Host or Player device left", async () => {
+      await startWithClock();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const player = await enter(room.code, "player");
+      const board = await enter(room.code, "board");
+
+      now += 20 * MINUTE;
+      sweep();
+      await leave(host.socket);
+      now += 5 * MINUTE;
+      await leave(player.socket);
+
+      now += 30 * MINUTE - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+
+      const ended = roomEnded(board.socket);
+      now += 1;
+      sweep();
+      await ended;
+    });
+
+    it("restarts the 30 minutes when a Player reconnects", async () => {
+      await startWithClock();
+      const room = await created();
+      const player = await enter(room.code, "player");
+      const joined = await new Promise<JoinResult>((resolve) =>
+        player.socket.emit("join", textIdentity("Aroha"), resolve),
+      );
+      const playerId = (joined as Extract<JoinResult, { ok: true }>).playerId;
+      await leave(player.socket);
+
+      now += 25 * MINUTE;
+      const back = await enter(room.code, "player");
+      await new Promise((resolve) => back.socket.emit("reconnect", playerId, resolve));
+      now += 2 * MINUTE;
+      await leave(back.socket);
+
+      now += 30 * MINUTE - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+      now += 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(false);
+    });
+
+    it("keeps a Room whose Host's phone died while its Players are connected", async () => {
+      await startWithClock();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      await enter(room.code, "player");
+      await leave(host.socket);
+
+      now += 3 * HOUR;
+      sweep();
+
+      expect(await isLive(room.code)).toBe(true);
+    });
+
+    it("logs an empty Room's expiry with its reason", async () => {
+      await startWithClock();
+      const room = await created();
+
+      now += 30 * MINUTE;
+      sweep();
+
+      expect(consoleLog.mock.calls.map(([line]) => line)).toContain(
+        `[${room.code}] [room] Room expired: empty for 30 minutes`,
+      );
+    });
+
+    it("ends a Room with Players connected 4 hours after its last Host action, and not before", async () => {
+      await startWithClock();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const player = await enter(room.code, "player");
+
+      now += 4 * HOUR - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+
+      const ended = [roomEnded(host.socket), roomEnded(player.socket)];
+      now += 1;
+      sweep();
+      await Promise.all(ended);
+      expect(consoleLog.mock.calls.map(([line]) => line)).toContain(
+        `[${room.code}] [room] Room expired: no Host action for 4 hours`,
+      );
+    });
+
+    it("restarts the 4 hours on every Host action", async () => {
+      await startWithClock();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      await enter(room.code, "player");
+
+      now += 3 * HOUR;
+      host.socket.emit("toggleBoardMusic");
+      await host.nextState();
+      await host.nextState();
+
+      now += 4 * HOUR - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+      now += 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(false);
+    });
+
+    it("doesn't count events from a socket that isn't the Room's Host", async () => {
+      await startWithClock();
+      const room = await created();
+      await enter(room.code, "host", room.hostKey);
+      const intruder = await enter(room.code, "host", "guess");
+
+      now += 3 * HOUR;
+      intruder.socket.emit("toggleBoardMusic");
+      await settle(intruder.socket);
+
+      now += 1 * HOUR;
+      sweep();
+      expect(await isLive(room.code)).toBe(false);
+    });
+
+    it("counts a Host device being accepted into the Room as a Host action", async () => {
+      await startWithClock();
+      const room = await created();
+      await enter(room.code, "player");
+
+      now += 3 * HOUR;
+      await enter(room.code, "host", room.hostKey);
+
+      now += 4 * HOUR - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
     });
   });
 
