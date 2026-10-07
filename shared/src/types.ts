@@ -86,6 +86,16 @@ export type IdentifyResult = 'accepted' | 'rejected' | 'noRoom';
 // no Room was created.
 export type CreateRoomResult = { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' };
 
+// What the server sends a Room's Host sockets (and only those), as the `roomInfo` event,
+// whenever the Room's connected devices change: how many Host devices, Board screens
+// and Player devices are connected right now. Kept apart from GameState so the engine
+// stays pure. A rejected Host claim counts as none of these.
+export interface RoomInfo {
+  hosts: number;
+  boards: number;
+  players: number;
+}
+
 export interface GameState {
   phase: GamePhase;
   players: Player[];

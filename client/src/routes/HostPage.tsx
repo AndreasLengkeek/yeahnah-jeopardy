@@ -1,5 +1,5 @@
 import { canCloseClue } from "@yeahnah/shared";
-import type { ActiveClue as ActiveClueState, Player } from "@yeahnah/shared";
+import type { ActiveClue as ActiveClueState, GameState, Player } from "@yeahnah/shared";
 import type { CSSProperties, ReactNode } from "react";
 import { resolveActiveClue } from "../activeClue";
 import { BoardSetup } from "../components/BoardSetup";
@@ -9,12 +9,14 @@ import { Header } from "../components/Header";
 import { RoomNotice } from "../components/RoomNotice";
 import { Lobby } from "../components/Lobby";
 import { PlayerIdentity } from "../components/PlayerIdentity";
+import { RoomPanel } from "../components/RoomPanel";
 import { Scoreboard } from "../components/Scoreboard";
 import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
 import { useHostClaim } from "../useHostClaim";
 import { useRoomCode } from "../useRoomCode";
+import { useRoomInfo } from "../useRoomInfo";
 
 function pillButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -63,6 +65,11 @@ const resetButtonStyle: CSSProperties = {
 
 const centeredRowStyle: CSSProperties = { display: "flex", justifyContent: "center", flex: "none" };
 const centeredRowWithGapStyle: CSSProperties = { ...centeredRowStyle, gap: 16 };
+
+// Outside play, the main column sits beside the Room panel, which wraps underneath it
+// on a narrow screen.
+const besidePanelStyle: CSSProperties = { display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" };
+const mainColumnStyle: CSSProperties = { flex: 1, minWidth: 280, display: "flex", flexDirection: "column", gap: 20 };
 
 function resetGameButton(): ReactNode {
   return (
@@ -150,6 +157,7 @@ export function hostFooter(activeClue: ActiveClueState, players: Player[]): Reac
 
 export function HostPage() {
   const code = useRoomCode();
+  const roomInfo = useRoomInfo();
   const claim = useHostClaim(code);
   const state = useGameState();
   const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
@@ -177,7 +185,6 @@ export function HostPage() {
     );
   }
 
-  const canStart = state.phase === "lobby" && state.players.length >= 2;
   const headerAction =
     state.phase === "lobby" || state.phase === "roundBreak" || state.phase === "gameOver"
       ? { label: "Edit Board", onClick: () => socket.emit("returnToSetup") }
@@ -193,6 +200,39 @@ export function HostPage() {
         isBoardEffectsMuted={state.boardEffectsMuted}
         onToggleBoardEffects={toggleBoardEffects}
       />
+      {state.phase === "playing" ? (
+        <>
+          <RoomPanel code={code} info={roomInfo} collapsed />
+          <ClueCardStage
+            board={state.board}
+            activeClue={state.activeClue}
+            details={state.activeClue ? resolveActiveClue(state.activeClue, state.board, state.players) : null}
+            onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)}
+            footer={state.activeClue ? hostFooter(state.activeClue, state.players) : undefined}
+            alwaysShowAnswer
+          />
+          {resetGameButton()}
+          <Scoreboard
+            players={state.players}
+            onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
+          />
+        </>
+      ) : (
+        <div style={besidePanelStyle}>
+          <div style={mainColumnStyle}>{betweenPlay(state)}</div>
+          <RoomPanel code={code} info={roomInfo} collapsed={false} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The Host screen's main column outside play (Board Setup, the Lobby, the round break
+// and Game Over), shown beside the full Room panel.
+function betweenPlay(state: GameState): ReactNode {
+  const canStart = state.phase === "lobby" && state.players.length >= 2;
+  return (
+    <>
       {state.phase === "setup" ? (
         <BoardSetup
           content={state.content}
@@ -241,28 +281,12 @@ export function HostPage() {
             onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
           />
         </>
-      ) : state.phase === "gameOver" ? (
+      ) : (
         <>
           <GameOver players={state.players} />
           {resetGameButton()}
         </>
-      ) : (
-        <>
-          <ClueCardStage
-            board={state.board}
-            activeClue={state.activeClue}
-            details={state.activeClue ? resolveActiveClue(state.activeClue, state.board, state.players) : null}
-            onSelectTile={(categoryIndex, tileIndex) => socket.emit("selectTile", categoryIndex, tileIndex)}
-            footer={state.activeClue ? hostFooter(state.activeClue, state.players) : undefined}
-            alwaysShowAnswer
-          />
-          {resetGameButton()}
-          <Scoreboard
-            players={state.players}
-            onEditScore={(playerId, score) => socket.emit("setScore", playerId, score)}
-          />
-        </>
       )}
-    </div>
+    </>
   );
 }
