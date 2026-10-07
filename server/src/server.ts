@@ -76,8 +76,9 @@ interface Room {
   signatureVersions: Map<string, { image: string; version: string }>;
   // Since when no Host or Player device has been connected, or undefined while one is.
   emptySince: number | undefined;
-  // When the Room's Host last acted: creation, a Host device accepted (by Host Key or
-  // reclaim), or an accepted Host event.
+  // When the Room's Host last acted: creation, an accepted Host event, or reclaiming
+  // Host with the Room Passcode. A Host device merely (re)identifying doesn't count, so
+  // a forgotten Host tab reconnecting can't keep a Room alive forever.
   lastHostAction: number;
 }
 
@@ -345,7 +346,6 @@ export function createGameServer(options: GameServerOptions = {}) {
       room.members.set(socket, granted);
       if (accepted) room.devices.set(socket, role);
       else room.devices.delete(socket);
-      if (accepted && role === "host") room.lastHostAction = now();
       socket.emit("state", viewForRole(publicGame(room), granted));
       syncRoomInfo(room, socket);
     }
@@ -368,6 +368,9 @@ export function createGameServer(options: GameServerOptions = {}) {
 
       if (room !== bound) unbind();
       bind(room, "host", true);
+      // Entering the Room Passcode is a deliberate Host act, unlike the automatic
+      // identify on every connect.
+      room.lastHostAction = now();
       log(room, "[room] Host reclaimed");
       ack({ ok: true, hostKey: room.hostKey });
     });

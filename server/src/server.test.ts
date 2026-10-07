@@ -1648,7 +1648,7 @@ describe("Rooms (ADR-0015)", () => {
       expect(await isLive(room.code)).toBe(false);
     });
 
-    it("counts a Host device being accepted into the Room as a Host action", async () => {
+    it("doesn't count a Host device identifying or reconnecting as a Host action", async () => {
       await startWithClock();
       const room = await created();
       await enter(room.code, "player");
@@ -1656,9 +1656,9 @@ describe("Rooms (ADR-0015)", () => {
       now += 3 * HOUR;
       await enter(room.code, "host", room.hostKey);
 
-      now += 4 * HOUR - 1;
+      now += 1 * HOUR;
       sweep();
-      expect(await isLive(room.code)).toBe(true);
+      expect(await isLive(room.code)).toBe(false);
     });
 
     it("counts reclaiming Host as a Host action", async () => {
