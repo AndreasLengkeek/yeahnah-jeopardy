@@ -1,14 +1,16 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { extname, join, resolve } from "node:path";
 import express from "express";
-import { Server } from "socket.io";
+import { Server, type Socket } from "socket.io";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
 import type {
   CategoryData,
   ClueField,
+  CreateRoomResult,
   GameAction,
   GameState,
+  IdentifyClaim,
   IdentifyResult,
   JoinResult,
   PlayerIdentity,
@@ -21,21 +23,53 @@ export interface GameServerOptions {
    * static files and falls back to its entry page for every client-side route; when
    * absent (tests, dev — where Vite serves the client), no static serving at all. */
   clientDir?: string;
-  /** The Host Passcode (ADR-0014). Absent (or empty) → the Host is open to anyone. */
-  hostPasscode?: string;
+  /** The Room Passcode (ADR-0015). Absent (or empty) → anyone may create a Room. */
+  roomPasscode?: string;
 }
 
-// Compares fixed-length digests so the check doesn't leak the passcode's length or
-// a matching prefix through timing.
-function passcodeMatches(supplied: unknown, expected: string): boolean {
+// Consonants only, so a code never spells a word, and without Y (a part-time vowel).
+// Dropping the vowels also drops I and O, the letters most easily misread as 1 and 0.
+const ROOM_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ";
+const ROOM_CODE_LENGTH = 4;
+
+// A Room (ADR-0015): one Game, the Host Key that proves Host of it, and every socket
+// bound to it with the role it was granted there.
+interface Room {
+  code: string;
+  hostKey: string;
+  game: GameState;
+  members: Map<Socket, SocketRole>;
+}
+
+// The view a socket bound to a Room falls back to when its Host claim is rejected.
+const DEFAULT_ROLE: SocketRole = "player";
+
+// Compares fixed-length digests so the check doesn't leak the secret's length or a
+// matching prefix through timing. Used for both the Room Passcode and Host Keys.
+function secretMatches(supplied: unknown, expected: string): boolean {
   if (typeof supplied !== "string") return false;
   const digest = (value: string) => createHash("sha256").update(value).digest();
   return timingSafeEqual(digest(supplied), digest(expected));
 }
 
 export function createGameServer(options: GameServerOptions = {}) {
-  const hostPasscode = options.hostPasscode || undefined;
-  let state: GameState = initialState();
+  const roomPasscode = options.roomPasscode || undefined;
+
+  // Every live Room, keyed by its upper-case Room Code.
+  const rooms = new Map<string, Room>();
+
+  function newRoomCode(): string {
+    for (;;) {
+      let code = "";
+      for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)];
+      if (!rooms.has(code)) return code;
+    }
+  }
+
+  // Room Codes match whatever their case.
+  function roomByCode(code: unknown): Room | undefined {
+    return typeof code === "string" ? rooms.get(code.trim().toUpperCase()) : undefined;
+  }
 
   const app = express();
   app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -44,7 +78,7 @@ export function createGameServer(options: GameServerOptions = {}) {
     const clientDir = resolve(options.clientDir);
     const entryPage = join(clientDir, "index.html");
     app.use(express.static(clientDir));
-    // Client-side routes (/host, /board, /join, …) all load the same entry page, so a
+    // Client-side routes (/, /join, /BRDK/host, …) all load the same entry page, so a
     // refresh on any of them boots the app rather than 404ing. Paths with a file
     // extension are assets, so a missing one (e.g. a stale hash after a redeploy) 404s
     // instead of getting HTML back. Socket.io handles its own /socket.io path before
@@ -60,206 +94,245 @@ export function createGameServer(options: GameServerOptions = {}) {
   // the socket in dev), so no other origin needs access.
   const io = new Server(httpServer);
 
-  // The view a socket gets until (and unless) it declares something less restrictive.
-  const DEFAULT_ROLE: SocketRole = "player";
-
-  // Each connected socket's self-declared role, set via the `identify` event.
-  const roles = new Map<string, SocketRole>();
-
-  // The Player each socket last joined or reconnected as, so its disconnect can be logged.
-  const playerIds = new Map<string, string>();
-
-  // Sends the current state to every connected socket, redacted per that socket's
-  // declared role (ADR-0006) — replacing the old single io.emit("state", state).
-  function broadcastState(): void {
-    for (const [id, socket] of io.sockets.sockets) {
-      socket.emit("state", viewForRole(state, roles.get(id) ?? DEFAULT_ROLE));
-    }
+  // Sends a Room's current state to every socket bound to it — and only to those —
+  // each redacted per the role it was granted there (ADR-0006).
+  function broadcastState(room: Room): void {
+    for (const [socket, role] of room.members) socket.emit("state", viewForRole(room.game, role));
   }
 
-  // Mirrors the engine's applyAction 1:1: apply, broadcast (and log, for the events
-  // worth logging) if it actually changed anything, and report back whether it did.
-  function dispatch(action: GameAction): boolean {
-    const next = applyAction(state, action);
-    if (next === state) return false;
+  // Every log line names the Room it happened in.
+  function log(room: Room, line: string | null): void {
+    if (line) console.log(`[${room.code}] ${line}`);
+  }
 
-    const line = describeGameEvent(state, action, next);
-    if (line) console.log(line);
-    state = next;
-    broadcastState();
+  // Mirrors the engine's applyAction 1:1 for one Room: apply, broadcast (and log, for
+  // the events worth logging) if it actually changed anything, and report back whether
+  // it did.
+  function dispatch(room: Room, action: GameAction): boolean {
+    const next = applyAction(room.game, action);
+    if (next === room.game) return false;
+
+    log(room, describeGameEvent(room.game, action, next));
+    room.game = next;
+    broadcastState(room);
     return true;
   }
 
   io.on("connection", (socket) => {
-    roles.set(socket.id, DEFAULT_ROLE);
-    socket.emit("state", viewForRole(state, DEFAULT_ROLE));
+    // The Room this socket is bound to — at most one — and the Player it last joined or
+    // reconnected as there, so its disconnect can be logged. A socket bound to no Room
+    // (e.g. the home page's) can only create one.
+    let bound: Room | undefined;
+    let playerId: string | undefined;
 
-    // Claiming `host` needs the Host Passcode (when one is configured); a rejected
-    // claim falls back to the default view. Sent on every connect, so a dropped Host
-    // reclaims its role with the passcode its device remembered.
-    socket.on("identify", (role: SocketRole, passcode?: unknown, ack?: (result: IdentifyResult) => void) => {
-      const accepted = role !== "host" || hostPasscode === undefined || passcodeMatches(passcode, hostPasscode);
-      const granted = accepted ? role : DEFAULT_ROLE;
-      roles.set(socket.id, granted);
-      socket.emit("state", viewForRole(state, granted));
-      if (typeof ack === "function") ack(accepted ? "accepted" : "rejected");
-    });
-
-    // Registers a Host-only event: silently ignored (no state change, no broadcast)
-    // from a socket that hasn't been accepted as Host while a Host Passcode is set.
-    // With no passcode configured every socket may act as Host, exactly as before.
-    function onHostEvent<Args extends unknown[]>(event: string, handler: (...args: Args) => void): void {
-      socket.on(event, (...args: Args) => {
-        if (hostPasscode !== undefined && roles.get(socket.id) !== "host") return;
-        handler(...args);
-      });
+    function unbind(): void {
+      if (!bound) return;
+      bound.members.delete(socket);
+      if (playerId) log(bound, describePlayerConnection(bound.game, playerId, "disconnected"));
+      bound = undefined;
+      playerId = undefined;
     }
 
-    socket.on("disconnect", () => {
-      roles.delete(socket.id);
-      const playerId = playerIds.get(socket.id);
-      playerIds.delete(socket.id);
-      const line = playerId && describePlayerConnection(state, playerId, "disconnected");
-      if (line) console.log(line);
-    });
-
-    socket.on("join", (identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
-      const wasLobby = state.phase === "lobby";
-      if (!dispatch({ type: "join", identity })) {
-        const error = !wasLobby
-          ? "The game has already started."
-          : identity.kind === "signature"
-            ? "That signature didn't come through — try drawing again."
-            : "That name is already taken.";
-        ack?.({ ok: false, error });
+    socket.on("createRoom", (passcode: unknown, ack?: (result: CreateRoomResult) => void) => {
+      if (typeof ack !== "function") return;
+      if (roomPasscode !== undefined && !secretMatches(passcode, roomPasscode)) {
+        ack({ ok: false, reason: "wrongPasscode" });
         return;
       }
 
-      const player = state.players[state.players.length - 1];
-      playerIds.set(socket.id, player.id);
+      const room: Room = {
+        code: newRoomCode(),
+        hostKey: randomBytes(18).toString("base64url"),
+        game: initialState(),
+        members: new Map(),
+      };
+      rooms.set(room.code, room);
+      log(room, "[room] Room created");
+      ack({ ok: true, code: room.code, hostKey: room.hostKey });
+    });
+
+    // Binds this socket to a Room with a role. Claiming `host` needs that Room's Host
+    // Key; a rejected claim stays bound to the Room on the default view. Re-sent on
+    // every connect, so a dropped Host reclaims its role with the Host Key its device
+    // remembered.
+    socket.on("identify", (claim: IdentifyClaim | undefined, ack?: (result: IdentifyResult) => void) => {
+      const reply = (result: IdentifyResult) => {
+        if (typeof ack === "function") ack(result);
+      };
+      const room = roomByCode(claim?.code);
+      if (room !== bound) unbind();
+      if (!room) {
+        reply("noRoom");
+        return;
+      }
+
+      const role: SocketRole = claim?.role === "host" || claim?.role === "board" ? claim.role : "player";
+      const accepted = role !== "host" || secretMatches(claim?.hostKey, room.hostKey);
+      const granted = accepted ? role : DEFAULT_ROLE;
+      bound = room;
+      room.members.set(socket, granted);
+      socket.emit("state", viewForRole(room.game, granted));
+      reply(accepted ? "accepted" : "rejected");
+    });
+
+    socket.on("disconnect", unbind);
+
+    // Registers a Game event that acts on this socket's bound Room. From a socket bound
+    // to no Room it changes nothing; an acknowledgement, if asked for, says so.
+    function onRoomEvent<Args extends unknown[]>(event: string, handler: (room: Room, ...args: Args) => void): void {
+      socket.on(event, (...args: Args) => {
+        if (bound) {
+          handler(bound, ...args);
+          return;
+        }
+        const ack = args[args.length - 1];
+        if (typeof ack === "function") ack({ ok: false, error: "There's no Room with that code." });
+      });
+    }
+
+    // Registers a Host-only event: silently ignored (no state change, no broadcast)
+    // from a socket that hasn't been accepted as Host of its bound Room.
+    function onHostEvent<Args extends unknown[]>(event: string, handler: (room: Room, ...args: Args) => void): void {
+      socket.on(event, (...args: Args) => {
+        if (bound && bound.members.get(socket) === "host") handler(bound, ...args);
+      });
+    }
+
+    function identityError(wasLobby: boolean, identity: PlayerIdentity): string {
+      return !wasLobby
+        ? "The game has already started."
+        : identity.kind === "signature"
+          ? "That signature didn't come through — try drawing again."
+          : "That name is already taken.";
+    }
+
+    onRoomEvent("join", (room, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
+      const wasLobby = room.game.phase === "lobby";
+      if (!dispatch(room, { type: "join", identity })) {
+        ack?.({ ok: false, error: identityError(wasLobby, identity) });
+        return;
+      }
+
+      const player = room.game.players[room.game.players.length - 1];
+      playerId = player.id;
       ack?.({ ok: true, playerId: player.id });
     });
 
-    socket.on("reconnect", (playerId: string, ack?: (result: JoinResult) => void) => {
-      const alreadyAttached = playerIds.get(socket.id) === playerId;
-      if (!dispatch({ type: "reconnect", playerId })) {
+    onRoomEvent("reconnect", (room, id: string, ack?: (result: JoinResult) => void) => {
+      const alreadyAttached = playerId === id;
+      if (!dispatch(room, { type: "reconnect", playerId: id })) {
         ack?.({ ok: false, error: "We couldn't find that session — please join again." });
         return;
       }
 
-      playerIds.set(socket.id, playerId);
-      if (!alreadyAttached) console.log(describePlayerConnection(state, playerId, "reconnected"));
-      ack?.({ ok: true, playerId });
+      playerId = id;
+      if (!alreadyAttached) log(room, describePlayerConnection(room.game, id, "reconnected"));
+      ack?.({ ok: true, playerId: id });
     });
 
-    socket.on("editIdentity", (playerId: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
-      const wasLobby = state.phase === "lobby";
-      if (!dispatch({ type: "editIdentity", playerId, identity })) {
-        const error = !wasLobby
-          ? "The game has already started."
-          : identity.kind === "signature"
-            ? "That signature didn't come through — try drawing again."
-            : "That name is already taken.";
-        ack?.({ ok: false, error });
+    onRoomEvent("editIdentity", (room, id: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
+      const wasLobby = room.game.phase === "lobby";
+      if (!dispatch(room, { type: "editIdentity", playerId: id, identity })) {
+        ack?.({ ok: false, error: identityError(wasLobby, identity) });
         return;
       }
 
-      ack?.({ ok: true, playerId });
+      ack?.({ ok: true, playerId: id });
     });
 
-    onHostEvent("newBoard", (categoryCount: number) => {
-      dispatch({ type: "newBoard", categoryCount });
+    onHostEvent("newBoard", (room, categoryCount: number) => {
+      dispatch(room, { type: "newBoard", categoryCount });
     });
 
-    onHostEvent("editCategoryName", (categoryIndex: number, name: string) => {
-      dispatch({ type: "editCategoryName", categoryIndex, name });
+    onHostEvent("editCategoryName", (room, categoryIndex: number, name: string) => {
+      dispatch(room, { type: "editCategoryName", categoryIndex, name });
     });
 
-    onHostEvent("editClue", (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
-      dispatch({ type: "editClue", categoryIndex, tileIndex, field, value });
+    onHostEvent("editClue", (room, categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
+      dispatch(room, { type: "editClue", categoryIndex, tileIndex, field, value });
     });
 
-    onHostEvent("setTwoRounds", (value: boolean) => {
-      dispatch({ type: "setTwoRounds", value });
+    onHostEvent("setTwoRounds", (room, value: boolean) => {
+      dispatch(room, { type: "setTwoRounds", value });
     });
 
-    onHostEvent("editDoubleJeopardyCategoryName", (categoryIndex: number, name: string) => {
-      dispatch({ type: "editDoubleJeopardyCategoryName", categoryIndex, name });
+    onHostEvent("editDoubleJeopardyCategoryName", (room, categoryIndex: number, name: string) => {
+      dispatch(room, { type: "editDoubleJeopardyCategoryName", categoryIndex, name });
     });
 
     onHostEvent(
       "editDoubleJeopardyClue",
-      (categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
-        dispatch({ type: "editDoubleJeopardyClue", categoryIndex, tileIndex, field, value });
+      (room, categoryIndex: number, tileIndex: number, field: ClueField, value: string) => {
+        dispatch(room, { type: "editDoubleJeopardyClue", categoryIndex, tileIndex, field, value });
       },
     );
 
-    onHostEvent("importBoardConfig", (content: CategoryData[]) => {
-      dispatch({ type: "importBoardConfig", content });
+    onHostEvent("importBoardConfig", (room, content: CategoryData[]) => {
+      dispatch(room, { type: "importBoardConfig", content });
     });
 
-    onHostEvent("openLobby", () => {
-      dispatch({ type: "openLobby" });
+    onHostEvent("openLobby", (room) => {
+      dispatch(room, { type: "openLobby" });
     });
 
-    onHostEvent("toggleBoardMusic", () => {
-      dispatch({ type: "toggleBoardMusic" });
+    onHostEvent("toggleBoardMusic", (room) => {
+      dispatch(room, { type: "toggleBoardMusic" });
     });
 
-    onHostEvent("toggleBoardEffects", () => {
-      dispatch({ type: "toggleBoardEffects" });
+    onHostEvent("toggleBoardEffects", (room) => {
+      dispatch(room, { type: "toggleBoardEffects" });
     });
 
-    onHostEvent("startGame", () => {
-      dispatch({ type: "startGame" });
+    onHostEvent("startGame", (room) => {
+      dispatch(room, { type: "startGame" });
     });
 
-    onHostEvent("startDoubleJeopardy", () => {
-      dispatch({ type: "startDoubleJeopardy" });
+    onHostEvent("startDoubleJeopardy", (room) => {
+      dispatch(room, { type: "startDoubleJeopardy" });
     });
 
-    onHostEvent("selectTile", (categoryIndex: number, tileIndex: number) => {
-      dispatch({ type: "selectTile", categoryIndex, tileIndex });
+    onHostEvent("selectTile", (room, categoryIndex: number, tileIndex: number) => {
+      dispatch(room, { type: "selectTile", categoryIndex, tileIndex });
     });
 
-    onHostEvent("showDailyDoubleClue", () => {
-      dispatch({ type: "showDailyDoubleClue" });
+    onHostEvent("showDailyDoubleClue", (room) => {
+      dispatch(room, { type: "showDailyDoubleClue" });
     });
 
-    onHostEvent("designateWagerer", (playerId: string) => {
-      dispatch({ type: "designateWagerer", playerId });
+    onHostEvent("designateWagerer", (room, id: string) => {
+      dispatch(room, { type: "designateWagerer", playerId: id });
     });
 
-    socket.on("submitWager", (playerId: string, amount: number) => {
-      dispatch({ type: "submitWager", playerId, amount });
+    onRoomEvent("submitWager", (room, id: string, amount: number) => {
+      dispatch(room, { type: "submitWager", playerId: id, amount });
     });
 
-    socket.on("buzz", (playerId: string) => {
-      dispatch({ type: "buzz", playerId });
+    onRoomEvent("buzz", (room, id: string) => {
+      dispatch(room, { type: "buzz", playerId: id });
     });
 
-    onHostEvent("reveal", () => {
-      dispatch({ type: "reveal" });
+    onHostEvent("reveal", (room) => {
+      dispatch(room, { type: "reveal" });
     });
 
-    onHostEvent("judge", (correct: boolean) => {
-      dispatch({ type: "judge", correct });
+    onHostEvent("judge", (room, correct: boolean) => {
+      dispatch(room, { type: "judge", correct });
     });
 
-    onHostEvent("closeClue", () => {
-      dispatch({ type: "closeClue" });
+    onHostEvent("closeClue", (room) => {
+      dispatch(room, { type: "closeClue" });
     });
 
-    onHostEvent("setScore", (playerId: string, score: number) => {
-      dispatch({ type: "setScore", playerId, score });
+    onHostEvent("setScore", (room, id: string, score: number) => {
+      dispatch(room, { type: "setScore", playerId: id, score });
     });
 
-    onHostEvent("returnToSetup", () => {
-      dispatch({ type: "returnToSetup" });
+    onHostEvent("returnToSetup", (room) => {
+      dispatch(room, { type: "returnToSetup" });
     });
 
-    onHostEvent("resetGame", () => {
-      dispatch({ type: "resetGame" });
+    onHostEvent("resetGame", (room) => {
+      dispatch(room, { type: "resetGame" });
     });
   });
 

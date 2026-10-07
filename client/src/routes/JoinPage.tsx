@@ -6,6 +6,7 @@ import { resolveActiveClue } from "../activeClue";
 import { GameOver } from "../components/GameOver";
 import { JoinForm } from "../components/JoinForm";
 import { PlayerIdentity } from "../components/PlayerIdentity";
+import { RoomNotice } from "../components/RoomNotice";
 import { WagerForm } from "../components/WagerForm";
 import { formatScore } from "../format";
 import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
@@ -13,6 +14,7 @@ import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
 import { useIdentify } from "../useIdentify";
+import { useRoomCode } from "../useRoomCode";
 
 function buzzButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -53,31 +55,33 @@ const dailyDoubleStyle: CSSProperties = {
 };
 
 export function JoinPage() {
-  useIdentify("player");
+  const code = useRoomCode();
+  const identified = useIdentify(code, "player");
   const state = useGameState();
   const [joinedIdentity, setJoinedIdentity] = useState<PlayerIdentityValue | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId() !== null);
+  const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId(code) !== null);
   const [editing, setEditing] = useState(false);
 
-  // On mount, a Player whose browser persisted an identifier from a previous join
-  // attempts to reattach to it — covering both a reload and a dropped connection. An
-  // unrecognized or post-Lobby-closed id falls back to the normal join form below.
+  // On mount, a Player whose browser persisted an identifier from a previous join to
+  // this Room attempts to reattach to it — covering both a reload and a dropped
+  // connection. An unrecognized or post-Lobby-closed id falls back to the normal join
+  // form below.
   useEffect(() => {
-    const storedPlayerId = getStoredPlayerId();
+    const storedPlayerId = getStoredPlayerId(code);
     if (!storedPlayerId) return;
 
     socket.emit("reconnect", storedPlayerId, (result: JoinResult) => {
       if (result.ok) {
         setPlayerId(result.playerId);
       } else {
-        clearStoredPlayerId();
+        clearStoredPlayerId(code);
       }
       setReconnecting(false);
     });
-  }, []);
+  }, [code]);
 
   // A socket that drops and auto-reconnects (a phone waking up) arrives as a fresh,
   // anonymous connection — re-announce the Player on each new "connect" so the server
@@ -101,9 +105,9 @@ export function JoinPage() {
     if (state && playerId && rosterCleared && !state.players.some((player) => player.id === playerId)) {
       setJoinedIdentity(null);
       setPlayerId(null);
-      clearStoredPlayerId();
+      clearStoredPlayerId(code);
     }
-  }, [state, playerId]);
+  }, [state, playerId, code]);
 
   function handleJoin(identity: PlayerIdentityValue) {
     setSubmitting(true);
@@ -111,7 +115,7 @@ export function JoinPage() {
     socket.emit("join", identity, (result: JoinResult) => {
       setSubmitting(false);
       if (result.ok) {
-        storePlayerId(result.playerId);
+        storePlayerId(code, result.playerId);
         setJoinedIdentity(identity);
         setPlayerId(result.playerId);
       } else {
@@ -137,7 +141,8 @@ export function JoinPage() {
 
   const inSetup = state?.phase === "setup";
   const inRoundBreak = state?.phase === "roundBreak";
-  const gameStarted = state !== null && state.phase !== "lobby" && state.phase !== "setup" && state.phase !== "roundBreak";
+  const gameStarted =
+    state !== null && state.phase !== "lobby" && state.phase !== "setup" && state.phase !== "roundBreak";
   const me = state && playerId ? state.players.find((player) => player.id === playerId) : undefined;
   // A fresh join already has the identity it submitted before the state broadcast
   // confirming it arrives; a reconnect has no local identity to fall back on, so it
@@ -180,7 +185,9 @@ export function JoinPage() {
           textAlign: "center",
         }}
       >
-        {reconnecting ? (
+        {identified === "noRoom" ? (
+          <RoomNotice>No Room with that code</RoomNotice>
+        ) : reconnecting ? (
           <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
         ) : inSetup ? (
           <div style={{ color: "#c9d2f5" }}>The Host is still setting up the Board…</div>

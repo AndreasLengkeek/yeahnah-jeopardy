@@ -1,7 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
-import type { GameAction, GameState } from "@yeahnah/shared";
+import type { GameAction, GameState, IdentifyResult } from "@yeahnah/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part.
@@ -23,7 +23,7 @@ const fakeSocket = vi.hoisted(() => {
 
 vi.mock("../socket", () => ({ socket: fakeSocket }));
 
-import { BoardPage } from "./BoardPage";
+import { renderAt } from "../test/renderAt";
 
 function setAutoplayPolicy(policy: string | undefined) {
   if (policy === undefined) {
@@ -47,10 +47,44 @@ function gameIn(phase: "lobby" | "playing" | "roundBreak" | "gameOver"): GameSta
   return viewForRole(state, "board");
 }
 
-async function loadBoard(state: GameState) {
-  render(<BoardPage />);
+async function loadBoard(state: GameState, path = "/BRDK/board") {
+  renderAt(path);
   await act(async () => fakeSocket.listeners.get("state")?.forEach((listener) => listener(state)));
 }
+
+describe("BoardPage in its Room", () => {
+  beforeEach(() => {
+    fakeSocket.listeners.clear();
+    fakeSocket.emit.mockReset();
+    vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue();
+    vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("identifies as the Board of the Room in its address, with no credential", async () => {
+    await loadBoard(gameIn("lobby"), "/brdk/board");
+
+    const claims = fakeSocket.emit.mock.calls.filter(([event]) => event === "identify").map(([, claim]) => claim);
+    expect(claims).toEqual([{ code: "BRDK", role: "board" }]);
+  });
+
+  it("shows a Join QR code for its own Room's join page in the Lobby", async () => {
+    await loadBoard(gameIn("lobby"));
+
+    expect(screen.getByRole("img", { name: `Scan to join: ${window.location.origin}/BRDK/join` })).toBeInTheDocument();
+  });
+
+  it("says so when no Room has the code", async () => {
+    renderAt("/BRDK/board");
+    const [, , ack] = fakeSocket.emit.mock.calls.find(([event]) => event === "identify")!;
+    await act(async () => (ack as (result: IdentifyResult) => void)("noRoom"));
+
+    expect(screen.getByText("No Room with that code")).toBeInTheDocument();
+  });
+});
 
 const hint = () => screen.queryByText("Tap to enable sound");
 

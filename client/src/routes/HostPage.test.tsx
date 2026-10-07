@@ -1,7 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { initialState, viewForRole } from "@yeahnah/shared";
-import type { ActiveClue, IdentifyResult, Player } from "@yeahnah/shared";
+import type { ActiveClue, IdentifyClaim, IdentifyResult, Player } from "@yeahnah/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part:
@@ -24,7 +23,8 @@ const fakeSocket = vi.hoisted(() => {
 
 vi.mock("../socket", () => ({ socket: fakeSocket }));
 
-import { HostPage, hostFooter } from "./HostPage";
+import { renderAt } from "../test/renderAt";
+import { hostFooter } from "./HostPage";
 
 function activeClue(overrides: Partial<ActiveClue> = {}): ActiveClue {
   return {
@@ -49,7 +49,9 @@ const players: Player[] = [{ id: "p1", identity: { kind: "text", name: "Ann" }, 
 describe("hostFooter", () => {
   it("shows Correct/Incorrect once a Daily Double Wager is submitted", () => {
     render(
-      <>{hostFooter(activeClue({ isDailyDouble: true, clueShown: true, wageringPlayerId: "p1", wager: 500 }), players)}</>,
+      <>
+        {hostFooter(activeClue({ isDailyDouble: true, clueShown: true, wageringPlayerId: "p1", wager: 500 }), players)}
+      </>,
     );
 
     expect(screen.getByRole("button", { name: "Correct" })).toBeInTheDocument();
@@ -84,30 +86,28 @@ describe("hostFooter", () => {
   });
 });
 
-const PASSCODE_KEY = "yeahnah-jeopardy:hostPasscode";
+const hostKeyStorage = (code: string) => `yeahnah-jeopardy:hostKey:${code}`;
 
 function fire(event: string, ...args: unknown[]) {
   act(() => fakeSocket.listeners.get(event)?.forEach((listener) => listener(...args)));
 }
 
-function identifyClaims(): Array<{ role: unknown; passcode: unknown; ack: (result: IdentifyResult) => void }> {
-  return fakeSocket.emit.mock.calls
-    .filter(([event]) => event === "identify")
-    .map(([, role, passcode, ack]) => ({ role, passcode, ack }));
+function identifyClaims(): Array<{ claim: IdentifyClaim; ack: (result: IdentifyResult) => void }> {
+  return fakeSocket.emit.mock.calls.filter(([event]) => event === "identify").map(([, claim, ack]) => ({ claim, ack }));
 }
 
 // Plays the server answering the latest Host claim: an accepted claim also gets the
 // Host's (unredacted) view pushed first, a rejected one the Player view — the order
-// the real server sends them in.
+// the real server sends them in. A "noRoom" answer gets no state at all.
 function answerLatestClaim(result: IdentifyResult) {
   const claim = identifyClaims().at(-1)!;
-  fire("state", viewForRole(initialState(), result === "accepted" ? "host" : "player"));
+  if (result !== "noRoom") fire("state", viewForRole(initialState(), result === "accepted" ? "host" : "player"));
   act(() => claim.ack(result));
 }
 
-const passcodeField = () => screen.queryByLabelText("Host Passcode");
+const openLobbyButton = () => screen.queryByRole("button", { name: /Open Lobby/ });
 
-describe("HostPage Host Passcode prompt", () => {
+describe("HostPage Host Key claim", () => {
   beforeEach(() => {
     fakeSocket.emit.mockClear();
     fakeSocket.listeners.clear();
@@ -115,81 +115,69 @@ describe("HostPage Host Passcode prompt", () => {
     localStorage.clear();
   });
 
-  it("shows the Host screen with no prompt when the claim is accepted first try", () => {
-    render(<HostPage />);
-    expect(identifyClaims()).toHaveLength(1);
-    expect(identifyClaims()[0]).toMatchObject({ role: "host", passcode: undefined });
+  it("claims Host of the Room in its address with the Host Key this device holds for that Room", () => {
+    localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
+    localStorage.setItem(hostKeyStorage("QZTM"), "key-qztm");
+    renderAt("/brdk/host");
+
+    expect(identifyClaims().map(({ claim }) => claim)).toEqual([{ code: "BRDK", role: "host", hostKey: "key-brdk" }]);
+  });
+
+  it("shows the Host screen once the claim is accepted", () => {
+    localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
+    renderAt("/BRDK/host");
+    expect(openLobbyButton()).not.toBeInTheDocument();
 
     answerLatestClaim("accepted");
 
-    expect(passcodeField()).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Open Lobby/ })).toBeInTheDocument();
+    expect(openLobbyButton()).toBeInTheDocument();
   });
 
-  it("shows only the passcode prompt when the claim is rejected", () => {
-    render(<HostPage />);
+  it("says this device isn't the Host, shows nothing of the Game, and forgets the rejected key", () => {
+    localStorage.setItem(hostKeyStorage("BRDK"), "stale-key");
+    localStorage.setItem(hostKeyStorage("QZTM"), "key-qztm");
+    renderAt("/BRDK/host");
+
     answerLatestClaim("rejected");
 
-    expect(passcodeField()).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Open Lobby/ })).not.toBeInTheDocument();
+    expect(screen.getByText("This device isn't the Host of Room BRDK")).toBeInTheDocument();
+    expect(openLobbyButton()).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit Board" })).not.toBeInTheDocument();
+    expect(localStorage.getItem(hostKeyStorage("BRDK"))).toBeNull();
+    expect(localStorage.getItem(hostKeyStorage("QZTM"))).toBe("key-qztm");
   });
 
-  it("re-claims with the submitted passcode and remembers it once accepted", async () => {
-    const user = userEvent.setup();
-    render(<HostPage />);
-    answerLatestClaim("rejected");
-
-    await user.type(passcodeField()!, "kia-ora");
-    await user.click(screen.getByRole("button", { name: "Enter" }));
-
-    expect(identifyClaims().at(-1)).toMatchObject({ role: "host", passcode: "kia-ora" });
-    answerLatestClaim("accepted");
-
-    expect(passcodeField()).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Open Lobby/ })).toBeInTheDocument();
-    expect(localStorage.getItem(PASSCODE_KEY)).toBe("kia-ora");
-  });
-
-  it("says so when the submitted passcode is wrong, and doesn't remember it", async () => {
-    const user = userEvent.setup();
-    render(<HostPage />);
-    answerLatestClaim("rejected");
-
-    await user.type(passcodeField()!, "guess");
-    await user.click(screen.getByRole("button", { name: "Enter" }));
-    answerLatestClaim("rejected");
-
-    expect(passcodeField()).toBeInTheDocument();
-    expect(screen.getByText(/isn't the Host Passcode/)).toBeInTheDocument();
-    expect(localStorage.getItem(PASSCODE_KEY)).toBeNull();
-  });
-
-  it("claims with the remembered passcode, and forgets it and prompts when it's rejected", () => {
-    localStorage.setItem(PASSCODE_KEY, "old-passcode");
-    render(<HostPage />);
-    expect(identifyClaims()[0]).toMatchObject({ role: "host", passcode: "old-passcode" });
+  it("claims with no Host Key when this device holds none for the Room", () => {
+    renderAt("/BRDK/host");
+    expect(identifyClaims()[0].claim).toEqual({ code: "BRDK", role: "host", hostKey: undefined });
 
     answerLatestClaim("rejected");
 
-    expect(passcodeField()).toBeInTheDocument();
-    expect(localStorage.getItem(PASSCODE_KEY)).toBeNull();
+    expect(screen.getByText("This device isn't the Host of Room BRDK")).toBeInTheDocument();
   });
 
-  it("reclaims the Host role with the remembered passcode after a dropped connection", () => {
-    localStorage.setItem(PASSCODE_KEY, "kia-ora");
-    render(<HostPage />);
+  it("says so when no Room has the code", () => {
+    renderAt("/BRDK/host");
+
+    answerLatestClaim("noRoom");
+
+    expect(screen.getByText("No Room with that code")).toBeInTheDocument();
+    expect(openLobbyButton()).not.toBeInTheDocument();
+  });
+
+  it("reclaims Host with the remembered Host Key after a dropped connection", () => {
+    localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
+    renderAt("/BRDK/host");
     answerLatestClaim("accepted");
 
     fire("connect");
-    // A fresh connection starts on the redacted Player view, so nothing of the Game
-    // shows until the reclaim is acknowledged.
-    fire("state", viewForRole(initialState(), "player"));
-    expect(screen.queryByRole("button", { name: /Open Lobby/ })).not.toBeInTheDocument();
+    // A fresh connection is bound to no Room, so nothing of the Game shows until the
+    // reclaim is acknowledged.
+    expect(openLobbyButton()).not.toBeInTheDocument();
 
     expect(identifyClaims()).toHaveLength(2);
-    expect(identifyClaims()[1]).toMatchObject({ role: "host", passcode: "kia-ora" });
+    expect(identifyClaims()[1].claim).toEqual({ code: "BRDK", role: "host", hostKey: "key-brdk" });
     answerLatestClaim("accepted");
-    expect(passcodeField()).not.toBeInTheDocument();
+    expect(openLobbyButton()).toBeInTheDocument();
   });
 });
