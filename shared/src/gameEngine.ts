@@ -1,3 +1,4 @@
+import { categoryNameFits, clueFieldFits, contentFits, nameTooLong, signatureTooBig } from './limits.js';
 import { identitiesMatch, isBlankIdentity, normalizeIdentity } from './playerIdentity.js';
 import { CATS, DOUBLE_JEOPARDY_VALUES, VALUES } from './trivia.js';
 import type { CategoryData } from './trivia.js';
@@ -75,7 +76,7 @@ function buildBoard(content: CategoryData[], round: 1 | 2): Category[] {
 }
 
 function contentForRound(state: GameState): CategoryData[] {
-  return state.round === 1 ? state.content : state.doubleJeopardyContent ?? [];
+  return state.round === 1 ? state.content : (state.doubleJeopardyContent ?? []);
 }
 
 // Draws a fresh random Daily Double coordinate for a just-built Board — every Tile on
@@ -206,7 +207,7 @@ function applyToggleBoardEffects(state: GameState): GameState {
 
 function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
   const normalized = normalizeIdentity(identity);
-  if (isBlankIdentity(normalized)) return state;
+  if (isBlankIdentity(normalized) || nameTooLong(normalized) || signatureTooBig(normalized)) return state;
   if (state.phase !== 'lobby') return state;
   if (state.players.some((player) => identitiesMatch(player.identity, normalized))) return state;
 
@@ -219,7 +220,7 @@ function applyJoin(state: GameState, identity: PlayerIdentity): GameState {
 // rules as a fresh join, checked against every other Player, not themself.
 function applyEditIdentity(state: GameState, playerId: string, identity: PlayerIdentity): GameState {
   const normalized = normalizeIdentity(identity);
-  if (isBlankIdentity(normalized)) return state;
+  if (isBlankIdentity(normalized) || nameTooLong(normalized) || signatureTooBig(normalized)) return state;
   if (state.phase !== 'lobby') return state;
   if (!state.players.some((player) => player.id === playerId)) return state;
   if (state.players.some((player) => player.id !== playerId && identitiesMatch(player.identity, normalized))) {
@@ -234,8 +235,8 @@ function applyEditIdentity(state: GameState, playerId: string, identity: PlayerI
 
 // Reattaches a Player who joined before the Game started to their existing identity —
 // same id, score, and roster position — rather than minting a new Player. An id that
-// doesn't match anyone currently in the roster (never joined, or the roster was cleared
-// by a reset) is rejected; the caller falls back to a normal join attempt.
+// doesn't match anyone currently in the roster (never joined in this Game's Room) is
+// rejected; the caller falls back to a normal join attempt.
 function applyReconnect(state: GameState, playerId: string): GameState {
   if (!state.players.some((player) => player.id === playerId)) return state;
 
@@ -266,7 +267,7 @@ function applyNewBoard(state: GameState, categoryCount: number): GameState {
 
 function applyEditCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.content[categoryIndex]) return state;
+  if (!state.content[categoryIndex] || !categoryNameFits(name)) return state;
 
   return {
     ...state,
@@ -282,7 +283,7 @@ function applyEditClue(
   value: string,
 ): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.content[categoryIndex]?.clues[tileIndex]) return state;
+  if (!state.content[categoryIndex]?.clues[tileIndex] || !clueFieldFits(value)) return state;
 
   return {
     ...state,
@@ -317,7 +318,7 @@ function applySetTwoRounds(state: GameState, value: boolean): GameState {
 // that's null (i.e., twoRounds is false).
 function applyEditDoubleJeopardyCategoryName(state: GameState, categoryIndex: number, name: string): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.doubleJeopardyContent?.[categoryIndex]) return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex] || !categoryNameFits(name)) return state;
 
   return {
     ...state,
@@ -337,7 +338,7 @@ function applyEditDoubleJeopardyClue(
   value: string,
 ): GameState {
   if (state.phase !== 'setup') return state;
-  if (!state.doubleJeopardyContent?.[categoryIndex]?.clues[tileIndex]) return state;
+  if (!state.doubleJeopardyContent?.[categoryIndex]?.clues[tileIndex] || !clueFieldFits(value)) return state;
 
   return {
     ...state,
@@ -360,6 +361,9 @@ function applyEditDoubleJeopardyClue(
 // not a separate error state.
 function applyImportBoardConfig(state: GameState, content: CategoryData[]): GameState {
   if (state.phase !== 'setup') return state;
+  // The same per-field caps as editing, re-checked here because the payload arrives
+  // already parsed by the client.
+  if (!contentFits(content)) return state;
 
   return {
     ...state,
@@ -594,17 +598,17 @@ function applyCloseClue(state: GameState): GameState {
   return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
 }
 
-// Back to Board Setup with the same `content` pre-loaded for editing. From the Lobby,
-// the roster stays put (the Host is only resuming Board Setup); from Game Over, the
-// roster is dropped as part of a true replay. In both cases any derived Board and the
-// Active Clue are cleared, to be rebuilt when the Lobby reopens.
+// Back to Board Setup with the same `content` pre-loaded for editing. The roster stays
+// joined from either phase, with every score back to $0 (a no-op from the Lobby, where
+// nobody has scored yet), so the group never has to rejoin between Games in a Room.
+// Any derived Board and the Active Clue are cleared, to be rebuilt when the Lobby reopens.
 function applyReturnToSetup(state: GameState): GameState {
   if (state.phase !== 'lobby' && state.phase !== 'gameOver') return state;
 
   return {
     ...state,
     phase: 'setup',
-    players: state.phase === 'lobby' ? state.players : [],
+    players: playersAtZero(state.players),
     board: [],
     activeClue: null,
     dailyDouble: null,
@@ -613,17 +617,23 @@ function applyReturnToSetup(state: GameState): GameState {
   };
 }
 
-// The "reuse the same Board" replay path: keep `content` as-is, rebuild `board` with
-// fresh Tiles, clear the roster and any Active Clue, and drop back to the Lobby. Not a
-// way out of Board Setup — `openLobby`'s completeness gate is the only sanctioned
-// `setup` → `lobby` transition — so it's a no-op while still in `setup`.
+// Successive Games in a Room keep their Players: only the scores start over.
+function playersAtZero(players: Player[]): Player[] {
+  return players.map((player) => ({ ...player, score: 0 }));
+}
+
+// The "reuse the same Board" replay path (Play again): keep `content` as-is, rebuild
+// `board` with fresh Tiles, keep every joined Player at $0, clear any Active Clue, and
+// drop back to the Lobby, where new Players can still join. Not a way out of Board
+// Setup — `openLobby`'s completeness gate is the only sanctioned `setup` → `lobby`
+// transition — so it's a no-op while still in `setup`.
 function applyResetGame(state: GameState): GameState {
   if (state.phase === 'setup') return state;
 
   const board = buildBoard(state.content, 1);
   return {
     phase: 'lobby',
-    players: [],
+    players: playersAtZero(state.players),
     content: state.content,
     board,
     activeClue: null,

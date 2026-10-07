@@ -10,9 +10,11 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     branch: main
-    autoDeployTrigger: commit
+    # Deploys are manual: a deploy restarts the server and ends every live Room, so a
+    # merge mustn't trigger one on game night (ADR-0015).
+    autoDeployTrigger: off
     envVars:
       # Secret: Render prompts for the value when the Blueprint is first created.
       # Never commit it here.
-      - key: HOST_PASSCODE
+      - key: ROOM_PASSCODE
         sync: false

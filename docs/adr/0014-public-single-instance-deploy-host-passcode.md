@@ -13,3 +13,5 @@ Supersedes the "local network, nothing public-facing" half of ADR-0001; its one-
 
 - Players remain impersonable: `buzz` and `submitWager` trust a client-supplied player id, and every id is broadcast in shared state. Accepted while only invited friends know the URL; tracked in `.scratch/cloud-hosting/issues/01-player-impersonation.md`.
 - Buzz resolution across the internet is less fair than on one wifi; ADR-0003 is unchanged and its revisit trigger still applies.
+
+_Superseded by ADR-0015 (concurrent Rooms) for the Host Passcode and single-Game parts; the public single-instance deploy still stands._

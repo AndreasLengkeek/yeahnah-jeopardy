@@ -1,5 +1,8 @@
-import { act, render } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
+import type { GameState, IdentifyResult, JoinResult } from "@yeahnah/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part.
 const fakeSocket = vi.hoisted(() => {
@@ -20,28 +23,117 @@ const fakeSocket = vi.hoisted(() => {
 
 vi.mock("../socket", () => ({ socket: fakeSocket }));
 
-import { clearStoredPlayerId, storePlayerId } from "../playerIdentity";
-import { JoinPage } from "./JoinPage";
+import { playerIds } from "../roomStorage";
+import { renderAt } from "../test/renderAt";
 
-const reconnectEmits = () => fakeSocket.emit.mock.calls.filter(([event]) => event === "reconnect");
+const emitted = (event: string) => fakeSocket.emit.mock.calls.filter(([name]) => name === event);
+const reconnectEmits = () => emitted("reconnect");
+const textDana = { kind: "text", name: "Dana" } as const;
+
+beforeEach(() => {
+  fakeSocket.listeners.clear();
+  fakeSocket.emit.mockReset();
+  localStorage.clear();
+  // Acknowledge every reconnect as accepted, the way the server does for a known Player.
+  fakeSocket.emit.mockImplementation((event: string, playerId: unknown, ack?: unknown) => {
+    if (event === "reconnect" && typeof ack === "function") ack({ ok: true, playerId });
+  });
+});
+
+describe("JoinPage in its Room", () => {
+  it("identifies as a Player of the Room in its address", () => {
+    renderAt("/brdk/join");
+
+    expect(emitted("identify").map(([, claim]) => claim)).toEqual([{ code: "BRDK", role: "player" }]);
+  });
+
+  it("reattaches only the Player this device joined this Room as", () => {
+    playerIds.set("QZTM", "player-in-qztm");
+    renderAt("/BRDK/join");
+    expect(reconnectEmits()).toEqual([]);
+
+    playerIds.set("BRDK", "player-in-brdk");
+    renderAt("/BRDK/join");
+    expect(reconnectEmits().map(([, playerId]) => playerId)).toEqual(["player-in-brdk"]);
+  });
+
+  it("remembers a new join under this Room's code", async () => {
+    const user = userEvent.setup();
+    renderAt("/BRDK/join");
+    const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
+
+    await user.click(screen.getByRole("button", { name: /type a name instead/i }));
+    await user.type(screen.getByPlaceholderText("Your name"), "Dana");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    const [, , ack] = emitted("join")[0];
+    const withDana = { ...lobby, players: [{ id: "dana-id", identity: textDana, score: 0, connected: true }] };
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(withDana)));
+    act(() => (ack as (result: JoinResult) => void)({ ok: true, playerId: "dana-id" }));
+
+    expect(playerIds.get("BRDK")).toBe("dana-id");
+    expect(playerIds.get("QZTM")).toBeNull();
+  });
+
+  it("shows Room full, over the Room's dimmed code, when the Room has no seat left", async () => {
+    const user = userEvent.setup();
+    renderAt("/BRDK/join");
+    const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
+
+    await user.click(screen.getByRole("button", { name: /type a name instead/i }));
+    await user.type(screen.getByPlaceholderText("Your name"), "Dana");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    const [, , ack] = emitted("join")[0];
+    act(() => (ack as (result: JoinResult) => void)({ ok: false, reason: "roomFull", error: "This Room is full." }));
+
+    expect(screen.getByRole("heading", { name: "Room full" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByText(/Ask the Host/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+  });
+
+  it("says so when no Room has the code", () => {
+    renderAt("/BRDK/join");
+    const [, , ack] = emitted("identify")[0];
+    act(() => (ack as (result: IdentifyResult) => void)("noRoom"));
+
+    expect(screen.getByText("No Room with that code")).toBeInTheDocument();
+  });
+
+  // Room Code entry as a fresh journey: no error, and nothing remembered of the old Room.
+  function expectFreshRoomCodeEntry() {
+    expect(screen.getByLabelText("Room Code")).toBeInTheDocument();
+    expect(screen.queryByText("No Room with that code")).not.toBeInTheDocument();
+    expect(screen.queryByText(/has ended/)).not.toBeInTheDocument();
+    expect(playerIds.get("BRDK")).toBeNull();
+  }
+
+  it("goes straight to Room Code entry when the Room-ended notice arrives", () => {
+    playerIds.set("BRDK", "player-1");
+    renderAt("/BRDK/join");
+    const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
+
+    act(() => fakeSocket.listeners.get("roomEnded")?.forEach((listener) => listener()));
+
+    expectFreshRoomCodeEntry();
+  });
+
+  it("goes straight to Room Code entry when the address is an ended Room's", () => {
+    playerIds.set("BRDK", "player-1");
+    renderAt("/BRDK/join");
+    const [, , ack] = emitted("identify")[0];
+    act(() => (ack as (result: IdentifyResult) => void)("ended"));
+
+    expectFreshRoomCodeEntry();
+  });
+});
 
 describe("JoinPage reattaching a joined Player", () => {
-  beforeEach(() => {
-    fakeSocket.listeners.clear();
-    fakeSocket.emit.mockReset();
-    // Acknowledge every reconnect as accepted, the way the server does for a known Player.
-    fakeSocket.emit.mockImplementation((event: string, playerId: unknown, ack?: unknown) => {
-      if (event === "reconnect" && typeof ack === "function") ack({ ok: true, playerId });
-    });
-  });
-
-  afterEach(() => {
-    clearStoredPlayerId();
-  });
-
   it("reattaches on load, and again each time a dropped connection comes back", async () => {
-    storePlayerId("player-1");
-    render(<JoinPage />);
+    playerIds.set("BRDK", "player-1");
+    renderAt("/BRDK/join");
     expect(reconnectEmits().map(([, playerId]) => playerId)).toEqual(["player-1"]);
 
     await act(async () => fakeSocket.listeners.get("connect")?.forEach((listener) => listener()));
@@ -50,9 +142,59 @@ describe("JoinPage reattaching a joined Player", () => {
   });
 
   it("doesn't reattach on a new connection when no Player has joined from this device", async () => {
-    render(<JoinPage />);
+    renderAt("/BRDK/join");
     await act(async () => fakeSocket.listeners.get("connect")?.forEach((listener) => listener()));
 
     expect(reconnectEmits()).toEqual([]);
+  });
+});
+
+// Plays a Game from the Lobby through to Game Over with the real engine, closing every
+// Tile unanswered (the Daily Double neutralized so every Tile is a plain Clue).
+function playToGameOver(lobby: GameState): GameState {
+  let state: GameState = { ...applyAction(lobby, { type: "startGame" }), dailyDouble: null };
+  state.board.forEach((category, categoryIndex) =>
+    category.tiles.forEach((_tile, tileIndex) => {
+      state = applyAction(state, { type: "selectTile", categoryIndex, tileIndex });
+      state = applyAction(state, { type: "closeClue" });
+    }),
+  );
+  return state;
+}
+
+function lobbyWithDanaAndMarcus(): GameState {
+  let state = applyAction(initialState(), { type: "openLobby" });
+  state = applyAction(state, { type: "join", identity: { kind: "text", name: "Dana" } });
+  return applyAction(state, { type: "join", identity: { kind: "text", name: "Marcus" } });
+}
+
+describe("JoinPage across successive Games", () => {
+  async function broadcast(state: GameState) {
+    await act(async () => fakeSocket.listeners.get("state")?.forEach((listener) => listener(state)));
+  }
+
+  it("keeps a joined Player on the waiting screen across Play again and a return to Board Setup", async () => {
+    const gameOver = playToGameOver(lobbyWithDanaAndMarcus());
+    expect(gameOver.phase).toBe("gameOver");
+    const [dana] = gameOver.players;
+    playerIds.set("BRDK", dana.id);
+    renderAt("/BRDK/join");
+    await broadcast(gameOver);
+
+    const playAgain = applyAction(gameOver, { type: "resetGame" });
+    await broadcast(playAgain);
+
+    expect(screen.getByText("Waiting for the Host to start the Game…")).toBeInTheDocument();
+    expect(screen.getByText("Dana")).toBeInTheDocument();
+
+    const backInSetup = applyAction(playToGameOver(playAgain), { type: "returnToSetup" });
+    await broadcast(backInSetup);
+    expect(screen.getByText("The Host is still setting up the Board…")).toBeInTheDocument();
+
+    await broadcast(applyAction(backInSetup, { type: "openLobby" }));
+
+    expect(screen.getByText("Waiting for the Host to start the Game…")).toBeInTheDocument();
+    expect(screen.getByText("Dana")).toBeInTheDocument();
+    expect(playerIds.get("BRDK")).toBe(dana.id);
   });
 });

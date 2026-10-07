@@ -264,14 +264,14 @@ describe("gameEngine: reconnect", () => {
     expect(next.players[0].connected).toBe(true);
   });
 
-  it("rejects a reconnect once the roster has been cleared by a reset", () => {
+  it("reattaches a Player to the same id after Play again, since the roster survives a reset", () => {
     let state = startedGame();
     const [dana] = state.players;
     state = applyAction(state, { type: "resetGame" });
 
     const next = applyAction(state, { type: "reconnect", playerId: dana.id });
 
-    expect(next).toBe(state);
+    expect(next.players[0]).toMatchObject({ id: dana.id, identity: textIdentity("Dana"), score: 0, connected: true });
   });
 });
 
@@ -1363,40 +1363,61 @@ describe("gameEngine: setScore", () => {
 });
 
 describe("gameEngine: resetGame", () => {
-  it("resets from the lobby phase to a fresh, empty-roster lobby", () => {
+  it("resets from the lobby phase to a fresh lobby, keeping the roster", () => {
     let state = lobbyState();
     state = applyAction(state, joinText("Dana"));
+    const playersBefore = state.players;
 
     const next = applyAction(state, { type: "resetGame" });
 
     expect(next.phase).toBe("lobby");
-    expect(next.players).toEqual([]);
+    expect(next.players).toEqual(playersBefore);
     expect(next.activeClue).toBeNull();
     expect(next.board.every((category) => category.tiles.every((tile) => !tile.used))).toBe(true);
   });
 
-  it("resets from the playing phase to a fresh, empty-roster lobby", () => {
+  it("resets from the playing phase to a fresh lobby, keeping every Player at $0", () => {
     let state = startedGame();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "setScore", playerId: dana.id, score: 600 });
     state = applyAction(state, { type: "selectTile", categoryIndex: 0, tileIndex: 0 });
 
     const next = applyAction(state, { type: "resetGame" });
 
     expect(next.phase).toBe("lobby");
-    expect(next.players).toEqual([]);
+    expect(next.players).toEqual([
+      { ...dana, score: 0 },
+      { ...marcus, score: 0 },
+    ]);
     expect(next.activeClue).toBeNull();
   });
 
-  it("resets from the gameOver phase to a fresh, empty-roster lobby", () => {
-    let state = startedGame();
-    state = markAllUsedExcept(state, 4, 4);
-    state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
-    state = applyAction(state, { type: "closeClue" });
-    expect(state.phase).toBe("gameOver");
+  it("Play again after Game Over keeps every Player joined, in order, at $0", () => {
+    let state = finishedGame();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "setScore", playerId: dana.id, score: 1800 });
+    state = applyAction(state, { type: "setScore", playerId: marcus.id, score: -400 });
 
     const next = applyAction(state, { type: "resetGame" });
 
     expect(next.phase).toBe("lobby");
-    expect(next.players).toEqual([]);
+    expect(next.players).toEqual([
+      { ...dana, score: 0 },
+      { ...marcus, score: 0 },
+    ]);
+  });
+
+  it("a new Player can still join the fresh Lobby after Play again", () => {
+    let state = applyAction(finishedGame(), { type: "resetGame" });
+
+    state = applyAction(state, joinText("Priya"));
+
+    expect(state.players.map((p) => p.identity)).toEqual([
+      textIdentity("Dana"),
+      textIdentity("Marcus"),
+      textIdentity("Priya"),
+    ]);
+    expect(state.players[2].score).toBe(0);
   });
 
   it("is a no-op during Board Setup, so it can't skip the openLobby completeness gate", () => {
@@ -1408,13 +1429,19 @@ describe("gameEngine: resetGame", () => {
     expect(next.phase).toBe("setup");
   });
 
-  it("a Player who rejoins after a reset starts at $0", () => {
-    let state = startedGame();
-    state = applyAction(state, { type: "resetGame" });
+  it("resets from the round break to round 1's lobby, keeping every Player at $0", () => {
+    let state = roundBreakState();
+    const [dana, marcus] = state.players;
+    state = applyAction(state, { type: "setScore", playerId: marcus.id, score: 2000 });
 
-    state = applyAction(state, joinText("Dana"));
+    const next = applyAction(state, { type: "resetGame" });
 
-    expect(state.players[0]).toMatchObject({ identity: textIdentity("Dana"), score: 0 });
+    expect(next.phase).toBe("lobby");
+    expect(next.round).toBe(1);
+    expect(next.players).toEqual([
+      { ...dana, score: 0 },
+      { ...marcus, score: 0 },
+    ]);
   });
 
   it("resets a finished two-Round Game back to round 1's lobby, rebuilding Round 1's board fresh", () => {
@@ -1431,7 +1458,7 @@ describe("gameEngine: resetGame", () => {
     expect(next.content).toEqual(contentBefore);
     expect(next.board.map((c) => c.name)).toEqual(contentBefore.map((c) => c.name));
     expect(next.board.every((c) => c.tiles.every((tile) => !tile.used))).toBe(true);
-    expect(next.players).toEqual([]);
+    expect(next.players.map((p) => p.score)).toEqual([0, 0]);
     // Double Jeopardy's board itself is only rebuilt when startDoubleJeopardy next
     // runs — resetGame leaves its authored content untouched and doesn't derive a
     // board from it.
@@ -1946,19 +1973,20 @@ describe("gameEngine: Board Setup", () => {
       expect(renamed.content[5].name).toBe("Final category");
     });
 
-    it("returns from gameOver to setup with content still pre-loaded", () => {
-      let state = startedGame();
-      state = markAllUsedExcept(state, 4, 4);
-      state = applyAction(state, { type: "selectTile", categoryIndex: 4, tileIndex: 4 });
-      state = applyAction(state, { type: "closeClue" });
-      expect(state.phase).toBe("gameOver");
+    it("returns from gameOver to setup with content still pre-loaded, keeping every Player joined at $0", () => {
+      let state = finishedGame();
+      const [dana, marcus] = state.players;
+      state = applyAction(state, { type: "setScore", playerId: dana.id, score: 1200 });
       const contentBefore = state.content;
 
       const next = applyAction(state, { type: "returnToSetup" });
 
       expect(next.phase).toBe("setup");
       expect(next.content).toEqual(contentBefore);
-      expect(next.players).toEqual([]);
+      expect(next.players).toEqual([
+        { ...dana, score: 0 },
+        { ...marcus, score: 0 },
+      ]);
       expect(next.board).toEqual([]);
       expect(next.activeClue).toBeNull();
     });
@@ -2016,7 +2044,7 @@ describe("gameEngine: Board Setup", () => {
       expect(next.content).toEqual(contentBefore);
       expect(next.board.map((c) => c.name)).toEqual(contentBefore.map((c) => c.name));
       expect(next.board.every((c) => c.tiles.every((tile) => !tile.used))).toBe(true);
-      expect(next.players).toEqual([]);
+      expect(next.players.map((p) => p.score)).toEqual([0, 0]);
       expect(next.activeClue).toBeNull();
     });
   });

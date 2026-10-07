@@ -36,4 +36,13 @@ describe("Lobby", () => {
     expect(screen.getByText("Marcus")).toBeInTheDocument();
     expect(screen.getByText("-$200")).toBeInTheDocument();
   });
+
+  it("renders a Signature Player as an image fetched from its address", () => {
+    const image = "/rooms/BRDK/signatures/p1/Zq3xW9";
+    const players: Player[] = [{ id: "p1", identity: { kind: "signature", image }, score: 0, connected: true }];
+
+    render(<Lobby players={players} />);
+
+    expect(screen.getByRole("img", { name: "Signature" })).toHaveAttribute("src", image);
+  });
 });

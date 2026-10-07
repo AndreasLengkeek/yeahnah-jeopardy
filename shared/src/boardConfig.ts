@@ -1,12 +1,12 @@
 import { MAX_CATEGORIES, MIN_CATEGORIES } from './gameEngine.js';
+import { brokenContentCap, MAX_CATEGORY_NAME_LENGTH, MAX_CLUE_FIELD_LENGTH } from './limits.js';
 import { VALUES } from './trivia.js';
 import type { CategoryData, ClueData } from './trivia.js';
 
 const CLUES_PER_CATEGORY = VALUES.length;
 
 export type ParseBoardConfigResult =
-  | { ok: true; content: CategoryData[]; doubleJeopardy?: CategoryData[] }
-  | { ok: false; error: string };
+  { ok: true; content: CategoryData[]; doubleJeopardy?: CategoryData[] } | { ok: false; error: string };
 
 // The file the Host downloads via Export and can hand back via Import — Round 1's
 // authored `content`, plus Double Jeopardy's when this Game has two Rounds.
@@ -57,6 +57,17 @@ function shapeError(): ParseBoardConfigResult {
   return { ok: false, error: "That file doesn't look like a Board Config." };
 }
 
+const CAP_ERRORS = {
+  categoryName: `Category names can be at most ${MAX_CATEGORY_NAME_LENGTH} characters.`,
+  clueField: `Clues and Answers can be at most ${MAX_CLUE_FIELD_LENGTH} characters.`,
+};
+
+// The first per-field size cap (see limits.ts) any Round breaks, as an error naming it.
+function lengthError(rounds: CategoryData[][]): ParseBoardConfigResult | null {
+  const broken = brokenContentCap(rounds.flat());
+  return broken ? { ok: false, error: CAP_ERRORS[broken] } : null;
+}
+
 function parseContent(raw: unknown): CategoryData[] | 'count-error' | null {
   if (!Array.isArray(raw)) return null;
   if (raw.length < MIN_CATEGORIES || raw.length > MAX_CATEGORIES) return 'count-error';
@@ -71,7 +82,7 @@ function parseContent(raw: unknown): CategoryData[] | 'count-error' | null {
   return content;
 }
 
-// Structural validation only: a Category count outside [MIN_CATEGORIES, MAX_CATEGORIES],
+// Structural validation, plus the per-field size caps: a Category count outside [MIN_CATEGORIES, MAX_CATEGORIES],
 // invalid JSON, or any shape that doesn't parse as categories/clues at all is rejected
 // outright. Missing or blank text/answer fields parse as empty strings — the existing
 // completeness check (isContentComplete) flags those inline once imported, rather than
@@ -91,7 +102,7 @@ export function parseBoardConfig(raw: string): ParseBoardConfigResult {
   }
 
   if (!isRecord(parsed) || parsed.doubleJeopardy === undefined) {
-    return { ok: true, content: round1 };
+    return lengthError([round1]) ?? { ok: true, content: round1 };
   }
 
   const doubleJeopardy = parseContent(parsed.doubleJeopardy);
@@ -101,5 +112,5 @@ export function parseBoardConfig(raw: string): ParseBoardConfigResult {
     return { ok: false, error: 'Round 1 and Double Jeopardy must have the same number of categories.' };
   }
 
-  return { ok: true, content: round1, doubleJeopardy };
+  return lengthError([round1, doubleJeopardy]) ?? { ok: true, content: round1, doubleJeopardy };
 }

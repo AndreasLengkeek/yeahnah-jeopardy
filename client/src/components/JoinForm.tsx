@@ -1,31 +1,16 @@
 import type { PlayerIdentity as PlayerIdentityValue } from "@yeahnah/shared";
-import { isBlankIdentity, normalizeIdentity } from "@yeahnah/shared";
+import {
+  isBlankIdentity,
+  MAX_NAME_LENGTH,
+  normalizeIdentity,
+  SIGNATURE_TOO_BIG_MESSAGE,
+  signatureTooBig,
+} from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
-import { accent } from "../theme";
+import { errorColor } from "../theme";
+import { inputStyle, submitButtonStyle } from "./forms";
 import { SignatureCanvas, type SignatureCanvasHandle } from "./SignatureCanvas";
-
-const inputStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,.2)",
-  background: "rgba(255,255,255,.06)",
-  color: "#fff",
-  fontSize: 16,
-};
-
-const submitButtonStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 999,
-  border: 0,
-  fontWeight: 800,
-  fontSize: 14,
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  background: accent,
-  color: "#07103f",
-  cursor: "pointer",
-};
 
 const linkButtonStyle: CSSProperties = {
   alignSelf: "center",
@@ -60,6 +45,8 @@ export function JoinForm({
   const [mode, setMode] = useState<JoinMode>("draw");
   const [name, setName] = useState("");
   const [hasDrawing, setHasDrawing] = useState(false);
+  // A drawing over the server's size cap is caught here rather than sent and refused.
+  const [tooBig, setTooBig] = useState(false);
   const canvasRef = useRef<SignatureCanvasHandle>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -73,9 +60,14 @@ export function JoinForm({
     event.preventDefault();
     if (submitting || !canSubmit) return;
 
+    setTooBig(false);
     if (mode === "draw") {
       const image = canvasRef.current?.toDataURL() ?? "";
       if (!image) return;
+      if (signatureTooBig({ kind: "signature", image })) {
+        setTooBig(true);
+        return;
+      }
       onJoin({ kind: "signature", image });
     } else {
       const identity = normalizeIdentity({ kind: "text", name });
@@ -99,7 +91,7 @@ export function JoinForm({
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Your name"
-          maxLength={24}
+          maxLength={MAX_NAME_LENGTH}
           style={inputStyle}
           autoComplete="off"
           data-1p-ignore="true"
@@ -114,7 +106,9 @@ export function JoinForm({
       <button type="submit" disabled={submitting || !canSubmit} style={submitButtonStyle}>
         Join
       </button>
-      {error && <div style={{ color: "#ff8a7a", fontSize: 13 }}>{error}</div>}
+      {(tooBig || error) && (
+        <div style={{ color: errorColor, fontSize: 13 }}>{tooBig ? SIGNATURE_TOO_BIG_MESSAGE : error}</div>
+      )}
     </form>
   );
 }

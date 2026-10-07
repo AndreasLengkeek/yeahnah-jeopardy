@@ -6,8 +6,10 @@ export type GamePhase = 'setup' | 'lobby' | 'playing' | 'roundBreak' | 'gameOver
 
 // How a Player identifies themselves, chosen once at join time and never both: a typed
 // name carries the trimmed string; a drawn Signature carries a small raster image as a
-// data URL. Rendered everywhere a Player's identity is shown via the shared
-// PlayerIdentity component.
+// data URL. In the state the server broadcasts, a Signature's `image` is instead a
+// Room-scoped, versioned image address the server serves over HTTP (ADR-0015), so each
+// device fetches each Signature once. Either way it's an image source, rendered
+// everywhere a Player's identity is shown via the shared PlayerIdentity component.
 export type PlayerIdentity = { kind: 'text'; name: string } | { kind: 'signature'; image: string };
 
 export interface Player {
@@ -62,15 +64,61 @@ export interface DailyDoubleCoordinate {
   tileIndex: number;
 }
 
-// A socket's role, declared via the `identify` event on every connection. It gates
-// which view of GameState the server sends that socket (see viewForRole / ADR-0006).
-// `board` and `player` are taken on trust; `host` is granted only when the server has
-// no Host Passcode configured or the claim carries the matching one (ADR-0014).
+// A socket's role in its Room, declared via the `identify` event on every connection.
+// It gates which view of GameState the server sends that socket (see viewForRole /
+// ADR-0006). `board` and `player` are taken on trust; `host` is granted only when the
+// claim carries that Room's Host Key (ADR-0015).
 export type SocketRole = 'host' | 'board' | 'player';
 
+// What a socket sends with `identify`: which Room it's in (by Room Code, any case), the
+// role it claims there, and — for `host` — the Host Key this device remembers.
+export interface IdentifyClaim {
+  code: string;
+  role: SocketRole;
+  hostKey?: string;
+}
+
 // The server's answer to an `identify` claim. A rejected claim (only ever a `host`
-// claim with a wrong or missing Host Passcode) leaves the socket on the Player view.
-export type IdentifyResult = 'accepted' | 'rejected';
+// claim with a wrong or missing Host Key) leaves the socket bound to the Room on the
+// Player view. When no live Room has that code the socket is bound to nothing, and the
+// answer is `ended` if a Room with that code has ended (closed or expired) and `noRoom`
+// if there never was one.
+export type IdentifyResult = 'accepted' | 'rejected' | 'ended' | 'noRoom';
+
+// The Room-ended notice is the `roomEnded` event (no payload): sent to every socket in a
+// Room as it ends, for any reason (closed by its Host, or expired), as they're unbound.
+
+// Leaving a Room is the `leaveRoom` event (no payload): a Room screen sends it as it
+// closes in the app, since the connection outlives it. The server unbinds the socket
+// as if it had disconnected (Room info, the 30-minute emptiness check).
+
+// The server's answer to `createRoom`: the new Room's code and its Host Key, or why
+// no Room was created.
+export type CreateRoomResult =
+  { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'atCapacity' };
+
+// What a device without a Room's Host Key sends with `reclaimHost` to become its Host
+// again: the Room Code (any case) and the Room Passcode.
+export interface ReclaimHostClaim {
+  code: string;
+  passcode?: string;
+}
+
+// The server's answer to `reclaimHost`: the Room's existing Host Key (never a new one,
+// so its other Host devices keep working), the socket now accepted as Host there; or
+// why not — an ended Room's code answers 'ended', one never used 'noRoom'.
+export type ReclaimHostResult =
+  { ok: true; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'noRoom' | 'ended' };
+
+// What the server sends a Room's Host sockets (and only those), as the `roomInfo` event,
+// whenever the Room's connected devices change: how many Host devices, Board screens
+// and Player devices are connected right now. Kept apart from GameState so the engine
+// stays pure. A rejected Host claim counts as none of these.
+export interface RoomInfo {
+  hosts: number;
+  boards: number;
+  players: number;
+}
 
 export interface GameState {
   phase: GamePhase;
@@ -141,4 +189,9 @@ export type GameAction =
   | { type: 'returnToSetup' }
   | { type: 'resetGame' };
 
-export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };
+// Why a join or identity edit was refused, for the refusals a screen reacts to beyond
+// showing the message: a full Room gets its own page, and an over-cap Signature asks
+// for a simpler drawing.
+export type JoinRefusal = 'roomFull' | 'signatureTooBig';
+
+export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string; reason?: JoinRefusal };

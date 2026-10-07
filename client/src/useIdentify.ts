@@ -1,23 +1,38 @@
-import type { SocketRole } from "@yeahnah/shared";
-import { useEffect } from "react";
+import type { IdentifyResult, SocketRole } from "@yeahnah/shared";
+import { useEffect, useState } from "react";
 import { socket } from "./socket";
 
-// Declares this client's role to the server on every connection. The server uses it
-// to decide which view of GameState this socket receives — in particular, whether the
-// Active Clue's Answer is withheld until the Host Reveals (see viewForRole / ADR-0006).
-// Re-announcing on each "connect" (not just at mount) means a Board socket that drops
-// and auto-reconnects reclaims its role rather than silently reverting to the
-// restrictive default the server assigns every fresh connection. The Host screen uses
-// useHostClaim instead, since its claim carries the Host Passcode (ADR-0014).
-export function useIdentify(role: SocketRole): void {
+export type IdentifyStatus = "identifying" | IdentifyResult;
+
+// Binds this client to Room `code` with `role` on every connection. The server sends
+// the Room's state only to sockets bound to it, redacted for the role (in particular,
+// withholding the Active Clue's Answer until the Host Reveals: viewForRole /
+// ADR-0006). Re-announcing on each "connect" (not just at mount) means a socket that
+// drops and auto-reconnects gets back into its Room, since every fresh connection
+// starts bound to none. The Host screen uses useHostClaim instead, since its claim
+// carries the Host Key (ADR-0015). The Room-ended notice turns the status to "ended",
+// as if the Room's code had just been declared on after it ended.
+export function useIdentify(code: string, role: SocketRole): IdentifyStatus {
+  const [status, setStatus] = useState<IdentifyStatus>("identifying");
+
   useEffect(() => {
     function announce() {
-      socket.emit("identify", role);
+      socket.emit("identify", { code, role }, (result: IdentifyResult) => setStatus(result));
+    }
+    function ended() {
+      setStatus("ended");
     }
     if (socket.connected) announce();
     socket.on("connect", announce);
+    socket.on("roomEnded", ended);
     return () => {
       socket.off("connect", announce);
+      socket.off("roomEnded", ended);
+      // The connection is shared app-wide and outlives this screen, so tell the server
+      // this device has left the Room (e.g. back to the home page).
+      socket.emit("leaveRoom");
     };
-  }, [role]);
+  }, [code, role]);
+
+  return status;
 }

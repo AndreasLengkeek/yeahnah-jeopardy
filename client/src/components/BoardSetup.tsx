@@ -1,6 +1,8 @@
 import {
   DOUBLE_JEOPARDY_VALUES,
   MAX_CATEGORIES,
+  MAX_CATEGORY_NAME_LENGTH,
+  MAX_CLUE_FIELD_LENGTH,
   MIN_CATEGORIES,
   VALUES,
   isBlank,
@@ -11,7 +13,7 @@ import {
 import type { CategoryData, ClueField } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useRef, useState } from "react";
-import { accent, palette } from "../theme";
+import { accent, errorColor, palette } from "../theme";
 
 const CATEGORY_COUNT_OPTIONS = Array.from(
   { length: MAX_CATEGORIES - MIN_CATEGORIES + 1 },
@@ -123,7 +125,7 @@ const answerTextareaStyle: CSSProperties = {
 
 const invalidInputStyle: CSSProperties = {
   ...inputBaseStyle,
-  borderColor: "#ff8a7a",
+  borderColor: errorColor,
   boxShadow: "0 0 0 1px rgba(255,138,122,.15)",
 };
 
@@ -133,7 +135,7 @@ const invalidAnswerTextareaStyle: CSSProperties = { ...answerTextareaStyle, ...i
 
 const flagStyle: CSSProperties = {
   fontSize: 12,
-  color: "#ff8a7a",
+  color: errorColor,
   letterSpacing: ".08em",
   textTransform: "uppercase",
 };
@@ -401,6 +403,7 @@ function CategoryEditor({
             aria-label={`${labelPrefix}Category ${categoryIndex + 1} name`}
             value={category.name}
             placeholder="Category name"
+            maxLength={MAX_CATEGORY_NAME_LENGTH}
             onChange={(event) => onEditCategoryName(categoryIndex, event.target.value)}
             style={isBlank(category.name) ? invalidCategoryInputStyle : categoryInputStyle}
           />
@@ -413,6 +416,7 @@ function CategoryEditor({
                 aria-label={`${labelPrefix}Category ${categoryIndex + 1} clue ${tileIndex + 1} text`}
                 value={clue.text}
                 placeholder={`Clue ${tileIndex + 1} text`}
+                maxLength={MAX_CLUE_FIELD_LENGTH}
                 onChange={(event) => onEditClue(categoryIndex, tileIndex, "text", event.target.value)}
                 rows={3}
                 style={isBlank(clue.text) ? invalidClueTextareaStyle : clueTextareaStyle}
@@ -421,6 +425,7 @@ function CategoryEditor({
                 aria-label={`${labelPrefix}Category ${categoryIndex + 1} clue ${tileIndex + 1} answer`}
                 value={clue.answer}
                 placeholder={`Clue ${tileIndex + 1} answer`}
+                maxLength={MAX_CLUE_FIELD_LENGTH}
                 onChange={(event) => onEditClue(categoryIndex, tileIndex, "answer", event.target.value)}
                 rows={2}
                 style={isBlank(clue.answer) ? invalidAnswerTextareaStyle : answerTextareaStyle}
