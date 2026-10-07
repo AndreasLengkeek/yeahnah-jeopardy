@@ -86,7 +86,8 @@ export type IdentifyResult = 'accepted' | 'rejected' | 'noRoom';
 
 // The server's answer to `createRoom`: the new Room's code and its Host Key, or why
 // no Room was created.
-export type CreateRoomResult = { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' };
+export type CreateRoomResult =
+  { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' | 'atCapacity' };
 
 export interface GameState {
   phase: GamePhase;
@@ -157,4 +158,9 @@ export type GameAction =
   | { type: 'returnToSetup' }
   | { type: 'resetGame' };
 
-export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string };
+// Why a join or identity edit was refused, for the refusals a screen reacts to beyond
+// showing the message: a full Room gets its own page, and an over-cap Signature asks
+// for a simpler drawing.
+export type JoinRefusal = 'roomFull' | 'signatureTooBig';
+
+export type JoinResult = { ok: true; playerId: string } | { ok: false; error: string; reason?: JoinRefusal };

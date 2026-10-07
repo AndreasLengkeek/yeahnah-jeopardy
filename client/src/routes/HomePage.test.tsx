@@ -73,6 +73,20 @@ describe("home page", () => {
     expect(emitted("identify")).toEqual([]);
   });
 
+  it("says the server is at capacity when every Room slot is taken, and stays put", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+
+    await user.click(screen.getByRole("button", { name: /Hosting tonight\?/ }));
+    await user.type(screen.getByLabelText("Room Passcode"), "kia-ora");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    const [[, , ack]] = emitted("createRoom");
+    act(() => (ack as (result: CreateRoomResult) => void)({ ok: false, reason: "atCapacity" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Every Room slot is taken right now — try again in a bit.");
+    expect(emitted("identify")).toEqual([]);
+  });
+
   it("joins the Room whose code is typed, in any case", async () => {
     const user = userEvent.setup();
     renderAt("/");

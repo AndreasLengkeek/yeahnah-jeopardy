@@ -1048,12 +1048,13 @@ describe("socket.io wiring (inside a created Room)", () => {
 describe("Rooms (ADR-0015)", () => {
   const ROOM_PASSCODE = "kia-ora-2026";
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
+  let closeRoom: ReturnType<typeof createGameServer>["closeRoom"];
   let url: string;
   let sockets: Socket[] = [];
   let consoleLog: MockInstance<typeof console.log>;
 
   async function start(options?: Parameters<typeof createGameServer>[0]) {
-    ({ httpServer } = createGameServer(options));
+    ({ httpServer, closeRoom } = createGameServer(options));
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
     url = `http://127.0.0.1:${port}`;
@@ -1307,6 +1308,177 @@ describe("Rooms (ADR-0015)", () => {
       const room = (await createRoom()) as Extract<CreateRoomResult, { ok: true }>;
 
       expect(consoleLog.mock.calls.map(([line]) => line)).toEqual([`[${room.code}] [room] Room created`]);
+    });
+  });
+
+  describe("capacity guards", () => {
+    it("refuses a Room past the live-Room cap as at capacity, and creates one again once a Room ends", async () => {
+      await start({ maxRooms: 2 });
+      const first = await created();
+      await created();
+
+      expect(await createRoom()).toEqual({ ok: false, reason: "atCapacity" });
+
+      closeRoom(first.code);
+      expect((await createRoom()).ok).toBe(true);
+    });
+
+    it("defaults to 20 live Rooms", async () => {
+      await start();
+      for (let i = 0; i < 20; i++) expect((await createRoom()).ok).toBe(true);
+
+      expect(await createRoom()).toEqual({ ok: false, reason: "atCapacity" });
+    });
+
+    // A Room with its Lobby open, and a Player socket in it ready to join.
+    async function openLobby(options?: Parameters<typeof createGameServer>[0]) {
+      await start(options);
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextState();
+      host.socket.emit("openLobby");
+      await host.nextState();
+      return room;
+    }
+
+    function join(socket: Socket, identity: PlayerIdentity): Promise<JoinResult> {
+      return new Promise((resolve) => socket.emit("join", identity, resolve));
+    }
+
+    it("refuses the 13th join as full, while a joined Player can still reconnect", async () => {
+      const room = await openLobby();
+      const player = await enter(room.code, "player");
+      const joined: JoinResult[] = [];
+      for (let i = 1; i <= 12; i++) joined.push(await join(player.socket, textIdentity(`Player ${i}`)));
+      expect(joined.every((result) => result.ok)).toBe(true);
+
+      const latecomer = await enter(room.code, "player");
+      expect(await join(latecomer.socket, textIdentity("Latecomer"))).toEqual({
+        ok: false,
+        reason: "roomFull",
+        error: "This Room is full.",
+      });
+
+      const firstId = (joined[0] as Extract<JoinResult, { ok: true }>).playerId;
+      const returning = await enter(room.code, "player");
+      const reconnected = await new Promise<JoinResult>((resolve) =>
+        returning.socket.emit("reconnect", firstId, resolve),
+      );
+      expect(reconnected).toEqual({ ok: true, playerId: firstId });
+    });
+
+    it("takes the Players-per-Room cap as an option", async () => {
+      const room = await openLobby({ maxPlayersPerRoom: 1 });
+      const player = await enter(room.code, "player");
+
+      expect((await join(player.socket, textIdentity("Dana"))).ok).toBe(true);
+      expect(await join(player.socket, textIdentity("Marcus"))).toMatchObject({ ok: false, reason: "roomFull" });
+    });
+  });
+
+  describe("size caps", () => {
+    const signature = (bytes: number): PlayerIdentity => ({
+      kind: "signature",
+      image: `data:image/png;base64,${"A".repeat(bytes)}`,
+    });
+    const tooBig = { ok: false, reason: "signatureTooBig", error: expect.stringContaining("simpler drawing") };
+
+    async function lobbyWithPlayer() {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextState();
+      host.socket.emit("openLobby");
+      await host.nextState();
+      const player = await enter(room.code, "player");
+      const join = (identity: PlayerIdentity) =>
+        new Promise<JoinResult>((resolve) => player.socket.emit("join", identity, resolve));
+      const edit = (id: string, identity: PlayerIdentity) =>
+        new Promise<JoinResult>((resolve) => player.socket.emit("editIdentity", id, identity, resolve));
+      return { join, edit };
+    }
+
+    it("refuses an over-cap Signature at join, asking for a simpler drawing", async () => {
+      const { join } = await lobbyWithPlayer();
+
+      expect(await join(signature(60_000))).toEqual(tooBig);
+      expect((await join(signature(40_000))).ok).toBe(true);
+    });
+
+    it("refuses an over-cap Signature at edit", async () => {
+      const { join, edit } = await lobbyWithPlayer();
+      const joined = (await join(textIdentity("Dana"))) as Extract<JoinResult, { ok: true }>;
+
+      expect(await edit(joined.playerId, signature(60_000))).toEqual(tooBig);
+    });
+
+    it("refuses a typed name over 40 characters at join and edit", async () => {
+      const { join, edit } = await lobbyWithPlayer();
+
+      expect(await join(textIdentity("D".repeat(41)))).toEqual({ ok: false, error: expect.stringContaining("40") });
+      const joined = (await join(textIdentity("D".repeat(40)))) as Extract<JoinResult, { ok: true }>;
+      expect(joined.ok).toBe(true);
+      expect(await edit(joined.playerId, textIdentity("E".repeat(41)))).toMatchObject({ ok: false });
+    });
+
+    describe("Board Setup text", () => {
+      async function setupHost() {
+        await start();
+        const room = await created();
+        const host = await enter(room.code, "host", room.hostKey);
+        await host.nextState();
+        // Whether `emitEvent` changed the Board: a refused edit broadcasts nothing.
+        const changes = async (emitEvent: (socket: Socket) => void) => {
+          const before = host.received.length;
+          emitEvent(host.socket);
+          await settle(host.socket);
+          return host.received.length > before;
+        };
+        return { host, changes };
+      }
+
+      const category = (name: string, clue: string, answer: string) => ({
+        name,
+        clues: CATS[0].clues.map(() => ({ text: clue, answer })),
+      });
+      const board = (overrides: Partial<{ name: string; clue: string; answer: string }>) => {
+        const { name = "Birds", clue = "A clue", answer = "An answer" } = overrides;
+        return CATS.map(() => category(name, clue, answer));
+      };
+
+      it("refuses Category names over 60 characters", async () => {
+        const { changes } = await setupHost();
+
+        expect(await changes((s) => s.emit("editCategoryName", 0, "C".repeat(61)))).toBe(false);
+        expect(await changes((s) => s.emit("editCategoryName", 0, "C".repeat(60)))).toBe(true);
+      });
+
+      it.each(["text", "answer"])("refuses a Clue %s over 500 characters", async (field) => {
+        const { changes } = await setupHost();
+
+        expect(await changes((s) => s.emit("editClue", 0, 0, field, "x".repeat(501)))).toBe(false);
+        expect(await changes((s) => s.emit("editClue", 0, 0, field, "x".repeat(500)))).toBe(true);
+      });
+
+      it("refuses over-long Double Jeopardy text too", async () => {
+        const { host, changes } = await setupHost();
+        host.socket.emit("setTwoRounds", true);
+        await host.nextState();
+
+        expect(await changes((s) => s.emit("editDoubleJeopardyCategoryName", 0, "C".repeat(61)))).toBe(false);
+        expect(await changes((s) => s.emit("editDoubleJeopardyClue", 0, 0, "answer", "x".repeat(501)))).toBe(false);
+      });
+
+      it.each([
+        { label: "a Category name", overrides: { name: "C".repeat(61) } },
+        { label: "a Clue", overrides: { clue: "x".repeat(501) } },
+        { label: "an Answer", overrides: { answer: "x".repeat(501) } },
+      ])("refuses a Board Config import with an over-long $label", async ({ overrides }) => {
+        const { changes } = await setupHost();
+
+        expect(await changes((s) => s.emit("importBoardConfig", board(overrides)))).toBe(false);
+        expect(await changes((s) => s.emit("importBoardConfig", board({})))).toBe(true);
+      });
     });
   });
 });

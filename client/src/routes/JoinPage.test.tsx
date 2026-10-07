@@ -75,6 +75,24 @@ describe("JoinPage in its Room", () => {
     expect(getStoredPlayerId("QZTM")).toBeNull();
   });
 
+  it("shows Room full, over the Room's dimmed code, when the Room has no seat left", async () => {
+    const user = userEvent.setup();
+    renderAt("/BRDK/join");
+    const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
+
+    await user.click(screen.getByRole("button", { name: /type a name instead/i }));
+    await user.type(screen.getByPlaceholderText("Your name"), "Dana");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    const [, , ack] = emitted("join")[0];
+    act(() => (ack as (result: JoinResult) => void)({ ok: false, reason: "roomFull", error: "This Room is full." }));
+
+    expect(screen.getByRole("heading", { name: "Room full" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByText(/Ask the Host/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+  });
+
   it("says so when no Room has the code", () => {
     renderAt("/BRDK/join");
     const [, , ack] = emitted("identify")[0];
