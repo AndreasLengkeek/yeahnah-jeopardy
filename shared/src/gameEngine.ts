@@ -234,8 +234,8 @@ function applyEditIdentity(state: GameState, playerId: string, identity: PlayerI
 
 // Reattaches a Player who joined before the Game started to their existing identity —
 // same id, score, and roster position — rather than minting a new Player. An id that
-// doesn't match anyone currently in the roster (never joined, or the roster was cleared
-// by a reset) is rejected; the caller falls back to a normal join attempt.
+// doesn't match anyone currently in the roster (never joined in this Game's Room) is
+// rejected; the caller falls back to a normal join attempt.
 function applyReconnect(state: GameState, playerId: string): GameState {
   if (!state.players.some((player) => player.id === playerId)) return state;
 
@@ -594,17 +594,17 @@ function applyCloseClue(state: GameState): GameState {
   return { ...state, activeClue: null, ...resolveBoard(state, markTileUsed(state.board, clue)) };
 }
 
-// Back to Board Setup with the same `content` pre-loaded for editing. From the Lobby,
-// the roster stays put (the Host is only resuming Board Setup); from Game Over, the
-// roster is dropped as part of a true replay. In both cases any derived Board and the
-// Active Clue are cleared, to be rebuilt when the Lobby reopens.
+// Back to Board Setup with the same `content` pre-loaded for editing. The roster stays
+// joined from either phase, with every score back to $0 (a no-op from the Lobby, where
+// nobody has scored yet), so the group never has to rejoin between Games in a Room.
+// Any derived Board and the Active Clue are cleared, to be rebuilt when the Lobby reopens.
 function applyReturnToSetup(state: GameState): GameState {
   if (state.phase !== 'lobby' && state.phase !== 'gameOver') return state;
 
   return {
     ...state,
     phase: 'setup',
-    players: state.phase === 'lobby' ? state.players : [],
+    players: playersAtZero(state.players),
     board: [],
     activeClue: null,
     dailyDouble: null,
@@ -613,17 +613,23 @@ function applyReturnToSetup(state: GameState): GameState {
   };
 }
 
-// The "reuse the same Board" replay path: keep `content` as-is, rebuild `board` with
-// fresh Tiles, clear the roster and any Active Clue, and drop back to the Lobby. Not a
-// way out of Board Setup — `openLobby`'s completeness gate is the only sanctioned
-// `setup` → `lobby` transition — so it's a no-op while still in `setup`.
+// Successive Games in a Room keep their Players: only the scores start over.
+function playersAtZero(players: Player[]): Player[] {
+  return players.map((player) => ({ ...player, score: 0 }));
+}
+
+// The "reuse the same Board" replay path (Play again): keep `content` as-is, rebuild
+// `board` with fresh Tiles, keep every joined Player at $0, clear any Active Clue, and
+// drop back to the Lobby, where new Players can still join. Not a way out of Board
+// Setup — `openLobby`'s completeness gate is the only sanctioned `setup` → `lobby`
+// transition — so it's a no-op while still in `setup`.
 function applyResetGame(state: GameState): GameState {
   if (state.phase === 'setup') return state;
 
   const board = buildBoard(state.content, 1);
   return {
     phase: 'lobby',
-    players: [],
+    players: playersAtZero(state.players),
     content: state.content,
     board,
     activeClue: null,

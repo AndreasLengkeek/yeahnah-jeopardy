@@ -379,7 +379,7 @@ describe("socket.io wiring", () => {
     expect(corrected.activeClue?.buzzedPlayerId).toBe(danaId);
   });
 
-  it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
+  it("resets to a fresh Lobby, keeping every Player at $0, when the Host resets mid-Game", async () => {
     const dana = await connect();
     await dana.nextState();
     dana.socket.emit("openLobby");
@@ -395,7 +395,10 @@ describe("socket.io wiring", () => {
     const reset = await dana.nextState();
 
     expect(reset.phase).toBe("lobby");
-    expect(reset.players).toEqual([]);
+    expect(reset.players.map((player) => [player.identity, player.score])).toEqual([
+      [textIdentity("Dana"), 0],
+      [textIdentity("Marcus"), 0],
+    ]);
     expect(reset.activeClue).toBeNull();
   });
 
