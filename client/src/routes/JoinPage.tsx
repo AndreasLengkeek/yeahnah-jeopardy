@@ -100,6 +100,10 @@ export function JoinPage() {
     };
   }, [playerId]);
 
+  useEffect(() => {
+    if (identified === "ended") clearStoredPlayerId(code);
+  }, [identified, code]);
+
   // Safety net: Play again and Back to Board Setup keep the roster, so this shouldn't
   // fire on those paths — but if a joined Player ever goes missing from the Lobby or
   // Board Setup roster, send them back to the join form to rejoin fresh.
@@ -177,6 +181,9 @@ export function JoinPage() {
     !activeClue.isDailyDouble;
 
   // A code with no live Room sends the Player back to Room Code entry to try another.
+  // Their Room ending sends them there too, as a fresh journey: no error, and nothing
+  // remembered of the Room.
+  if (identified === "ended") return <Navigate to="/join" replace />;
   if (identified === "noRoom") {
     return <Navigate to="/join" replace state={{ noRoom: true } satisfies RoomCodeEntryState} />;
   }

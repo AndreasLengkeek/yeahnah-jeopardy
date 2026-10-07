@@ -7,6 +7,7 @@ import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { HostKeyNeeded } from "../components/HostKeyNeeded";
+import { RoomEnded } from "../components/RoomEnded";
 import { RoomNotice } from "../components/RoomNotice";
 import { Lobby } from "../components/Lobby";
 import { PlayerIdentity } from "../components/PlayerIdentity";
@@ -163,6 +164,9 @@ export function HostPage() {
   const state = useGameState();
   const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
   const toggleBoardEffects = () => socket.emit("toggleBoardEffects");
+  const closeRoom = () => socket.emit("closeRoom");
+
+  if (claim === "ended") return <RoomEnded code={code} />;
 
   // Until this device is accepted as Host, nothing of the Game is rendered — the
   // state it holds meanwhile is only the redacted Player view anyway (ADR-0015).
@@ -210,7 +214,7 @@ export function HostPage() {
       />
       {state.phase === "playing" ? (
         <>
-          <RoomPanel code={code} info={roomInfo} collapsed />
+          <RoomPanel code={code} info={roomInfo} onCloseRoom={closeRoom} collapsed />
           <ClueCardStage
             board={state.board}
             activeClue={state.activeClue}
@@ -228,7 +232,7 @@ export function HostPage() {
       ) : (
         <div style={besidePanelStyle}>
           <div style={mainColumnStyle}>{betweenPlay(state)}</div>
-          <RoomPanel code={code} info={roomInfo} collapsed={false} />
+          <RoomPanel code={code} info={roomInfo} onCloseRoom={closeRoom} collapsed={false} />
         </div>
       )}
     </div>

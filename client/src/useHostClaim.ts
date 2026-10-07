@@ -11,7 +11,8 @@ export type ReclaimFailure = Extract<ReclaimHostResult, { ok: false }>["reason"]
 
 // Claims Host of Room `code` on every connection, with whatever Host Key this device
 // remembers for that Room (possibly none) — the Host-screen counterpart of
-// useIdentify. A remembered key the Room rejects is forgotten.
+// useIdentify. A remembered key the Room rejects is forgotten. The Room-ended notice
+// turns the claim to "ended", as useIdentify's status.
 //
 // A Host link (`/CODE/host#<hostKey>`) hands this device the key in the fragment: it's
 // remembered for the Room before the claim goes out, then cleared from the address so a
@@ -50,10 +51,15 @@ export function useHostClaim(code: string): {
         setClaim(result);
       });
     }
+    function ended() {
+      setClaim("ended");
+    }
     if (socket.connected) announce();
     socket.on("connect", announce);
+    socket.on("roomEnded", ended);
     return () => {
       socket.off("connect", announce);
+      socket.off("roomEnded", ended);
     };
   }, [code]);
 

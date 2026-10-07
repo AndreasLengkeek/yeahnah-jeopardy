@@ -105,10 +105,11 @@ function identifyClaims(): Array<{ claim: IdentifyClaim; ack: (result: IdentifyR
 
 // Plays the server answering the latest Host claim: an accepted claim also gets the
 // Host's (unredacted) view pushed first, a rejected one the Player view — the order
-// the real server sends them in. A "noRoom" answer gets no state at all.
+// the real server sends them in. A "noRoom" or "ended" answer gets no state at all.
 function answerLatestClaim(result: IdentifyResult) {
   const claim = identifyClaims().at(-1)!;
-  if (result !== "noRoom") fire("state", viewForRole(initialState(), result === "accepted" ? "host" : "player"));
+  if (result !== "noRoom" && result !== "ended")
+    fire("state", viewForRole(initialState(), result === "accepted" ? "host" : "player"));
   act(() => claim.ack(result));
 }
 
@@ -344,5 +345,78 @@ describe("HostPage Room panel", () => {
     fireEvent.click(strip);
 
     expect(screen.queryByText("2 Players")).not.toBeInTheDocument();
+  });
+
+  const closeRoomEmits = () => fakeSocket.emit.mock.calls.filter(([event]) => event === "closeRoom");
+
+  it("asks before closing the Room, and Cancel backs out without closing it", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    fireEvent.click(within(roomPanel()).getByRole("button", { name: "Close Room…" }));
+
+    expect(
+      within(roomPanel()).getByText("Close Room BRDK? The Game ends for everyone, right now."),
+    ).toBeInTheDocument();
+    expect(closeRoomEmits()).toEqual([]);
+
+    fireEvent.click(within(roomPanel()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByText(/The Game ends for everyone/)).not.toBeInTheDocument();
+    expect(within(roomPanel()).getByRole("button", { name: "Close Room…" })).toBeInTheDocument();
+    expect(closeRoomEmits()).toEqual([]);
+  });
+
+  it("closes the Room once confirmed", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    fireEvent.click(within(roomPanel()).getByRole("button", { name: "Close Room…" }));
+    fireEvent.click(within(roomPanel()).getByRole("button", { name: "Close Room" }));
+
+    expect(closeRoomEmits()).toHaveLength(1);
+  });
+
+  it("notes that the Room otherwise ends by itself after everyone leaves", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    expect(within(roomPanel()).getByText(/ends by itself 30 min after everyone leaves/)).toBeInTheDocument();
+  });
+});
+
+describe("HostPage when its Room ends", () => {
+  beforeEach(() => {
+    fakeSocket.emit.mockClear();
+    fakeSocket.listeners.clear();
+    fakeSocket.connected = true;
+    localStorage.clear();
+    localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
+  });
+
+  function expectRoomHasEnded() {
+    expect(screen.getByText("This Room has ended")).toBeInTheDocument();
+    expect(screen.getByText("Thanks for playing.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to the home page" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("complementary", { name: "Room" })).not.toBeInTheDocument();
+    expect(openLobbyButton()).not.toBeInTheDocument();
+  }
+
+  it("shows Room has ended when the Room-ended notice arrives", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    fire("roomEnded");
+
+    expectRoomHasEnded();
+  });
+
+  it("shows Room has ended when the address is an ended Room's", () => {
+    renderAt("/brdk/host");
+
+    answerLatestClaim("ended");
+
+    expectRoomHasEnded();
   });
 });
