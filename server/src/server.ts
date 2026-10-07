@@ -41,10 +41,18 @@ export interface GameServerOptions {
   /** The most Players one Room's roster holds; a new join past it is refused as full
    * (a joined Player's reconnect never is). */
   maxPlayersPerRoom?: number;
+  /** The clock Rooms expire by, in milliseconds (defaults to real time). */
+  now?: () => number;
 }
 
 const DEFAULT_MAX_ROOMS = 20;
 const DEFAULT_MAX_PLAYERS_PER_ROOM = 12;
+
+// A Room ends by itself once no Host or Player device has been connected for this
+// long (a Board left on a TV doesn't count, so it can't keep a Room alive forever).
+const EMPTY_ROOM_LIMIT_MS = 30 * 60 * 1000;
+// ...or once this long passes with no Host action, even with devices still connected.
+const HOST_IDLE_LIMIT_MS = 4 * 60 * 60 * 1000;
 
 // Consonants only, so a code never spells a word, and without Y (a part-time vowel).
 // Dropping the vowels also drops I and O, the letters most easily misread as 1 and 0.
@@ -66,6 +74,11 @@ interface Room {
   // Each Signature Player's current image version, keyed by playerId, so a drawing is
   // hashed once rather than on every broadcast.
   signatureVersions: Map<string, { image: string; version: string }>;
+  // Since when no Host or Player device has been connected, or undefined while one is.
+  emptySince: number | undefined;
+  // When the Room's Host last acted: creation, a Host device accepted (by Host Key or
+  // reclaim), or an accepted Host event.
+  lastHostAction: number;
 }
 
 // Signature images leave the state broadcast: each view carries this address in place
@@ -94,6 +107,7 @@ export function createGameServer(options: GameServerOptions = {}) {
   const roomPasscode = options.roomPasscode || undefined;
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   const maxPlayersPerRoom = options.maxPlayersPerRoom ?? DEFAULT_MAX_PLAYERS_PER_ROOM;
+  const now = options.now ?? Date.now;
 
   // Every live Room, keyed by its upper-case Room Code.
   const rooms = new Map<string, Room>();
@@ -206,6 +220,8 @@ export function createGameServer(options: GameServerOptions = {}) {
       info.boards !== room.roomInfo.boards ||
       info.players !== room.roomInfo.players;
     room.roomInfo = info;
+    if (info.hosts + info.players > 0) room.emptySince = undefined;
+    else room.emptySince ??= now();
     if (changed) {
       for (const [socket, role] of room.members) if (role === "host") socket.emit("roomInfo", info);
     } else if (newcomer && room.members.get(newcomer) === "host") {
@@ -290,6 +306,8 @@ export function createGameServer(options: GameServerOptions = {}) {
         devices: new Map(),
         roomInfo: { hosts: 0, boards: 0, players: 0 },
         signatureVersions: new Map(),
+        emptySince: now(),
+        lastHostAction: now(),
       };
       rooms.set(room.code, room);
       endedCodes.delete(room.code);
@@ -327,6 +345,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       room.members.set(socket, granted);
       if (accepted) room.devices.set(socket, role);
       else room.devices.delete(socket);
+      if (accepted && role === "host") room.lastHostAction = now();
       socket.emit("state", viewForRole(publicGame(room), granted));
       syncRoomInfo(room, socket);
     }
@@ -372,10 +391,13 @@ export function createGameServer(options: GameServerOptions = {}) {
     }
 
     // Registers a Host-only event: silently ignored (no state change, no broadcast)
-    // from a socket that hasn't been accepted as Host of its bound Room.
+    // from a socket that hasn't been accepted as Host of its bound Room. An accepted one
+    // is a Host action, restarting the Room's 4 hours.
     function onHostEvent<Args extends unknown[]>(event: string, handler: (room: Room, ...args: Args) => void): void {
       socket.on(event, (...args: Args) => {
-        if (bound && bound.members.get(socket) === "host") handler(bound, ...args);
+        if (!bound || bound.members.get(socket) !== "host") return;
+        bound.lastHostAction = now();
+        handler(bound, ...args);
       });
     }
 
@@ -536,5 +558,18 @@ export function createGameServer(options: GameServerOptions = {}) {
     });
   });
 
-  return { app, httpServer, io };
+  // Ends every Room past a time limit, through the same path as Close Room. The entry
+  // point runs it about once a minute; tests advance the clock and call it directly.
+  function sweep(): void {
+    const time = now();
+    for (const room of [...rooms.values()]) {
+      if (room.emptySince !== undefined && time - room.emptySince >= EMPTY_ROOM_LIMIT_MS) {
+        endRoom(room, "expired: empty for 30 minutes");
+      } else if (time - room.lastHostAction >= HOST_IDLE_LIMIT_MS) {
+        endRoom(room, "expired: no Host action for 4 hours");
+      }
+    }
+  }
+
+  return { app, httpServer, io, sweep };
 }
