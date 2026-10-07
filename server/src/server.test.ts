@@ -257,33 +257,121 @@ describe("socket.io wiring (inside a created Room)", () => {
     expect(playerMuted[flag]).toBe(true);
   });
 
-  it("carries a drawn signature identity through a join round-trip to the broadcast state", async () => {
-    const dana = await connect("host");
-    await dana.nextState();
-    dana.socket.emit("openLobby");
-    await dana.nextState();
+  describe("Signature images", () => {
+    const PIXEL_PNG =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const REDRAWN_PNG =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const signature: PlayerIdentity = { kind: "signature", image: `data:image/png;base64,${PIXEL_PNG}` };
+    const redrawn: PlayerIdentity = { kind: "signature", image: `data:image/png;base64,${REDRAWN_PNG}` };
 
-    const signature: PlayerIdentity = {
-      kind: "signature",
-      image:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    // Opens the Lobby and joins `identity` from a fresh Player socket. The Host's and
+    // Player's next states are the post-join broadcast.
+    async function joinAs(identity: PlayerIdentity) {
+      const host = await connect("host");
+      await host.nextState();
+      host.socket.emit("openLobby");
+      await host.nextState();
+      const player = await connect("player");
+      await player.nextState();
+      const ack = await new Promise<JoinResult>((resolve) => player.socket.emit("join", identity, resolve));
+      expect(ack.ok).toBe(true);
+      const playerId = (ack as Extract<JoinResult, { ok: true }>).playerId;
+      return { host, player, playerId };
+    }
+
+    const imageOf = (state: GameState) => {
+      const identity = state.players[0].identity;
+      if (identity.kind !== "signature") throw new Error("expected a Signature");
+      return identity.image;
     };
-    const ack = await new Promise<JoinResult>((resolve) => {
-      dana.socket.emit("join", signature, resolve);
+
+    it("broadcasts a Room-scoped image address for a Signature, not its data URL", async () => {
+      const { host, player, playerId } = await joinAs(signature);
+
+      const views = await Promise.all([host.nextState(), player.nextState()]);
+
+      for (const view of views) {
+        expect(imageOf(view)).toMatch(new RegExp(`^/rooms/${room.code}/signatures/${playerId}/`));
+        expect(JSON.stringify(view)).not.toContain(PIXEL_PNG);
+      }
     });
-    expect(ack.ok).toBe(true);
 
-    const broadcast = await dana.nextState();
-    expect(broadcast.players).toHaveLength(1);
-    expect(broadcast.players[0].identity).toEqual(signature);
+    it("serves the Signature image at its address with long-lived caching", async () => {
+      const { host } = await joinAs(signature);
+      const address = imageOf(await host.nextState());
 
-    // A reconnect is playerId-keyed, so the drawn Signature comes back unchanged just
-    // like a typed name would.
-    const danaId = (ack as Extract<JoinResult, { ok: true }>).playerId;
-    const reconnected = await connect("player");
-    await reconnected.nextState();
-    reconnected.socket.emit("reconnect", danaId);
-    expect((await reconnected.nextState()).players[0].identity).toEqual(signature);
+      const response = await fetch(url + address);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from(PIXEL_PNG, "base64"));
+    });
+
+    it("gives a reconnecting device the same image address", async () => {
+      const { host, playerId } = await joinAs(signature);
+      const address = imageOf(await host.nextState());
+
+      const reconnected = await connect("player");
+      await reconnected.nextState();
+      reconnected.socket.emit("reconnect", playerId);
+
+      expect(imageOf(await reconnected.nextState())).toBe(address);
+    });
+
+    it("404s the image under another Room's code or for an unknown Player", async () => {
+      const { host, playerId } = await joinAs(signature);
+      const address = imageOf(await host.nextState());
+      const version = address.split("/").pop();
+      const other = await new Promise<Extract<CreateRoomResult, { ok: true }>>((resolve) =>
+        sockets[0].emit("createRoom", undefined, resolve),
+      );
+
+      const responses = await Promise.all([
+        fetch(`${url}/rooms/${other.code}/signatures/${playerId}/${version}`),
+        fetch(`${url}/rooms/${room.code}/signatures/no-such-player/${version}`),
+        fetch(`${url}/rooms/ZZZZ/signatures/${playerId}/${version}`),
+      ]);
+
+      expect(responses.map((response) => response.status)).toEqual([404, 404, 404]);
+    });
+
+    it("changes the address when the Player redraws, and retires the old one", async () => {
+      const { host, player, playerId } = await joinAs(signature);
+      const before = imageOf(await host.nextState());
+      await player.nextState();
+
+      const ack = await new Promise<JoinResult>((resolve) =>
+        player.socket.emit("editIdentity", playerId, redrawn, resolve),
+      );
+      expect(ack.ok).toBe(true);
+      const after = imageOf(await host.nextState());
+
+      expect(after).not.toBe(before);
+      expect(after).toMatch(new RegExp(`^/rooms/${room.code}/signatures/${playerId}/`));
+      const [oldResponse, newResponse] = await Promise.all([fetch(url + before), fetch(url + after)]);
+      expect(oldResponse.status).toBe(404);
+      expect(Buffer.from(await newResponse.arrayBuffer())).toEqual(Buffer.from(REDRAWN_PNG, "base64"));
+    });
+
+    it("never serves a Signature that isn't a canvas image", async () => {
+      const page: PlayerIdentity = {
+        kind: "signature",
+        image: "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+      };
+      const { host } = await joinAs(page);
+      const address = imageOf(await host.nextState());
+
+      expect(address).toMatch(new RegExp(`^/rooms/${room.code}/signatures/`));
+      expect((await fetch(url + address)).status).toBe(404);
+    });
+
+    it("leaves typed names untouched", async () => {
+      const { host } = await joinAs(textIdentity("Aroha"));
+
+      expect((await host.nextState()).players[0].identity).toEqual(textIdentity("Aroha"));
+    });
   });
 
   it("lets a joined Player edit their identity before the Game starts, broadcasting the change", async () => {
@@ -1275,6 +1363,14 @@ describe("serving the built client", () => {
     await start({ clientDir });
 
     const res = await fetch(`${url}/assets/stale-hash.js`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("answers an unknown Signature image address with 404 rather than the entry page", async () => {
+    await start({ clientDir });
+
+    const res = await fetch(`${url}/rooms/BRDK/signatures/no-such-player/abc123`);
 
     expect(res.status).toBe(404);
   });
