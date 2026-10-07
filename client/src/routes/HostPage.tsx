@@ -6,6 +6,7 @@ import { BoardSetup } from "../components/BoardSetup";
 import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
+import { HostKeyNeeded } from "../components/HostKeyNeeded";
 import { RoomEnded } from "../components/RoomEnded";
 import { RoomNotice } from "../components/RoomNotice";
 import { Lobby } from "../components/Lobby";
@@ -159,7 +160,7 @@ export function hostFooter(activeClue: ActiveClueState, players: Player[]): Reac
 export function HostPage() {
   const code = useRoomCode();
   const roomInfo = useRoomInfo();
-  const claim = useHostClaim(code);
+  const { claim, reclaim } = useHostClaim(code);
   const state = useGameState();
   const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
   const toggleBoardEffects = () => socket.emit("toggleBoardEffects");
@@ -169,13 +170,20 @@ export function HostPage() {
 
   // Until this device is accepted as Host, nothing of the Game is rendered — the
   // state it holds meanwhile is only the redacted Player view anyway (ADR-0015).
-  if (claim === "rejected" || claim === "noRoom") {
+  if (claim === "rejected") {
     return (
       <div style={shellStyle}>
         <Header subtitle="Host view" />
-        <RoomNotice>
-          {claim === "noRoom" ? "No Room with that code" : `This device isn't the Host of Room ${code}`}
-        </RoomNotice>
+        <HostKeyNeeded code={code} onReclaim={reclaim} />
+      </div>
+    );
+  }
+
+  if (claim === "noRoom") {
+    return (
+      <div style={shellStyle}>
+        <Header subtitle="Host view" />
+        <RoomNotice>No Room with that code</RoomNotice>
       </div>
     );
   }

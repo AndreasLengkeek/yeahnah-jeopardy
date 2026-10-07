@@ -1,6 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
-import type { ActiveClue, IdentifyClaim, IdentifyResult, Player } from "@yeahnah/shared";
+import type {
+  ActiveClue,
+  IdentifyClaim,
+  IdentifyResult,
+  Player,
+  ReclaimHostClaim,
+  ReclaimHostResult,
+} from "@yeahnah/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in socket that records listeners, so tests can play the server's part:
@@ -124,6 +131,15 @@ describe("HostPage Host Key claim", () => {
     expect(identifyClaims().map(({ claim }) => claim)).toEqual([{ code: "BRDK", role: "host", hostKey: "key-brdk" }]);
   });
 
+  it("opening a Host link remembers its Host Key for that Room, claims with it, and clears it from the address", () => {
+    localStorage.setItem(hostKeyStorage("BRDK"), "old-key");
+    const { address } = renderAt("/BRDK/host#link-key");
+
+    expect(localStorage.getItem(hostKeyStorage("BRDK"))).toBe("link-key");
+    expect(identifyClaims().map(({ claim }) => claim)).toEqual([{ code: "BRDK", role: "host", hostKey: "link-key" }]);
+    expect(address()).toBe("/BRDK/host");
+  });
+
   it("shows the Host screen once the claim is accepted", () => {
     localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
     renderAt("/BRDK/host");
@@ -134,14 +150,14 @@ describe("HostPage Host Key claim", () => {
     expect(openLobbyButton()).toBeInTheDocument();
   });
 
-  it("says this device isn't the Host, shows nothing of the Game, and forgets the rejected key", () => {
+  it("shows Host Key needed, nothing of the Game, and forgets the rejected key", () => {
     localStorage.setItem(hostKeyStorage("BRDK"), "stale-key");
     localStorage.setItem(hostKeyStorage("QZTM"), "key-qztm");
     renderAt("/BRDK/host");
 
     answerLatestClaim("rejected");
 
-    expect(screen.getByText("This device isn't the Host of Room BRDK")).toBeInTheDocument();
+    expect(screen.getByText("You're not hosting this Room here")).toBeInTheDocument();
     expect(openLobbyButton()).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit Board" })).not.toBeInTheDocument();
     expect(localStorage.getItem(hostKeyStorage("BRDK"))).toBeNull();
@@ -154,7 +170,7 @@ describe("HostPage Host Key claim", () => {
 
     answerLatestClaim("rejected");
 
-    expect(screen.getByText("This device isn't the Host of Room BRDK")).toBeInTheDocument();
+    expect(screen.getByText("You're not hosting this Room here")).toBeInTheDocument();
   });
 
   it("says so when no Room has the code", () => {
@@ -180,6 +196,64 @@ describe("HostPage Host Key claim", () => {
     expect(identifyClaims()[1].claim).toEqual({ code: "BRDK", role: "host", hostKey: "key-brdk" });
     answerLatestClaim("accepted");
     expect(openLobbyButton()).toBeInTheDocument();
+  });
+});
+
+function reclaimClaims(): Array<{ claim: ReclaimHostClaim; ack: (result: ReclaimHostResult) => void }> {
+  return fakeSocket.emit.mock.calls
+    .filter(([event]) => event === "reclaimHost")
+    .map(([, claim, ack]) => ({ claim, ack }));
+}
+
+describe("HostPage Host Key needed", () => {
+  beforeEach(() => {
+    fakeSocket.emit.mockClear();
+    fakeSocket.listeners.clear();
+    fakeSocket.connected = true;
+    localStorage.clear();
+  });
+
+  function reclaimWith(passcode: string) {
+    fireEvent.change(screen.getByLabelText("Room Passcode"), { target: { value: passcode } });
+    fireEvent.click(screen.getByRole("button", { name: "Reclaim" }));
+  }
+
+  it("shows the Room Code and a hint to open the Host link, and nothing of the Game", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("rejected");
+
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByText(/Open the Host link on this device/)).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Room" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open Lobby/ })).not.toBeInTheDocument();
+  });
+
+  it("reclaims Host with the Room Passcode, remembers the returned Host Key, and shows the Host screen", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("rejected");
+
+    reclaimWith("kia-ora");
+
+    expect(reclaimClaims().map(({ claim }) => claim)).toEqual([{ code: "BRDK", passcode: "kia-ora" }]);
+    // The server binds the socket as Host (pushing the Host's view) before it acks.
+    fire("state", viewForRole(initialState(), "host"));
+    act(() => reclaimClaims()[0].ack({ ok: true, hostKey: "key-brdk" }));
+
+    expect(localStorage.getItem(hostKeyStorage("BRDK"))).toBe("key-brdk");
+    expect(screen.queryByText("You're not hosting this Room here")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open Lobby/ })).toBeInTheDocument();
+  });
+
+  it("says so when the Room Passcode is wrong, and stays on Host Key needed", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("rejected");
+
+    reclaimWith("guess");
+    act(() => reclaimClaims()[0].ack({ ok: false, reason: "wrongPasscode" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("That isn't the Room Passcode. Try again.");
+    expect(screen.getByText("You're not hosting this Room here")).toBeInTheDocument();
+    expect(localStorage.getItem(hostKeyStorage("BRDK"))).toBeNull();
   });
 });
 
@@ -225,11 +299,30 @@ describe("HostPage Room panel", () => {
     expect(within(roomPanel()).getByText("1 Player")).toBeInTheDocument();
   });
 
+  const hostingElsewhere = () => within(roomPanel()).getByRole("region", { name: "Hosting from another device" });
+
   it("links to the Room's Board", () => {
     renderAt("/brdk/host");
     answerLatestClaim("accepted");
 
-    expect(within(roomPanel()).getByRole("link", { name: /Open Board/ })).toHaveAttribute("href", "/BRDK/board");
+    expect(within(hostingElsewhere()).getByRole("link", { name: /Open Board/ })).toHaveAttribute("href", "/BRDK/board");
+  });
+
+  it("shows the Host link with a Copy button and a warning not to show it on the Board", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    const hostLink = `${window.location.origin}/BRDK/host#key-brdk`;
+    expect(within(hostingElsewhere()).getByRole("textbox", { name: "Host link" })).toHaveValue(hostLink);
+    expect(
+      within(hostingElsewhere()).getByText("Anyone with this link can run the Game. Don't show it on the Board."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(hostingElsewhere()).getByRole("button", { name: "Copy" }));
+
+    expect(writeText).toHaveBeenCalledWith(hostLink);
   });
 
   it("collapses to a Room Code strip during play, which expands on demand", () => {
