@@ -7,6 +7,7 @@ import { resolveActiveClue } from "../activeClue";
 import { GameOver } from "../components/GameOver";
 import { JoinForm } from "../components/JoinForm";
 import { PlayerIdentity } from "../components/PlayerIdentity";
+import { RoomFull } from "../components/RoomFull";
 import { WagerForm } from "../components/WagerForm";
 import { formatScore } from "../format";
 import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
@@ -65,6 +66,7 @@ export function JoinPage() {
   const [submitting, setSubmitting] = useState(false);
   const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId(code) !== null);
   const [editing, setEditing] = useState(false);
+  const [roomFull, setRoomFull] = useState(false);
 
   // On mount, a Player whose browser persisted an identifier from a previous join to
   // this Room attempts to reattach to it — covering both a reload and a dropped
@@ -123,6 +125,8 @@ export function JoinPage() {
         storePlayerId(code, result.playerId);
         setJoinedIdentity(identity);
         setPlayerId(result.playerId);
+      } else if (result.reason === "roomFull") {
+        setRoomFull(true);
       } else {
         setError(result.error);
       }
@@ -198,7 +202,9 @@ export function JoinPage() {
           textAlign: "center",
         }}
       >
-        {reconnecting ? (
+        {roomFull && !playerId ? (
+          <RoomFull code={code} playerCount={state?.players.length ?? 0} onTryAgain={() => setRoomFull(false)} />
+        ) : reconnecting ? (
           <div style={{ color: "#c9d2f5" }}>Reconnecting…</div>
         ) : inSetup ? (
           <div style={{ color: "#c9d2f5" }}>The Host is still setting up the Board…</div>

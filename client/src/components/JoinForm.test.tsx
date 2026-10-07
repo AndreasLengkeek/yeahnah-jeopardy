@@ -1,9 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { MAX_SIGNATURE_LENGTH } from "@yeahnah/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JoinForm } from "./JoinForm";
 
-const { MOCK_IMAGE } = vi.hoisted(() => ({ MOCK_IMAGE: "data:image/png;base64,MOCKSIGNATURE" }));
+const { MOCK_IMAGE, exported } = vi.hoisted(() => {
+  const MOCK_IMAGE = "data:image/png;base64,MOCKSIGNATURE";
+  // What the stub canvas exports while it has content; a test may swap in another image.
+  return { MOCK_IMAGE, exported: { image: MOCK_IMAGE } };
+});
 
 // The real SignatureCanvas is browser-API-bound glue (untested by design). This stub
 // stands in for it so the form's submit-enablement logic can be exercised: one button
@@ -18,7 +23,7 @@ vi.mock("./SignatureCanvas", async () => {
       ref: import("react").ForwardedRef<{ toDataURL: () => string }>,
     ) {
       const [hasContent, setHasContent] = useState(false);
-      useImperativeHandle(ref, () => ({ toDataURL: () => (hasContent ? MOCK_IMAGE : "") }), [hasContent]);
+      useImperativeHandle(ref, () => ({ toDataURL: () => (hasContent ? exported.image : "") }), [hasContent]);
 
       function set(next: boolean) {
         setHasContent(next);
@@ -37,6 +42,10 @@ vi.mock("./SignatureCanvas", async () => {
       );
     }),
   };
+});
+
+beforeEach(() => {
+  exported.image = MOCK_IMAGE;
 });
 
 function renderForm(overrides: Partial<Parameters<typeof JoinForm>[0]> = {}) {
@@ -120,5 +129,34 @@ describe("JoinForm submit enablement", () => {
     await user.click(screen.getByRole("button", { name: "Join" }));
 
     expect(onJoin).not.toHaveBeenCalled();
+  });
+});
+
+describe("JoinForm size caps", () => {
+  it("asks for a simpler drawing, without joining, when the Signature is over the size cap", async () => {
+    const user = userEvent.setup();
+    exported.image = `data:image/png;base64,${"A".repeat(MAX_SIGNATURE_LENGTH)}`;
+    const { onJoin } = renderForm();
+
+    await user.click(screen.getByRole("button", { name: "mock: draw a stroke" }));
+    await user.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(onJoin).not.toHaveBeenCalled();
+    expect(screen.getByText(/try a simpler drawing/)).toBeInTheDocument();
+  });
+
+  it("shows the server's error when it refuses the drawing", () => {
+    renderForm({ error: "That drawing is too big — try a simpler drawing." });
+
+    expect(screen.getByText(/try a simpler drawing/)).toBeInTheDocument();
+  });
+
+  it("caps a typed name at the server's name length", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(screen.getByRole("button", { name: /type a name instead/i }));
+
+    expect(screen.getByPlaceholderText("Your name")).toHaveAttribute("maxLength", "40");
   });
 });

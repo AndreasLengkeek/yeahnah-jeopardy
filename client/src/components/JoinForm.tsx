@@ -1,5 +1,5 @@
 import type { PlayerIdentity as PlayerIdentityValue } from "@yeahnah/shared";
-import { isBlankIdentity, normalizeIdentity } from "@yeahnah/shared";
+import { isBlankIdentity, MAX_NAME_LENGTH, normalizeIdentity, signatureTooBig } from "@yeahnah/shared";
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { accent } from "../theme";
@@ -60,6 +60,8 @@ export function JoinForm({
   const [mode, setMode] = useState<JoinMode>("draw");
   const [name, setName] = useState("");
   const [hasDrawing, setHasDrawing] = useState(false);
+  // A drawing over the server's size cap is caught here rather than sent and refused.
+  const [tooBig, setTooBig] = useState(false);
   const canvasRef = useRef<SignatureCanvasHandle>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -73,9 +75,14 @@ export function JoinForm({
     event.preventDefault();
     if (submitting || !canSubmit) return;
 
+    setTooBig(false);
     if (mode === "draw") {
       const image = canvasRef.current?.toDataURL() ?? "";
       if (!image) return;
+      if (signatureTooBig({ kind: "signature", image })) {
+        setTooBig(true);
+        return;
+      }
       onJoin({ kind: "signature", image });
     } else {
       const identity = normalizeIdentity({ kind: "text", name });
@@ -99,7 +106,7 @@ export function JoinForm({
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Your name"
-          maxLength={24}
+          maxLength={MAX_NAME_LENGTH}
           style={inputStyle}
           autoComplete="off"
           data-1p-ignore="true"
@@ -114,7 +121,11 @@ export function JoinForm({
       <button type="submit" disabled={submitting || !canSubmit} style={submitButtonStyle}>
         Join
       </button>
-      {error && <div style={{ color: "#ff8a7a", fontSize: 13 }}>{error}</div>}
+      {(tooBig || error) && (
+        <div style={{ color: "#ff8a7a", fontSize: 13 }}>
+          {tooBig ? "That drawing is too big — try a simpler drawing." : error}
+        </div>
+      )}
     </form>
   );
 }

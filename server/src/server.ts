@@ -3,7 +3,15 @@ import { createServer } from "node:http";
 import { extname, join, resolve } from "node:path";
 import express from "express";
 import { Server, type Socket } from "socket.io";
-import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
+import {
+  applyAction,
+  initialState,
+  MAX_NAME_LENGTH,
+  nameTooLong,
+  normalizeIdentity,
+  signatureTooBig,
+  viewForRole,
+} from "@yeahnah/shared";
 import type {
   CategoryData,
   ClueField,
@@ -26,7 +34,15 @@ export interface GameServerOptions {
   clientDir?: string;
   /** The Room Passcode (ADR-0015). Absent (or empty) → anyone may create a Room. */
   roomPasscode?: string;
+  /** The most live Rooms at once; creating another is refused as at capacity. */
+  maxRooms?: number;
+  /** The most Players one Room's roster holds; a new join past it is refused as full
+   * (a joined Player's reconnect never is). */
+  maxPlayersPerRoom?: number;
 }
+
+const DEFAULT_MAX_ROOMS = 20;
+const DEFAULT_MAX_PLAYERS_PER_ROOM = 12;
 
 // Consonants only, so a code never spells a word, and without Y (a part-time vowel).
 // Dropping the vowels also drops I and O, the letters most easily misread as 1 and 0.
@@ -74,6 +90,8 @@ function secretMatches(supplied: unknown, expected: string): boolean {
 
 export function createGameServer(options: GameServerOptions = {}) {
   const roomPasscode = options.roomPasscode || undefined;
+  const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
+  const maxPlayersPerRoom = options.maxPlayersPerRoom ?? DEFAULT_MAX_PLAYERS_PER_ROOM;
 
   // Every live Room, keyed by its upper-case Room Code.
   const rooms = new Map<string, Room>();
@@ -257,6 +275,10 @@ export function createGameServer(options: GameServerOptions = {}) {
         ack({ ok: false, reason: "wrongPasscode" });
         return;
       }
+      if (rooms.size >= maxRooms) {
+        ack({ ok: false, reason: "atCapacity" });
+        return;
+      }
 
       const room: Room = {
         code: newRoomCode(),
@@ -327,18 +349,33 @@ export function createGameServer(options: GameServerOptions = {}) {
       });
     }
 
-    function identityError(wasLobby: boolean, identity: PlayerIdentity): string {
-      return !wasLobby
-        ? "The game has already started."
-        : identity.kind === "signature"
-          ? "That signature didn't come through — try drawing again."
-          : "That name is already taken.";
+    // Why the engine refused a join or identity edit, in the Player's terms.
+    function identityRefusal(wasLobby: boolean, identity: PlayerIdentity): Extract<JoinResult, { ok: false }> {
+      if (!wasLobby) return { ok: false, error: "The game has already started." };
+      const normalized = normalizeIdentity(identity);
+      if (signatureTooBig(normalized)) {
+        return { ok: false, reason: "signatureTooBig", error: "That drawing is too big — try a simpler drawing." };
+      }
+      if (nameTooLong(normalized)) {
+        return { ok: false, error: `That name is too long — keep it to ${MAX_NAME_LENGTH} characters.` };
+      }
+      return {
+        ok: false,
+        error:
+          identity.kind === "signature"
+            ? "That signature didn't come through — try drawing again."
+            : "That name is already taken.",
+      };
     }
 
     onRoomEvent("join", (room, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
       const wasLobby = room.game.phase === "lobby";
+      if (wasLobby && room.game.players.length >= maxPlayersPerRoom) {
+        ack?.({ ok: false, reason: "roomFull", error: "This Room is full." });
+        return;
+      }
       if (!dispatch(room, { type: "join", identity })) {
-        ack?.({ ok: false, error: identityError(wasLobby, identity) });
+        ack?.(identityRefusal(wasLobby, identity));
         return;
       }
 
@@ -362,7 +399,7 @@ export function createGameServer(options: GameServerOptions = {}) {
     onRoomEvent("editIdentity", (room, id: string, identity: PlayerIdentity, ack?: (result: JoinResult) => void) => {
       const wasLobby = room.game.phase === "lobby";
       if (!dispatch(room, { type: "editIdentity", playerId: id, identity })) {
-        ack?.({ ok: false, error: identityError(wasLobby, identity) });
+        ack?.(identityRefusal(wasLobby, identity));
         return;
       }
 
@@ -469,5 +506,11 @@ export function createGameServer(options: GameServerOptions = {}) {
     });
   });
 
-  return { app, httpServer, io };
+  // Ends a live Room, freeing its slot under the live-Room cap. Its code no longer
+  // matches on identify, and its Signature images stop being served.
+  function closeRoom(code: string): void {
+    rooms.delete(code);
+  }
+
+  return { app, httpServer, io, closeRoom };
 }
