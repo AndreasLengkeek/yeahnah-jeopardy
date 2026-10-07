@@ -11,6 +11,8 @@ export default defineConfig({
         target: "http://localhost:3001",
         ws: true,
       },
+      // Signature images, whose addresses the state broadcast carries (ADR-0015).
+      "/rooms": "http://localhost:3001",
     },
   },
 });

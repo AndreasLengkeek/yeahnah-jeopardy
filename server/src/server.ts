@@ -39,7 +39,21 @@ interface Room {
   hostKey: string;
   game: GameState;
   members: Map<Socket, SocketRole>;
+  // Each Signature Player's current image version, keyed by playerId, so a drawing is
+  // hashed once rather than on every broadcast.
+  signatureVersions: Map<string, { image: string; version: string }>;
 }
+
+// Signature images leave the state broadcast: each view carries this address in place
+// of the data URL, and the HTTP route serves the image there. The version is a digest
+// of the drawing, so a redraw changes the address and any one address can be cached
+// forever.
+const signaturePath = (code: string, playerId: string, version: string) =>
+  `/rooms/${code}/signatures/${encodeURIComponent(playerId)}/${version}`;
+
+// Only the raster images a canvas exports are served, so a crafted "Signature" can't
+// put an HTML page (or anything else) on this origin.
+const SIGNATURE_DATA_URL = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
 
 // The view a socket bound to a Room falls back to when its Host claim is rejected.
 const DEFAULT_ROLE: SocketRole = "player";
@@ -71,8 +85,53 @@ export function createGameServer(options: GameServerOptions = {}) {
     return typeof code === "string" ? rooms.get(code.trim().toUpperCase()) : undefined;
   }
 
+  // A Signature Player's current image version (see `signaturePath`).
+  function signatureVersion(room: Room, playerId: string, image: string): string {
+    const cached = room.signatureVersions.get(playerId);
+    if (cached?.image === image) return cached.version;
+    const version = createHash("sha256").update(image).digest("base64url").slice(0, 16);
+    room.signatureVersions.set(playerId, { image, version });
+    return version;
+  }
+
+  // The Room's Game as every socket sees it before role redaction: each Signature's
+  // data URL swapped for its image address, so a broadcast stays a few KB however many
+  // Players drew one. Full data URLs stay in server memory only.
+  function publicGame(room: Room): GameState {
+    const { game } = room;
+    if (!game.players.some((player) => player.identity.kind === "signature")) return game;
+    return {
+      ...game,
+      players: game.players.map((player) => {
+        if (player.identity.kind !== "signature") return player;
+        const version = signatureVersion(room, player.id, player.identity.image);
+        return { ...player, identity: { kind: "signature", image: signaturePath(room.code, player.id, version) } };
+      }),
+    };
+  }
+
   const app = express();
   app.get("/health", (_req, res) => res.json({ ok: true }));
+
+  // A Room's Signature images, at the addresses its broadcasts carry: only that Room's
+  // current Players, at their current version; anything else 404s. Registered before
+  // the client's catch-all so the entry page never answers for an image.
+  app.get("/rooms/:code/signatures/:playerId/:version", (req, res) => {
+    const room = rooms.get(req.params.code);
+    const identity = room?.game.players.find((player) => player.id === req.params.playerId)?.identity;
+    const image = identity?.kind === "signature" ? identity.image : undefined;
+    const match = image ? SIGNATURE_DATA_URL.exec(image) : null;
+    if (!room || !image || !match || signatureVersion(room, req.params.playerId, image) !== req.params.version) {
+      res.sendStatus(404);
+      return;
+    }
+    res.set({
+      "Content-Type": match[1],
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+    });
+    res.send(Buffer.from(match[2], "base64"));
+  });
 
   if (options.clientDir) {
     const clientDir = resolve(options.clientDir);
@@ -97,7 +156,8 @@ export function createGameServer(options: GameServerOptions = {}) {
   // Sends a Room's current state to every socket bound to it — and only to those —
   // each redacted per the role it was granted there (ADR-0006).
   function broadcastState(room: Room): void {
-    for (const [socket, role] of room.members) socket.emit("state", viewForRole(room.game, role));
+    const game = publicGame(room);
+    for (const [socket, role] of room.members) socket.emit("state", viewForRole(game, role));
   }
 
   // Every log line names the Room it happened in.
@@ -145,6 +205,7 @@ export function createGameServer(options: GameServerOptions = {}) {
         hostKey: randomBytes(18).toString("base64url"),
         game: initialState(),
         members: new Map(),
+        signatureVersions: new Map(),
       };
       rooms.set(room.code, room);
       log(room, "[room] Room created");
@@ -171,7 +232,7 @@ export function createGameServer(options: GameServerOptions = {}) {
       const granted = accepted ? role : DEFAULT_ROLE;
       bound = room;
       room.members.set(socket, granted);
-      socket.emit("state", viewForRole(room.game, granted));
+      socket.emit("state", viewForRole(publicGame(room), granted));
       reply(accepted ? "accepted" : "rejected");
     });
 
