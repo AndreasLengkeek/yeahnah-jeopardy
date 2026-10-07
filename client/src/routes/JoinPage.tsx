@@ -10,7 +10,7 @@ import { PlayerIdentity } from "../components/PlayerIdentity";
 import { RoomFull } from "../components/RoomFull";
 import { WagerForm } from "../components/WagerForm";
 import { formatScore } from "../format";
-import { clearStoredPlayerId, getStoredPlayerId, storePlayerId } from "../playerIdentity";
+import { playerIds } from "../roomStorage";
 import { socket } from "../socket";
 import { accent, gameTitle, shellStyle, titleStyle } from "../theme";
 import { useGameState } from "../useGameState";
@@ -64,7 +64,7 @@ export function JoinPage() {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [reconnecting, setReconnecting] = useState(() => getStoredPlayerId(code) !== null);
+  const [reconnecting, setReconnecting] = useState(() => playerIds.get(code) !== null);
   const [editing, setEditing] = useState(false);
   const [roomFull, setRoomFull] = useState(false);
 
@@ -73,14 +73,14 @@ export function JoinPage() {
   // connection. An unrecognized or post-Lobby-closed id falls back to the normal join
   // form below.
   useEffect(() => {
-    const storedPlayerId = getStoredPlayerId(code);
+    const storedPlayerId = playerIds.get(code);
     if (!storedPlayerId) return;
 
     socket.emit("reconnect", storedPlayerId, (result: JoinResult) => {
       if (result.ok) {
         setPlayerId(result.playerId);
       } else {
-        clearStoredPlayerId(code);
+        playerIds.clear(code);
       }
       setReconnecting(false);
     });
@@ -101,7 +101,7 @@ export function JoinPage() {
   }, [playerId]);
 
   useEffect(() => {
-    if (identified === "ended") clearStoredPlayerId(code);
+    if (identified === "ended") playerIds.clear(code);
   }, [identified, code]);
 
   // Safety net: Play again and Back to Board Setup keep the roster, so this shouldn't
@@ -112,7 +112,7 @@ export function JoinPage() {
     if (state && playerId && rosterCleared && !state.players.some((player) => player.id === playerId)) {
       setJoinedIdentity(null);
       setPlayerId(null);
-      clearStoredPlayerId(code);
+      playerIds.clear(code);
     }
   }, [state, playerId, code]);
 
@@ -122,7 +122,7 @@ export function JoinPage() {
     socket.emit("join", identity, (result: JoinResult) => {
       setSubmitting(false);
       if (result.ok) {
-        storePlayerId(code, result.playerId);
+        playerIds.set(code, result.playerId);
         setJoinedIdentity(identity);
         setPlayerId(result.playerId);
       } else if (result.reason === "roomFull") {

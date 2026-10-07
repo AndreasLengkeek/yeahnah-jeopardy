@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { centeredStyle, errorStyle, pillStyle, quietLinkStyle, textInputStyle } from "../components/forms";
 import { RoomCodeForm } from "../components/RoomCodeForm";
-import { storeHostKey } from "../hostKey";
+import { WRONG_PASSCODE_COPY } from "../copy";
+import { hostKeys } from "../roomStorage";
 import { roomPath } from "../roomRoutes";
 import { socket } from "../socket";
 import { gameTitle, shellStyle, titleStyle } from "../theme";
@@ -29,11 +30,11 @@ export function HomePage() {
         setError(
           result.reason === "atCapacity"
             ? "Every Room slot is taken right now — try again in a bit."
-            : "That isn't the Room Passcode. Try again.",
+            : WRONG_PASSCODE_COPY,
         );
         return;
       }
-      storeHostKey(result.code, result.hostKey);
+      hostKeys.set(result.code, result.hostKey);
       navigate(roomPath(result.code, "host"));
     });
   }

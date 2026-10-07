@@ -10,6 +10,7 @@ import { RoomEnded } from "../components/RoomEnded";
 import { RoomNotice } from "../components/RoomNotice";
 import { roomPath } from "../roomRoutes";
 import { Scoreboard } from "../components/Scoreboard";
+import { NO_ROOM_COPY } from "../copy";
 import { shellStyle, subtitleStyle } from "../theme";
 import { useBoardAudio } from "../useBoardAudio";
 import { useGameState } from "../useGameState";
@@ -33,7 +34,7 @@ export function BoardPage() {
     return (
       <div style={shellStyle}>
         <Header />
-        <RoomNotice>No Room with that code</RoomNotice>
+        <RoomNotice>{NO_ROOM_COPY}</RoomNotice>
       </div>
     );
   }

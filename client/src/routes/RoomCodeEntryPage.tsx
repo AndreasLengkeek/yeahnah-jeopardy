@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { centeredStyle } from "../components/forms";
+import { NO_ROOM_COPY } from "../copy";
 import { RoomCodeForm } from "../components/RoomCodeForm";
 import { gameTitle, shellStyle, titleStyle } from "../theme";
 
@@ -15,7 +16,7 @@ export function RoomCodeEntryPage() {
     <div style={shellStyle}>
       <div style={titleStyle}>{gameTitle}</div>
       <div style={centeredStyle}>
-        <RoomCodeForm error={state?.noRoom ? "No Room with that code" : null} />
+        <RoomCodeForm error={state?.noRoom ? NO_ROOM_COPY : null} />
       </div>
     </div>
   );

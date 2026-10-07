@@ -13,7 +13,7 @@ import {
 import type { CategoryData, ClueField } from "@yeahnah/shared";
 import type { CSSProperties } from "react";
 import { useRef, useState } from "react";
-import { accent, palette } from "../theme";
+import { accent, errorColor, palette } from "../theme";
 
 const CATEGORY_COUNT_OPTIONS = Array.from(
   { length: MAX_CATEGORIES - MIN_CATEGORIES + 1 },
@@ -125,7 +125,7 @@ const answerTextareaStyle: CSSProperties = {
 
 const invalidInputStyle: CSSProperties = {
   ...inputBaseStyle,
-  borderColor: "#ff8a7a",
+  borderColor: errorColor,
   boxShadow: "0 0 0 1px rgba(255,138,122,.15)",
 };
 
@@ -135,7 +135,7 @@ const invalidAnswerTextareaStyle: CSSProperties = { ...answerTextareaStyle, ...i
 
 const flagStyle: CSSProperties = {
   fontSize: 12,
-  color: "#ff8a7a",
+  color: errorColor,
   letterSpacing: ".08em",
   textTransform: "uppercase",
 };

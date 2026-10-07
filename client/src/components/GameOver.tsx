@@ -1,6 +1,6 @@
 import type { Player } from "@yeahnah/shared";
 import { formatScore } from "../format";
-import { accent, palette } from "../theme";
+import { accent, errorColor, palette } from "../theme";
 import { winningPlayers } from "../winner";
 import { PlayerIdentity } from "./PlayerIdentity";
 
@@ -58,7 +58,7 @@ export function GameOver({ players }: { players: Player[] }) {
             }}
           >
             <PlayerIdentity identity={player.identity} />
-            <span style={{ color: player.score < 0 ? "#ff8a7a" : accent }}>{formatScore(player.score)}</span>
+            <span style={{ color: player.score < 0 ? errorColor : accent }}>{formatScore(player.score)}</span>
           </div>
         ))}
       </div>

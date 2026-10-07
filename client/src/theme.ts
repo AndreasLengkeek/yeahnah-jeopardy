@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 export const palette = THEMES[BOARD_THEME];
 export const accent = ACCENT_COLOR;
 export const gameTitle = GAME_TITLE;
+// Errors, negative scores and the danger zone.
+export const errorColor = "#ff8a7a";
 
 export const shellStyle: CSSProperties = {
   minHeight: "100vh",

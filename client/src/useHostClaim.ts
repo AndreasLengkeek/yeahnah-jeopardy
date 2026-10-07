@@ -1,7 +1,7 @@
 import type { IdentifyResult, ReclaimHostResult } from "@yeahnah/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearStoredHostKey, getStoredHostKey, storeHostKey } from "./hostKey";
+import { hostKeys } from "./roomStorage";
 import { socket } from "./socket";
 
 export type HostClaim = "claiming" | IdentifyResult;
@@ -35,7 +35,7 @@ export function useHostClaim(code: string): {
   useEffect(() => {
     const linkKey = hash.slice(1);
     if (!linkKey) return;
-    storeHostKey(code, decodeURIComponent(linkKey));
+    hostKeys.set(code, decodeURIComponent(linkKey));
     navigate({ pathname, search }, { replace: true });
   }, [code, pathname, search, hash, navigate]);
 
@@ -45,10 +45,10 @@ export function useHostClaim(code: string): {
     // rendering a redacted Board in the meantime.
     function announce() {
       setClaim("claiming");
-      const hostKey = getStoredHostKey(code) ?? undefined;
+      const hostKey = hostKeys.get(code) ?? undefined;
       socket.emit("identify", { code, role: "host", hostKey }, (result: IdentifyResult) => {
-        if (result === "rejected" && hostKey !== undefined && getStoredHostKey(code) === hostKey) {
-          clearStoredHostKey(code);
+        if (result === "rejected" && hostKey !== undefined && hostKeys.get(code) === hostKey) {
+          hostKeys.clear(code);
         }
         setClaim(result);
       });
@@ -76,7 +76,7 @@ export function useHostClaim(code: string): {
           else onFailure(result.reason);
           return;
         }
-        storeHostKey(code, result.hostKey);
+        hostKeys.set(code, result.hostKey);
         setClaim("accepted");
       });
     },
