@@ -7,7 +7,8 @@ export type HostClaim = "claiming" | IdentifyResult;
 
 // Claims Host of Room `code` on every connection, with whatever Host Key this device
 // remembers for that Room (possibly none) — the Host-screen counterpart of
-// useIdentify. A remembered key the Room rejects is forgotten.
+// useIdentify. A remembered key the Room rejects is forgotten. The Room-ended notice
+// turns the claim to "ended", as useIdentify's status.
 export function useHostClaim(code: string): HostClaim {
   const [claim, setClaim] = useState<HostClaim>("claiming");
 
@@ -25,10 +26,15 @@ export function useHostClaim(code: string): HostClaim {
         setClaim(result);
       });
     }
+    function ended() {
+      setClaim("ended");
+    }
     if (socket.connected) announce();
     socket.on("connect", announce);
+    socket.on("roomEnded", ended);
     return () => {
       socket.off("connect", announce);
+      socket.off("roomEnded", ended);
     };
   }, [code]);
 

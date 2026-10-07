@@ -6,6 +6,7 @@ import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
 import { JoinQrCode } from "../components/JoinQrCode";
 import { Lobby } from "../components/Lobby";
+import { RoomEnded } from "../components/RoomEnded";
 import { RoomNotice } from "../components/RoomNotice";
 import { roomPath } from "../roomRoutes";
 import { Scoreboard } from "../components/Scoreboard";
@@ -25,6 +26,8 @@ export function BoardPage() {
   // so the QR is only as reachable as that origin (the Host must open the Board via a LAN
   // address, not localhost, for a phone to resolve it). Deliberately no auto-detection.
   const joinUrl = `${window.location.origin}${roomPath(code, "join")}`;
+
+  if (identified === "ended") return <RoomEnded code={code} />;
 
   if (identified === "noRoom") {
     return (

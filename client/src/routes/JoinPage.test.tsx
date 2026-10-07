@@ -82,6 +82,34 @@ describe("JoinPage in its Room", () => {
 
     expect(screen.getByText("No Room with that code")).toBeInTheDocument();
   });
+
+  // Room Code entry as a fresh journey: no error, and nothing remembered of the old Room.
+  function expectFreshRoomCodeEntry() {
+    expect(screen.getByLabelText("Room Code")).toBeInTheDocument();
+    expect(screen.queryByText("No Room with that code")).not.toBeInTheDocument();
+    expect(screen.queryByText(/has ended/)).not.toBeInTheDocument();
+    expect(getStoredPlayerId("BRDK")).toBeNull();
+  }
+
+  it("goes straight to Room Code entry when the Room-ended notice arrives", () => {
+    storePlayerId("BRDK", "player-1");
+    renderAt("/BRDK/join");
+    const lobby = viewForRole(applyAction(initialState(), { type: "openLobby" }), "player");
+    act(() => fakeSocket.listeners.get("state")?.forEach((listener) => listener(lobby)));
+
+    act(() => fakeSocket.listeners.get("roomEnded")?.forEach((listener) => listener()));
+
+    expectFreshRoomCodeEntry();
+  });
+
+  it("goes straight to Room Code entry when the address is an ended Room's", () => {
+    storePlayerId("BRDK", "player-1");
+    renderAt("/BRDK/join");
+    const [, , ack] = emitted("identify")[0];
+    act(() => (ack as (result: IdentifyResult) => void)("ended"));
+
+    expectFreshRoomCodeEntry();
+  });
 });
 
 describe("JoinPage reattaching a joined Player", () => {

@@ -91,6 +91,30 @@ describe("BoardPage in its Room", () => {
 
     expect(screen.getByText("No Room with that code")).toBeInTheDocument();
   });
+
+  function expectRoomHasEnded() {
+    expect(screen.getByText("This Room has ended")).toBeInTheDocument();
+    expect(screen.getByText("Thanks for playing.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Room Code BRDK" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to the home page" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("img", { name: /Scan to join/ })).not.toBeInTheDocument();
+  }
+
+  it("shows Room has ended when the Room-ended notice arrives", async () => {
+    await loadBoard(gameIn("lobby"));
+
+    await act(async () => fakeSocket.listeners.get("roomEnded")?.forEach((listener) => listener()));
+
+    expectRoomHasEnded();
+  });
+
+  it("shows Room has ended when the address is an ended Room's", async () => {
+    renderAt("/brdk/board");
+    const [, , ack] = fakeSocket.emit.mock.calls.find(([event]) => event === "identify")!;
+    await act(async () => (ack as (result: IdentifyResult) => void)("ended"));
+
+    expectRoomHasEnded();
+  });
 });
 
 const hint = () => screen.queryByText("Tap to enable sound");
