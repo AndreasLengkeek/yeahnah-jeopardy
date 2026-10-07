@@ -1,5 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
-import { initialState, viewForRole } from "@yeahnah/shared";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { applyAction, initialState, viewForRole } from "@yeahnah/shared";
 import type { ActiveClue, IdentifyClaim, IdentifyResult, Player } from "@yeahnah/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -179,5 +179,77 @@ describe("HostPage Host Key claim", () => {
     expect(identifyClaims()[1].claim).toEqual({ code: "BRDK", role: "host", hostKey: "key-brdk" });
     answerLatestClaim("accepted");
     expect(openLobbyButton()).toBeInTheDocument();
+  });
+});
+
+// A Game in play: the Lobby opened, two Players joined, and the Game started.
+function playingState() {
+  let state = applyAction(initialState(), { type: "openLobby" });
+  state = applyAction(state, { type: "join", identity: { kind: "text", name: "Ann" } });
+  state = applyAction(state, { type: "join", identity: { kind: "text", name: "Ben" } });
+  return applyAction(state, { type: "startGame" });
+}
+
+describe("HostPage Room panel", () => {
+  beforeEach(() => {
+    fakeSocket.emit.mockClear();
+    fakeSocket.listeners.clear();
+    fakeSocket.connected = true;
+    localStorage.clear();
+    localStorage.setItem(hostKeyStorage("BRDK"), "key-brdk");
+  });
+
+  const roomPanel = () => screen.getByRole("complementary", { name: "Room" });
+
+  it("shows the Room Code and where Players join", () => {
+    renderAt("/brdk/host");
+    answerLatestClaim("accepted");
+
+    expect(within(roomPanel()).getByText("BRDK")).toBeInTheDocument();
+    expect(within(roomPanel()).getByText(`Players join at ${window.location.host}/join`)).toBeInTheDocument();
+  });
+
+  it("shows how many Host devices, Board screens and Players are here now, as the counts change", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    fire("roomInfo", { hosts: 2, boards: 1, players: 3 });
+    expect(within(roomPanel()).getByText("2 Host devices")).toBeInTheDocument();
+    expect(within(roomPanel()).getByText("1 Board")).toBeInTheDocument();
+    expect(within(roomPanel()).getByText("3 Players")).toBeInTheDocument();
+
+    fire("roomInfo", { hosts: 1, boards: 0, players: 1 });
+    expect(within(roomPanel()).getByText("1 Host device")).toBeInTheDocument();
+    expect(within(roomPanel()).getByText("0 Boards")).toBeInTheDocument();
+    expect(within(roomPanel()).getByText("1 Player")).toBeInTheDocument();
+  });
+
+  it("links to the Room's Board", () => {
+    renderAt("/brdk/host");
+    answerLatestClaim("accepted");
+
+    expect(within(roomPanel()).getByRole("link", { name: /Open Board/ })).toHaveAttribute("href", "/BRDK/board");
+  });
+
+  it("collapses to a Room Code strip during play, which expands on demand", () => {
+    renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+    fire("roomInfo", { hosts: 1, boards: 1, players: 2 });
+
+    fire("state", viewForRole(playingState(), "host"));
+
+    expect(screen.queryByText("2 Players")).not.toBeInTheDocument();
+    const strip = screen.getByRole("button", { name: /Room BRDK/ });
+    expect(strip).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(strip);
+
+    expect(strip).toHaveAttribute("aria-expanded", "true");
+    expect(within(roomPanel()).getByText("2 Players")).toBeInTheDocument();
+    expect(within(roomPanel()).getByRole("link", { name: /Open Board/ })).toBeInTheDocument();
+
+    fireEvent.click(strip);
+
+    expect(screen.queryByText("2 Players")).not.toBeInTheDocument();
   });
 });
