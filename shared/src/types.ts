@@ -62,15 +62,29 @@ export interface DailyDoubleCoordinate {
   tileIndex: number;
 }
 
-// A socket's role, declared via the `identify` event on every connection. It gates
-// which view of GameState the server sends that socket (see viewForRole / ADR-0006).
-// `board` and `player` are taken on trust; `host` is granted only when the server has
-// no Host Passcode configured or the claim carries the matching one (ADR-0014).
+// A socket's role in its Room, declared via the `identify` event on every connection.
+// It gates which view of GameState the server sends that socket (see viewForRole /
+// ADR-0006). `board` and `player` are taken on trust; `host` is granted only when the
+// claim carries that Room's Host Key (ADR-0015).
 export type SocketRole = 'host' | 'board' | 'player';
 
+// What a socket sends with `identify`: which Room it's in (by Room Code, any case), the
+// role it claims there, and — for `host` — the Host Key this device remembers.
+export interface IdentifyClaim {
+  code: string;
+  role: SocketRole;
+  hostKey?: string;
+}
+
 // The server's answer to an `identify` claim. A rejected claim (only ever a `host`
-// claim with a wrong or missing Host Passcode) leaves the socket on the Player view.
-export type IdentifyResult = 'accepted' | 'rejected';
+// claim with a wrong or missing Host Key) leaves the socket bound to the Room on the
+// Player view; `noRoom` means no live Room has that code, and the socket is bound to
+// nothing.
+export type IdentifyResult = 'accepted' | 'rejected' | 'noRoom';
+
+// The server's answer to `createRoom`: the new Room's code and its Host Key, or why
+// no Room was created.
+export type CreateRoomResult = { ok: true; code: string; hostKey: string } | { ok: false; reason: 'wrongPasscode' };
 
 export interface GameState {
   phase: GamePhase;

@@ -3,7 +3,14 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CATS, DOUBLE_JEOPARDY_VALUES } from "@yeahnah/shared";
-import type { GameState, IdentifyResult, JoinResult, PlayerIdentity, SocketRole } from "@yeahnah/shared";
+import type {
+  CreateRoomResult,
+  GameState,
+  IdentifyResult,
+  JoinResult,
+  PlayerIdentity,
+  SocketRole,
+} from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { createGameServer } from "./server.js";
@@ -12,12 +19,135 @@ const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
 const byName = (players: GameState["players"], name: string) =>
   players.find((player) => player.identity.kind === "text" && player.identity.name === name)!;
 
-describe("socket.io wiring", () => {
+// Drives a fresh Game to the point where (0, 0) is the Active Clue, unrevealed.
+// Returns the post-selectTile "state" payload each connection received, driver first.
+// The server now boots into "setup", so the Lobby has to be opened first (the seeded
+// example Board is complete, so openLobby succeeds immediately).
+async function selectFirstClue(
+  driver: { socket: Socket; nextState: () => Promise<GameState> },
+  listeners: Array<{ nextState: () => Promise<GameState> }>,
+): Promise<GameState[]> {
+  const all = [driver, ...listeners];
+  const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+  driver.socket.emit("openLobby");
+  await drain();
+  driver.socket.emit("join", textIdentity("Dana"));
+  await drain();
+  driver.socket.emit("join", textIdentity("Marcus"));
+  await drain();
+  driver.socket.emit("startGame");
+  await drain();
+  driver.socket.emit("selectTile", 0, 0);
+  return drain();
+}
+
+async function fillDoubleJeopardyContent(host: { socket: Socket; nextState: () => Promise<GameState> }) {
+  host.socket.emit("setTwoRounds", true);
+  await host.nextState();
+
+  for (let categoryIndex = 0; categoryIndex < CATS.length; categoryIndex++) {
+    host.socket.emit("editDoubleJeopardyCategoryName", categoryIndex, `DJ ${categoryIndex}`);
+    await host.nextState();
+    for (let tileIndex = 0; tileIndex < CATS[categoryIndex].clues.length; tileIndex++) {
+      host.socket.emit(
+        "editDoubleJeopardyClue",
+        categoryIndex,
+        tileIndex,
+        "text",
+        `DJ clue ${categoryIndex}-${tileIndex}`,
+      );
+      await host.nextState();
+      host.socket.emit(
+        "editDoubleJeopardyClue",
+        categoryIndex,
+        tileIndex,
+        "answer",
+        `DJ answer ${categoryIndex}-${tileIndex}`,
+      );
+      await host.nextState();
+    }
+  }
+}
+
+async function sweepBoardToRoundBreak(
+  driver: { socket: Socket; nextState: () => Promise<GameState> },
+  listeners: Array<{ nextState: () => Promise<GameState> }>,
+): Promise<GameState[]> {
+  const all = [driver, ...listeners];
+  const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+  for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+    for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+      driver.socket.emit("selectTile", categoryIndex, tileIndex);
+      await drain();
+      driver.socket.emit("closeClue");
+      const states = await drain();
+      if (states[0].phase === "roundBreak") return states;
+    }
+  }
+
+  throw new Error("Round 1 never reached roundBreak while sweeping the Board");
+}
+
+// The Daily Double coordinate is secretly randomized, so a hardcoded Tile pick may
+// occasionally land on it. Since 03 permanently locks Buzzing out of a Daily Double
+// Clue's entire lifetime (superseding 01's reveal-then-buzz interim behavior), tests
+// that want ordinary Buzz/judge wiring select the first non-Daily-Double Tile they
+// find instead, closing any Daily Double Clue they land on along the way.
+async function selectFirstNonDailyDoubleTile(
+  driver: { socket: Socket; nextState: () => Promise<GameState> },
+  listeners: Array<{ nextState: () => Promise<GameState> }>,
+): Promise<{ states: GameState[]; categoryIndex: number; tileIndex: number }> {
+  const all = [driver, ...listeners];
+  const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+  for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+    for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+      driver.socket.emit("selectTile", categoryIndex, tileIndex);
+      const states = await drain();
+      if (!states[0].activeClue?.isDailyDouble) return { states, categoryIndex, tileIndex };
+
+      driver.socket.emit("closeClue");
+      await drain();
+    }
+  }
+
+  throw new Error("Every Tile came back flagged as the Daily Double while sweeping the Board");
+}
+
+// Sweeps every Tile on the seeded 5x5 Board (closing each miss — immediately
+// closable, since nobody's buzzed) until the one Tile that comes back flagged as the
+// secretly pre-picked Daily Double is found, leaving it as the Active Clue.
+async function selectUntilDailyDouble(
+  driver: { socket: Socket; nextState: () => Promise<GameState> },
+  listeners: Array<{ nextState: () => Promise<GameState> }>,
+): Promise<GameState[]> {
+  const all = [driver, ...listeners];
+  const drain = () => Promise.all(all.map((c) => c.nextState()));
+
+  for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
+    for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
+      driver.socket.emit("selectTile", categoryIndex, tileIndex);
+      const states = await drain();
+      if (states[0].activeClue?.isDailyDouble) return states;
+
+      driver.socket.emit("closeClue");
+      await drain();
+    }
+  }
+
+  throw new Error("No Daily Double Tile found while sweeping the Board");
+}
+
+describe("socket.io wiring (inside a created Room)", () => {
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
   let url: string;
   let sockets: Socket[] = [];
-  // Silences the server's `[game]` log lines, and lets a test inspect them.
+  // Silences the server's log lines, and lets a test inspect them.
   let consoleLog: MockInstance<typeof console.log>;
+  // The Room every test in this block plays in.
+  let room: Extract<CreateRoomResult, { ok: true }>;
 
   beforeEach(async () => {
     consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -25,6 +155,10 @@ describe("socket.io wiring", () => {
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
     url = `http://127.0.0.1:${port}`;
+    const creator = ioClient(url);
+    sockets.push(creator);
+    room = await new Promise((resolve) => creator.emit("createRoom", undefined, resolve));
+    consoleLog.mockClear();
   });
 
   afterEach(async () => {
@@ -34,151 +168,36 @@ describe("socket.io wiring", () => {
     consoleLog.mockRestore();
   });
 
-  // Buffers "state" broadcasts from the moment the socket is created, since the
-  // server pushes the initial state as soon as the connection handshake completes —
-  // a listener attached only after the "connect" event can arrive too late to see it.
-  function connect(role?: SocketRole): Promise<{ socket: Socket; nextState: () => Promise<GameState> }> {
-    return new Promise((resolve) => {
-      const socket = ioClient(url);
-      sockets.push(socket);
+  // Declares `role` in the test's Room — a Host with the Room's Host Key unless the
+  // claim says otherwise — and resolves once the claim is acknowledged. "state" pushes
+  // are buffered from the moment the socket is created, so the post-identify view is
+  // the first one `nextState` returns.
+  async function connect(
+    role: SocketRole,
+    { hostKey }: { hostKey?: string } = role === "host" ? { hostKey: room.hostKey } : {},
+  ): Promise<{ socket: Socket; nextState: () => Promise<GameState>; result: IdentifyResult }> {
+    const socket = ioClient(url);
+    sockets.push(socket);
 
-      const queue: GameState[] = [];
-      const waiters: Array<(state: GameState) => void> = [];
-      socket.on("state", (state: GameState) => {
-        const waiter = waiters.shift();
-        if (waiter) waiter(state);
-        else queue.push(state);
-      });
-      const nextState = () =>
-        queue.length > 0 ? Promise.resolve(queue.shift()!) : new Promise<GameState>((r) => waiters.push(r));
-
-      socket.on("connect", () => {
-        // A socket that declares a role gets a second "state" push in reply (the
-        // now role-appropriate view), on top of the one sent on raw connect.
-        if (role) socket.emit("identify", role);
-        resolve({ socket, nextState });
-      });
+    const queue: GameState[] = [];
+    const waiters: Array<(state: GameState) => void> = [];
+    socket.on("state", (state: GameState) => {
+      const waiter = waiters.shift();
+      if (waiter) waiter(state);
+      else queue.push(state);
     });
-  }
+    const nextState = () =>
+      queue.length > 0 ? Promise.resolve(queue.shift()!) : new Promise<GameState>((r) => waiters.push(r));
 
-  // Drives a fresh Game to the point where (0, 0) is the Active Clue, unrevealed.
-  // Returns the post-selectTile "state" payload each connection received, driver first.
-  // The server now boots into "setup", so the Lobby has to be opened first (the seeded
-  // example Board is complete, so openLobby succeeds immediately).
-  async function selectFirstClue(
-    driver: { socket: Socket; nextState: () => Promise<GameState> },
-    listeners: Array<{ nextState: () => Promise<GameState> }>,
-  ): Promise<GameState[]> {
-    const all = [driver, ...listeners];
-    const drain = () => Promise.all(all.map((c) => c.nextState()));
-
-    driver.socket.emit("openLobby");
-    await drain();
-    driver.socket.emit("join", textIdentity("Dana"));
-    await drain();
-    driver.socket.emit("join", textIdentity("Marcus"));
-    await drain();
-    driver.socket.emit("startGame");
-    await drain();
-    driver.socket.emit("selectTile", 0, 0);
-    return drain();
-  }
-
-  async function fillDoubleJeopardyContent(host: { socket: Socket; nextState: () => Promise<GameState> }) {
-    host.socket.emit("setTwoRounds", true);
-    await host.nextState();
-
-    for (let categoryIndex = 0; categoryIndex < CATS.length; categoryIndex++) {
-      host.socket.emit("editDoubleJeopardyCategoryName", categoryIndex, `DJ ${categoryIndex}`);
-      await host.nextState();
-      for (let tileIndex = 0; tileIndex < CATS[categoryIndex].clues.length; tileIndex++) {
-        host.socket.emit("editDoubleJeopardyClue", categoryIndex, tileIndex, "text", `DJ clue ${categoryIndex}-${tileIndex}`);
-        await host.nextState();
-        host.socket.emit(
-          "editDoubleJeopardyClue",
-          categoryIndex,
-          tileIndex,
-          "answer",
-          `DJ answer ${categoryIndex}-${tileIndex}`,
-        );
-        await host.nextState();
-      }
-    }
-  }
-
-  async function sweepBoardToRoundBreak(
-    driver: { socket: Socket; nextState: () => Promise<GameState> },
-    listeners: Array<{ nextState: () => Promise<GameState> }>,
-  ): Promise<GameState[]> {
-    const all = [driver, ...listeners];
-    const drain = () => Promise.all(all.map((c) => c.nextState()));
-
-    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
-      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
-        driver.socket.emit("selectTile", categoryIndex, tileIndex);
-        await drain();
-        driver.socket.emit("closeClue");
-        const states = await drain();
-        if (states[0].phase === "roundBreak") return states;
-      }
-    }
-
-    throw new Error("Round 1 never reached roundBreak while sweeping the Board");
-  }
-
-  // The Daily Double coordinate is secretly randomized, so a hardcoded Tile pick may
-  // occasionally land on it. Since 03 permanently locks Buzzing out of a Daily Double
-  // Clue's entire lifetime (superseding 01's reveal-then-buzz interim behavior), tests
-  // that want ordinary Buzz/judge wiring select the first non-Daily-Double Tile they
-  // find instead, closing any Daily Double Clue they land on along the way.
-  async function selectFirstNonDailyDoubleTile(
-    driver: { socket: Socket; nextState: () => Promise<GameState> },
-    listeners: Array<{ nextState: () => Promise<GameState> }>,
-  ): Promise<{ states: GameState[]; categoryIndex: number; tileIndex: number }> {
-    const all = [driver, ...listeners];
-    const drain = () => Promise.all(all.map((c) => c.nextState()));
-
-    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
-      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
-        driver.socket.emit("selectTile", categoryIndex, tileIndex);
-        const states = await drain();
-        if (!states[0].activeClue?.isDailyDouble) return { states, categoryIndex, tileIndex };
-
-        driver.socket.emit("closeClue");
-        await drain();
-      }
-    }
-
-    throw new Error("Every Tile came back flagged as the Daily Double while sweeping the Board");
-  }
-
-  // Sweeps every Tile on the seeded 5x5 Board (closing each miss — immediately
-  // closable, since nobody's buzzed) until the one Tile that comes back flagged as the
-  // secretly pre-picked Daily Double is found, leaving it as the Active Clue.
-  async function selectUntilDailyDouble(
-    driver: { socket: Socket; nextState: () => Promise<GameState> },
-    listeners: Array<{ nextState: () => Promise<GameState> }>,
-  ): Promise<GameState[]> {
-    const all = [driver, ...listeners];
-    const drain = () => Promise.all(all.map((c) => c.nextState()));
-
-    for (let categoryIndex = 0; categoryIndex < 5; categoryIndex++) {
-      for (let tileIndex = 0; tileIndex < 5; tileIndex++) {
-        driver.socket.emit("selectTile", categoryIndex, tileIndex);
-        const states = await drain();
-        if (states[0].activeClue?.isDailyDouble) return states;
-
-        driver.socket.emit("closeClue");
-        await drain();
-      }
-    }
-
-    throw new Error("No Daily Double Tile found while sweeping the Board");
+    const result = await new Promise<IdentifyResult>((resolve) =>
+      socket.emit("identify", { code: room.code, role, hostKey }, resolve),
+    );
+    return { socket, nextState, result };
   }
 
   it("broadcasts resulting state to every connected socket as actions are dispatched", async () => {
-    const dana = await connect();
-    expect((await dana.nextState()).phase).toBe("setup"); // initial state pushed on connect
+    const dana = await connect("host");
+    expect((await dana.nextState()).phase).toBe("setup"); // post-identify view
 
     dana.socket.emit("openLobby");
     expect((await dana.nextState()).phase).toBe("lobby");
@@ -186,8 +205,8 @@ describe("socket.io wiring", () => {
     dana.socket.emit("join", textIdentity("Dana"));
     expect((await dana.nextState()).players.map((p) => p.identity)).toEqual([textIdentity("Dana")]);
 
-    const marcus = await connect();
-    await marcus.nextState(); // initial state, already includes Dana
+    const marcus = await connect("player");
+    await marcus.nextState(); // post-identify view, already includes Dana
 
     marcus.socket.emit("join", textIdentity("Marcus"));
     expect((await dana.nextState()).players).toHaveLength(2);
@@ -197,7 +216,9 @@ describe("socket.io wiring", () => {
     expect(started.phase).toBe("playing");
     const danaId = byName(started.players, "Dana").id;
 
-    const { states: [selected] } = await selectFirstNonDailyDoubleTile(dana, []);
+    const {
+      states: [selected],
+    } = await selectFirstNonDailyDoubleTile(dana, []);
     expect(selected.activeClue?.isDailyDouble).toBe(false);
 
     dana.socket.emit("buzz", danaId);
@@ -219,12 +240,9 @@ describe("socket.io wiring", () => {
   ])("wires $event through to every socket role without redacting it", async ({ event, flag }) => {
     const host = await connect("host");
     await host.nextState();
-    await host.nextState();
     const board = await connect("board");
     await board.nextState();
-    await board.nextState();
     const player = await connect("player");
-    await player.nextState();
     await player.nextState();
 
     host.socket.emit(event);
@@ -240,7 +258,7 @@ describe("socket.io wiring", () => {
   });
 
   it("carries a drawn signature identity through a join round-trip to the broadcast state", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -262,14 +280,14 @@ describe("socket.io wiring", () => {
     // A reconnect is playerId-keyed, so the drawn Signature comes back unchanged just
     // like a typed name would.
     const danaId = (ack as Extract<JoinResult, { ok: true }>).playerId;
-    const reconnected = await connect();
+    const reconnected = await connect("player");
     await reconnected.nextState();
     reconnected.socket.emit("reconnect", danaId);
     expect((await reconnected.nextState()).players[0].identity).toEqual(signature);
   });
 
   it("lets a joined Player edit their identity before the Game starts, broadcasting the change", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -291,7 +309,7 @@ describe("socket.io wiring", () => {
   });
 
   it("reopens a Clue after an incorrect judgement and lets the Host close it once everyone is excluded", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -328,7 +346,7 @@ describe("socket.io wiring", () => {
   });
 
   it("reattaches a known Player id to a fresh socket connection, and rejects an unknown one", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -340,7 +358,7 @@ describe("socket.io wiring", () => {
 
     // Simulates Dana's phone reloading: a brand-new socket connection reconnecting
     // with the id her browser persisted at join.
-    const reconnected = await connect();
+    const reconnected = await connect("player");
     await reconnected.nextState();
 
     const ack = await new Promise<JoinResult>((resolve) => {
@@ -355,7 +373,7 @@ describe("socket.io wiring", () => {
   });
 
   it("broadcasts a corrected score when the Host emits setScore, without touching Clue state", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -380,7 +398,7 @@ describe("socket.io wiring", () => {
   });
 
   it("resets to a fresh, empty-roster Lobby when the Host resets mid-Game", async () => {
-    const dana = await connect();
+    const dana = await connect("host");
     await dana.nextState();
     dana.socket.emit("openLobby");
     await dana.nextState();
@@ -401,7 +419,6 @@ describe("socket.io wiring", () => {
 
   it("wires the Board Setup authoring events through to the reducer", async () => {
     const host = await connect("host");
-    await host.nextState(); // raw-connect view
     const seeded = await host.nextState(); // post-identify view
     expect(seeded.phase).toBe("setup");
     expect(seeded.content).toHaveLength(5);
@@ -430,7 +447,6 @@ describe("socket.io wiring", () => {
 
   it("wires the Double Jeopardy authoring events through to the reducer", async () => {
     const host = await connect("host");
-    await host.nextState(); // raw-connect view
     await host.nextState(); // post-identify view
 
     host.socket.emit("setTwoRounds", true);
@@ -452,7 +468,6 @@ describe("socket.io wiring", () => {
 
   it("wires startDoubleJeopardy through to the reducer", async () => {
     const host = await connect("host");
-    await host.nextState();
     await host.nextState();
 
     await fillDoubleJeopardyContent(host);
@@ -485,7 +500,6 @@ describe("socket.io wiring", () => {
   it("returns from the Lobby to Board Setup without dropping already-joined Players", async () => {
     const host = await connect("host");
     await host.nextState();
-    await host.nextState();
 
     host.socket.emit("openLobby");
     expect((await host.nextState()).phase).toBe("lobby");
@@ -504,7 +518,6 @@ describe("socket.io wiring", () => {
   it("logs accepted Game events, and nothing for rejected or unlisted actions", async () => {
     const host = await connect("host");
     await host.nextState();
-    await host.nextState();
     const logged = () => consoleLog.mock.calls.map(([line]) => line);
 
     host.socket.emit("openLobby");
@@ -518,24 +531,22 @@ describe("socket.io wiring", () => {
     await host.nextState();
 
     expect(logged()).toEqual([
-      '[game] Player "Dana" joined (1 player)',
-      '[game] Player "Marcus" joined (2 players)',
-      "[game] Game started (2 players)",
+      `[${room.code}] [game] Player "Dana" joined (1 player)`,
+      `[${room.code}] [game] Player "Marcus" joined (2 players)`,
+      `[${room.code}] [game] Game started (2 players)`,
     ]);
   });
 
   it("logs a joined Player's socket disconnecting, and nothing for a non-Player socket", async () => {
     const host = await connect("host");
     await host.nextState();
-    await host.nextState();
     host.socket.emit("openLobby");
     await host.nextState();
 
-    const dana = await connect();
+    const dana = await connect("player");
     await dana.nextState();
     await new Promise((resolve) => dana.socket.emit("join", textIdentity("Dana"), resolve));
     const board = await connect("board");
-    await board.nextState();
     await board.nextState();
     consoleLog.mockClear();
 
@@ -543,29 +554,28 @@ describe("socket.io wiring", () => {
     dana.socket.disconnect();
     await vi.waitFor(() => expect(consoleLog).toHaveBeenCalled());
 
-    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual(['[game] "Dana" disconnected']);
+    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual([`[${room.code}] [game] "Dana" disconnected`]);
   });
 
   it("logs a Player reconnecting once per new connection, ignoring a repeat from the same one", async () => {
     const host = await connect("host");
     await host.nextState();
-    await host.nextState();
     host.socket.emit("openLobby");
     await host.nextState();
-    const dana = await connect();
+    const dana = await connect("player");
     await dana.nextState();
     const danaId = await new Promise<string>((resolve) =>
       dana.socket.emit("join", textIdentity("Dana"), (result: JoinResult) => resolve(result.ok ? result.playerId : "")),
     );
     consoleLog.mockClear();
 
-    const phone = await connect();
+    const phone = await connect("player");
     await phone.nextState();
     await new Promise((resolve) => phone.socket.emit("reconnect", danaId, resolve));
     await new Promise((resolve) => phone.socket.emit("reconnect", danaId, resolve));
     await new Promise((resolve) => dana.socket.emit("reconnect", danaId, resolve));
 
-    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual(['[game] "Dana" reconnected']);
+    expect(consoleLog.mock.calls.map(([line]) => line)).toEqual([`[${room.code}] [game] "Dana" reconnected`]);
   });
 
   describe("Answer redaction by socket role (ADR-0006)", () => {
@@ -574,7 +584,6 @@ describe("socket.io wiring", () => {
 
     it("sends the Active Clue's Answer to a Host socket the moment it becomes Active", async () => {
       const host = await connect("host");
-      await host.nextState(); // raw-connect view
       await host.nextState(); // post-identify view
 
       const [selected] = await selectFirstClue(host, []);
@@ -585,12 +594,9 @@ describe("socket.io wiring", () => {
     it("withholds a pre-Reveal Answer from Board and Player sockets, then releases it to them on Reveal", async () => {
       const host = await connect("host");
       await host.nextState();
-      await host.nextState();
       const board = await connect("board");
       await board.nextState();
-      await board.nextState();
       const player = await connect("player");
-      await player.nextState();
       await player.nextState();
 
       const [hostSel, boardSel, playerSel] = await selectFirstClue(host, [board, player]);
@@ -618,24 +624,27 @@ describe("socket.io wiring", () => {
       expect(playerRev.activeClue?.answer).toBe(trueAnswer);
     });
 
-    it("treats a socket that never identifies as the most restrictive (Player) view", async () => {
+    it("sends nothing at all to a socket that never identifies into a Room", async () => {
       const host = await connect("host");
       await host.nextState();
-      await host.nextState();
-      const anon = await connect();
-      await anon.nextState(); // raw-connect view; no identify follows
+      const anon = ioClient(url);
+      sockets.push(anon);
+      const anonStates: GameState[] = [];
+      anon.on("state", (state: GameState) => anonStates.push(state));
+      await new Promise<void>((resolve) => anon.on("connect", () => resolve()));
 
-      const [hostSel, anonSel] = await selectFirstClue(host, [anon]);
+      const [hostSel] = await selectFirstClue(host, []);
+      // Round-trip on the anonymous socket so anything sent to it has arrived.
+      await new Promise((resolve) => anon.emit("reconnect", "no-such-player", resolve));
 
       expect(hostSel.activeClue?.answer).toBe(trueAnswer);
-      expect(anonSel.activeClue?.answer).toBe("");
+      expect(anonStates).toEqual([]);
     });
   });
 
   describe("Daily Double secrecy", () => {
     it("never includes the secret Daily Double coordinate in any state broadcast to any role, before or after selection", async () => {
       const host = await connect("host");
-      await host.nextState(); // raw-connect view
       await host.nextState(); // post-identify view
 
       host.socket.emit("openLobby");
@@ -644,9 +653,7 @@ describe("socket.io wiring", () => {
 
       const board = await connect("board");
       await board.nextState();
-      await board.nextState();
       const player = await connect("player");
-      await player.nextState();
       await player.nextState();
 
       host.socket.emit("join", textIdentity("Dana"));
@@ -676,12 +683,9 @@ describe("socket.io wiring", () => {
     it("hides a Daily Double's Clue text from every role until the Host shows it, then reveals it to all", async () => {
       const host = await connect("host");
       await host.nextState();
-      await host.nextState();
       const board = await connect("board");
       await board.nextState();
-      await board.nextState();
       const player = await connect("player");
-      await player.nextState();
       await player.nextState();
 
       host.socket.emit("openLobby");
@@ -738,12 +742,9 @@ describe("socket.io wiring", () => {
     it("broadcasts a designateWagerer and a submitWager to every role, following the existing 1:1 wiring pattern", async () => {
       const host = await connect("host");
       await host.nextState();
-      await host.nextState();
       const board = await connect("board");
       await board.nextState();
-      await board.nextState();
       const player = await connect("player");
-      await player.nextState();
       await player.nextState();
 
       host.socket.emit("openLobby");
@@ -782,30 +783,15 @@ describe("socket.io wiring", () => {
     });
   });
 
-  describe("Host Passcode (ADR-0014)", () => {
-    const PASSCODE = "kia-ora-2026";
+  describe("Host Key gating (ADR-0015)", () => {
     const trueAnswer = CATS[0].clues[0].answer;
 
-    // Swaps the passcode-less server the outer beforeEach started for one configured
-    // with a Host Passcode, reusing the outer helpers (they read `url` lazily).
-    beforeEach(async () => {
-      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-      ({ httpServer } = createGameServer({ hostPasscode: PASSCODE }));
-      await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-      const { port } = httpServer.address() as AddressInfo;
-      url = `http://127.0.0.1:${port}`;
-    });
-
-    // Connects, then claims `role` with `passcode`, resolving once the server has
-    // acknowledged the claim and pushed the resulting view (both drained here).
-    async function claim(role: SocketRole, passcode?: string) {
-      const connection = await connect();
-      await connection.nextState(); // raw-connect view
-      const result = await new Promise<IdentifyResult>((resolve) =>
-        connection.socket.emit("identify", role, passcode, resolve),
-      );
-      const view = await connection.nextState(); // post-identify view
-      return { ...connection, result, view };
+    // Claims `role` in the Room with `hostKey`, resolving once the claim is acknowledged
+    // and its post-identify view drained.
+    async function claim(role: SocketRole, hostKey?: string) {
+      const connection = await connect(role, { hostKey });
+      const view = await connection.nextState();
+      return { ...connection, view };
     }
 
     // Events from one socket are handled in order, so once an acked round-trip on
@@ -814,8 +800,8 @@ describe("socket.io wiring", () => {
       return new Promise((resolve) => socket.emit("reconnect", "no-such-player", () => resolve()));
     }
 
-    it("accepts a Host claim with the correct passcode and sends it an unrevealed Active Clue's Answer", async () => {
-      const host = await claim("host", PASSCODE);
+    it("accepts a Host claim with the Host Key and sends it an unrevealed Active Clue's Answer", async () => {
+      const host = await claim("host", room.hostKey);
       expect(host.result).toBe("accepted");
 
       const [selected] = await selectFirstClue(host, []);
@@ -824,11 +810,11 @@ describe("socket.io wiring", () => {
     });
 
     it.each([
-      { label: "a wrong", passcode: "guess" },
-      { label: "a missing", passcode: undefined },
-    ])("rejects a Host claim with $label passcode and keeps sending it the redacted view", async ({ passcode }) => {
-      const host = await claim("host", PASSCODE);
-      const intruder = await claim("host", passcode);
+      { label: "a wrong", hostKey: "guess" },
+      { label: "a missing", hostKey: undefined },
+    ])("rejects a Host claim with $label Host Key and keeps sending it the redacted view", async ({ hostKey }) => {
+      const host = await claim("host", room.hostKey);
+      const intruder = await claim("host", hostKey);
       expect(intruder.result).toBe("rejected");
 
       const [hostSel, intruderSel] = await selectFirstClue(host, [intruder]);
@@ -838,8 +824,20 @@ describe("socket.io wiring", () => {
       expect(intruderSel.content).toEqual([]);
     });
 
-    it("ignores Host actions from a connection that hasn't proven the passcode", async () => {
-      const host = await claim("host", PASSCODE);
+    it.each(["board", "player"] as const)("ignores Host actions from a %s socket", async (role) => {
+      const host = await claim("host", room.hostKey);
+      const other = await claim(role);
+      await settle(other.socket);
+      other.socket.emit("openLobby");
+      await settle(other.socket);
+
+      host.socket.emit("toggleBoardMusic");
+      const [hostState] = await Promise.all([host.nextState(), other.nextState()]);
+      expect(hostState.phase).toBe("setup");
+    });
+
+    it("ignores Host actions from a connection that hasn't proven the Host Key", async () => {
+      const host = await claim("host", room.hostKey);
       const intruder = await claim("host", "guess");
       const drain = () => Promise.all([host.nextState(), intruder.nextState()]);
       let hostState = host.view;
@@ -901,8 +899,8 @@ describe("socket.io wiring", () => {
       expect(byName(hostState.players, "Dana").score).toBe(0);
     });
 
-    it("lets the Board connect and Players join and Buzz without any passcode", async () => {
-      const host = await claim("host", PASSCODE);
+    it("lets the Board connect and Players join and Buzz without any credential", async () => {
+      const host = await claim("host", room.hostKey);
       const board = await claim("board");
       const player = await claim("player");
       expect(board.result).toBe("accepted");
@@ -931,8 +929,8 @@ describe("socket.io wiring", () => {
       expect(buzzed.activeClue?.buzzedPlayerId).toBe(danaId);
     });
 
-    it("lets a Player submit a Daily Double Wager without any passcode", async () => {
-      const host = await claim("host", PASSCODE);
+    it("lets a Player submit a Daily Double Wager without any credential", async () => {
+      const host = await claim("host", room.hostKey);
       const player = await claim("player");
       const drain = () => Promise.all([host.nextState(), player.nextState()]);
 
@@ -954,15 +952,270 @@ describe("socket.io wiring", () => {
       expect(wagered.activeClue?.wager).toBe(100);
     });
   });
+});
 
-  describe("Host Passcode not configured", () => {
-    it("accepts a Host claim without any passcode", async () => {
-      const { socket, nextState } = await connect();
-      await nextState();
-      const result = await new Promise<IdentifyResult>((resolve) =>
-        socket.emit("identify", "host", undefined, resolve),
-      );
-      expect(result).toBe("accepted");
+describe("Rooms (ADR-0015)", () => {
+  const ROOM_PASSCODE = "kia-ora-2026";
+  let httpServer: ReturnType<typeof createGameServer>["httpServer"];
+  let url: string;
+  let sockets: Socket[] = [];
+  let consoleLog: MockInstance<typeof console.log>;
+
+  async function start(options?: Parameters<typeof createGameServer>[0]) {
+    ({ httpServer } = createGameServer(options));
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    url = `http://127.0.0.1:${port}`;
+  }
+
+  beforeEach(() => {
+    consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    sockets.forEach((socket) => socket.close());
+    sockets = [];
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    consoleLog.mockRestore();
+  });
+
+  function open(): Socket {
+    const socket = ioClient(url);
+    sockets.push(socket);
+    return socket;
+  }
+
+  function createRoom(passcode?: string): Promise<CreateRoomResult> {
+    return new Promise((resolve) => open().emit("createRoom", passcode, resolve));
+  }
+
+  type Created = Extract<CreateRoomResult, { ok: true }>;
+  const created = async (passcode?: string) => (await createRoom(passcode)) as Created;
+
+  // A socket that declares `role` in Room `code`, with every "state" push buffered from
+  // the start (see `connect` in the socket.io wiring tests).
+  async function enter(code: string, role: SocketRole, hostKey?: string) {
+    const socket = open();
+    const queue: GameState[] = [];
+    const waiters: Array<(state: GameState) => void> = [];
+    const received: GameState[] = [];
+    socket.on("state", (state: GameState) => {
+      received.push(state);
+      const waiter = waiters.shift();
+      if (waiter) waiter(state);
+      else queue.push(state);
+    });
+    const nextState = () =>
+      queue.length > 0 ? Promise.resolve(queue.shift()!) : new Promise<GameState>((r) => waiters.push(r));
+    const result = await new Promise<IdentifyResult>((resolve) =>
+      socket.emit("identify", { code, role, hostKey }, resolve),
+    );
+    return { socket, nextState, result, received };
+  }
+
+  // Events from one socket are handled in order, so once an acked round-trip on
+  // `socket` returns, everything it emitted before has been handled (or ignored).
+  function settle(socket: Socket): Promise<void> {
+    return new Promise((resolve) => socket.emit("reconnect", "no-such-player", () => resolve()));
+  }
+
+  const trueAnswer = CATS[0].clues[0].answer;
+
+  describe("claiming a role in a Room", () => {
+    it("accepts a Host claim with the Room's Host Key and sends it the Answers", async () => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+      const room = await created(ROOM_PASSCODE);
+
+      const host = await enter(room.code, "host", room.hostKey);
+
+      expect(host.result).toBe("accepted");
+      expect((await host.nextState()).content[0].clues[0].answer).toBe(trueAnswer);
+    });
+
+    it.each([
+      { label: "a wrong", hostKey: "guess" },
+      { label: "a missing", hostKey: undefined },
+    ])("rejects a Host claim with $label Host Key and sends it the redacted view", async ({ hostKey }) => {
+      await start();
+      const room = await created();
+
+      const intruder = await enter(room.code, "host", hostKey);
+
+      expect(intruder.result).toBe("rejected");
+      const view = await intruder.nextState();
+      expect(view.phase).toBe("setup");
+      expect(view.content).toEqual([]);
+    });
+
+    it("matches the Room Code whatever its case", async () => {
+      await start();
+      const room = await created();
+
+      const host = await enter(room.code.toLowerCase(), "host", room.hostKey);
+
+      expect(host.result).toBe("accepted");
+    });
+
+    it("answers noRoom, and sends no state, for a code with no live Room", async () => {
+      await start();
+      const room = await created();
+      const unused = room.code === "BCDF" ? "BCDG" : "BCDF";
+
+      const lost = await enter(unused, "board");
+      await settle(lost.socket);
+
+      expect(lost.result).toBe("noRoom");
+      expect(lost.received).toEqual([]);
+    });
+
+    it("lets the Board and Players in without any credential", async () => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+      const room = await created(ROOM_PASSCODE);
+
+      expect((await enter(room.code, "board")).result).toBe("accepted");
+      expect((await enter(room.code, "player")).result).toBe("accepted");
+    });
+  });
+
+  describe("two Rooms side by side", () => {
+    // Room A gets a Host, a Board and a Player; Room B the same. Every socket has
+    // drained its post-identify view.
+    async function twoRooms() {
+      await start();
+      const a = await created();
+      const b = await created();
+      const roomA = {
+        host: await enter(a.code, "host", a.hostKey),
+        board: await enter(a.code, "board"),
+        player: await enter(a.code, "player"),
+      };
+      const roomB = {
+        host: await enter(b.code, "host", b.hostKey),
+        board: await enter(b.code, "board"),
+        player: await enter(b.code, "player"),
+      };
+      for (const c of [...Object.values(roomA), ...Object.values(roomB)]) await c.nextState();
+      return { a, b, roomA, roomB };
+    }
+
+    it("never changes, or broadcasts to, the other Room on Host actions, joins and Buzzes", async () => {
+      const { roomA, roomB } = await twoRooms();
+      const inA = Object.values(roomA);
+      const drainA = () => Promise.all(inA.map((c) => c.nextState()));
+      const bBefore = roomB.host.received.length + roomB.board.received.length + roomB.player.received.length;
+
+      roomA.host.socket.emit("openLobby");
+      await drainA();
+      roomA.player.socket.emit("join", textIdentity("Dana"));
+      await drainA();
+      roomA.player.socket.emit("join", textIdentity("Marcus"));
+      await drainA();
+      roomA.host.socket.emit("startGame");
+      await drainA();
+      const {
+        states: [selected],
+      } = await selectFirstNonDailyDoubleTile(roomA.host, [roomA.board, roomA.player]);
+      roomA.player.socket.emit("buzz", byName(selected.players, "Dana").id);
+      const [buzzed] = await drainA();
+      expect(buzzed.activeClue?.buzzedPlayerId).toBe(byName(selected.players, "Dana").id);
+
+      // Room B's own next action shows its state untouched by everything above.
+      roomB.host.socket.emit("toggleBoardMusic");
+      const [bHost, bBoard, bPlayer] = await Promise.all(Object.values(roomB).map((c) => c.nextState()));
+      expect(bHost.phase).toBe("setup");
+      expect(bHost.players).toEqual([]);
+      expect(bBoard.players).toEqual([]);
+      expect(bPlayer.players).toEqual([]);
+      const bAfter = roomB.host.received.length + roomB.board.received.length + roomB.player.received.length;
+      expect(bAfter - bBefore).toBe(3);
+    });
+
+    it("never sends one Room's Answer to the other Room's sockets", async () => {
+      const { roomA, roomB } = await twoRooms();
+
+      const [hostSel] = await selectFirstClue(roomA.host, [roomA.board, roomA.player]);
+      roomB.host.socket.emit("toggleBoardMusic");
+      await Promise.all(Object.values(roomB).map((c) => c.nextState()));
+
+      expect(hostSel.activeClue?.answer).toBe(trueAnswer);
+      for (const c of Object.values(roomB)) {
+        expect(c.received.every((state) => state.activeClue === null)).toBe(true);
+      }
+    });
+
+    it("doesn't accept Room A's Host Key as Host of Room B", async () => {
+      const { a, b, roomB } = await twoRooms();
+
+      const intruder = await enter(b.code, "host", a.hostKey);
+      await intruder.nextState();
+      expect(intruder.result).toBe("rejected");
+
+      intruder.socket.emit("openLobby");
+      await settle(intruder.socket);
+      roomB.host.socket.emit("toggleBoardMusic");
+      expect((await roomB.host.nextState()).phase).toBe("setup");
+    });
+
+    it("moves a socket that identifies into another Room out of its first one", async () => {
+      const { b, roomA, roomB } = await twoRooms();
+
+      const wanderer = roomA.board;
+      await new Promise((resolve) => wanderer.socket.emit("identify", { code: b.code, role: "board" }, resolve));
+      await wanderer.nextState();
+      const before = wanderer.received.length;
+
+      roomA.host.socket.emit("toggleBoardMusic");
+      await roomA.host.nextState();
+      roomB.host.socket.emit("toggleBoardMusic");
+      await roomB.host.nextState();
+      await wanderer.nextState();
+
+      expect(wanderer.received.length - before).toBe(1);
+    });
+  });
+
+  describe("creating a Room", () => {
+    it("returns a Room Code and Host Key for the right Room Passcode", async () => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+
+      const result = await createRoom(ROOM_PASSCODE);
+
+      expect(result).toEqual({ ok: true, code: expect.stringMatching(/^[A-Z]{4}$/), hostKey: expect.any(String) });
+    });
+
+    it.each([
+      { label: "a wrong", passcode: "guess" },
+      { label: "a missing", passcode: undefined },
+    ])("refuses $label Room Passcode", async ({ passcode }) => {
+      await start({ roomPasscode: ROOM_PASSCODE });
+
+      expect(await createRoom(passcode)).toEqual({ ok: false, reason: "wrongPasscode" });
+    });
+
+    it("is open to anyone when no Room Passcode is configured", async () => {
+      await start();
+
+      expect((await createRoom()).ok).toBe(true);
+      expect((await createRoom("anything")).ok).toBe(true);
+    });
+
+    it("gives each new Room its own code and Host Key", async () => {
+      await start();
+
+      const [a, b] = (await Promise.all([createRoom(), createRoom()])) as Array<
+        Extract<CreateRoomResult, { ok: true }>
+      >;
+
+      expect(a.code).not.toBe(b.code);
+      expect(a.hostKey).not.toBe(b.hostKey);
+    });
+
+    it("logs the new Room under its code", async () => {
+      await start();
+
+      const room = (await createRoom()) as Extract<CreateRoomResult, { ok: true }>;
+
+      expect(consoleLog.mock.calls.map(([line]) => line)).toEqual([`[${room.code}] [room] Room created`]);
     });
   });
 });
@@ -992,15 +1245,18 @@ describe("serving the built client", () => {
     await rm(clientDir, { recursive: true, force: true });
   });
 
-  it.each(["/", "/host", "/board", "/join"])("returns the entry page for %s", async (path) => {
-    await start({ clientDir });
+  it.each(["/", "/join", "/host", "/BRDK/host", "/BRDK/board", "/brdk/join"])(
+    "returns the entry page for %s",
+    async (path) => {
+      await start({ clientDir });
 
-    const res = await fetch(url + path);
+      const res = await fetch(url + path);
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toMatch(/text\/html/);
-    expect(await res.text()).toBe(ENTRY_PAGE);
-  });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/text\/html/);
+      expect(await res.text()).toBe(ENTRY_PAGE);
+    },
+  );
 
   it("serves static assets from the client directory", async () => {
     await start({ clientDir });

@@ -6,7 +6,7 @@ import { BoardSetup } from "../components/BoardSetup";
 import { ClueCardStage } from "../components/ClueCardStage";
 import { GameOver } from "../components/GameOver";
 import { Header } from "../components/Header";
-import { HostPasscodePrompt } from "../components/HostPasscodePrompt";
+import { RoomNotice } from "../components/RoomNotice";
 import { Lobby } from "../components/Lobby";
 import { PlayerIdentity } from "../components/PlayerIdentity";
 import { Scoreboard } from "../components/Scoreboard";
@@ -14,6 +14,7 @@ import { socket } from "../socket";
 import { accent, shellStyle } from "../theme";
 import { useGameState } from "../useGameState";
 import { useHostClaim } from "../useHostClaim";
+import { useRoomCode } from "../useRoomCode";
 
 function pillButtonStyle(enabled: boolean): CSSProperties {
   return {
@@ -148,23 +149,26 @@ export function hostFooter(activeClue: ActiveClueState, players: Player[]): Reac
 }
 
 export function HostPage() {
-  const { claim, submitPasscode } = useHostClaim();
+  const code = useRoomCode();
+  const claim = useHostClaim(code);
   const state = useGameState();
   const toggleBoardMusic = () => socket.emit("toggleBoardMusic");
   const toggleBoardEffects = () => socket.emit("toggleBoardEffects");
 
   // Until this device is accepted as Host, nothing of the Game is rendered — the
-  // state it holds meanwhile is only the redacted Player view anyway (ADR-0014).
-  if (claim.status === "prompt") {
+  // state it holds meanwhile is only the redacted Player view anyway (ADR-0015).
+  if (claim === "rejected" || claim === "noRoom") {
     return (
       <div style={shellStyle}>
         <Header subtitle="Host view" />
-        <HostPasscodePrompt onSubmit={submitPasscode} wrongPasscode={claim.wrongPasscode} />
+        <RoomNotice>
+          {claim === "noRoom" ? "No Room with that code" : `This device isn't the Host of Room ${code}`}
+        </RoomNotice>
       </div>
     );
   }
 
-  if (claim.status !== "accepted" || !state) {
+  if (claim !== "accepted" || !state) {
     return (
       <div style={shellStyle}>
         <Header subtitle="Host view" />

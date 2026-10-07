@@ -1,13 +1,15 @@
-const STORAGE_KEY = "yeahnah-jeopardy:playerId";
+// The Player this device joined each Room as, keyed by Room Code, so last week's Room
+// doesn't confuse this week's.
+const storageKey = (code: string) => `yeahnah-jeopardy:playerId:${code.toUpperCase()}`;
 
-export function getStoredPlayerId(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
+export function getStoredPlayerId(code: string): string | null {
+  return localStorage.getItem(storageKey(code));
 }
 
-export function storePlayerId(playerId: string): void {
-  localStorage.setItem(STORAGE_KEY, playerId);
+export function storePlayerId(code: string, playerId: string): void {
+  localStorage.setItem(storageKey(code), playerId);
 }
 
-export function clearStoredPlayerId(): void {
-  localStorage.removeItem(STORAGE_KEY);
+export function clearStoredPlayerId(code: string): void {
+  localStorage.removeItem(storageKey(code));
 }
