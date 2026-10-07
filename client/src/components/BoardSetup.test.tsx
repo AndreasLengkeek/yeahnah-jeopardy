@@ -110,6 +110,16 @@ describe("BoardSetup", () => {
     expect(screen.getByRole("textbox", { name: "Category 1 clue 1 answer" }).tagName).toBe("TEXTAREA");
   });
 
+  it("stops typing at the size caps: 60 characters for a Category name, 500 for Clue text and Answers", () => {
+    render(<BoardSetup content={blankBoard(3)} {...noopHandlers()} twoRounds doubleJeopardyContent={blankBoard(3)} />);
+
+    for (const prefix of ["", "Double Jeopardy "]) {
+      expect(screen.getByLabelText(`${prefix}Category 1 name`)).toHaveAttribute("maxLength", "60");
+      expect(screen.getByLabelText(`${prefix}Category 1 clue 1 text`)).toHaveAttribute("maxLength", "500");
+      expect(screen.getByLabelText(`${prefix}Category 1 clue 1 answer`)).toHaveAttribute("maxLength", "500");
+    }
+  });
+
   it("keeps the category grid column count in sync with the current category count", () => {
     render(<BoardSetup content={completeBoard(6)} {...noopHandlers()} />);
 
@@ -165,12 +175,7 @@ describe("BoardSetup", () => {
       const user = userEvent.setup();
       const handlers = noopHandlers();
       render(
-        <BoardSetup
-          content={completeBoard(3)}
-          {...handlers}
-          twoRounds={true}
-          doubleJeopardyContent={blankBoard(3)}
-        />,
+        <BoardSetup content={completeBoard(3)} {...handlers} twoRounds={true} doubleJeopardyContent={blankBoard(3)} />,
       );
 
       const djNameInput = screen.getByLabelText("Double Jeopardy Category 2 name");
