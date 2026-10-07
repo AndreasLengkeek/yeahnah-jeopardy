@@ -80,9 +80,13 @@ export interface IdentifyClaim {
 
 // The server's answer to an `identify` claim. A rejected claim (only ever a `host`
 // claim with a wrong or missing Host Key) leaves the socket bound to the Room on the
-// Player view; `noRoom` means no live Room has that code, and the socket is bound to
-// nothing.
-export type IdentifyResult = 'accepted' | 'rejected' | 'noRoom';
+// Player view. When no live Room has that code the socket is bound to nothing, and the
+// answer is `ended` if a Room with that code has ended (closed or expired) and `noRoom`
+// if there never was one.
+export type IdentifyResult = 'accepted' | 'rejected' | 'ended' | 'noRoom';
+
+// The Room-ended notice is the `roomEnded` event (no payload): sent to every socket in a
+// Room as it ends, for any reason (closed by its Host, or expired), as they're unbound.
 
 // The server's answer to `createRoom`: the new Room's code and its Host Key, or why
 // no Room was created.

@@ -16,6 +16,15 @@ import { io as ioClient, type Socket } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { createGameServer } from "./server.js";
 
+// Room Codes are drawn with crypto's randomInt. A test can queue the draws it wants
+// (each one picks a letter from the code alphabet); once the queue is empty, draws are
+// random again.
+const queuedDraws: number[] = [];
+vi.mock("node:crypto", async (importOriginal) => {
+  const crypto = await importOriginal<typeof import("node:crypto")>();
+  return { ...crypto, randomInt: (max: number) => queuedDraws.shift() ?? crypto.randomInt(max) };
+});
+
 const textIdentity = (name: string): PlayerIdentity => ({ kind: "text", name });
 const byName = (players: GameState["players"], name: string) =>
   players.find((player) => player.identity.kind === "text" && player.identity.name === name)!;
@@ -1049,13 +1058,12 @@ describe("socket.io wiring (inside a created Room)", () => {
 describe("Rooms (ADR-0015)", () => {
   const ROOM_PASSCODE = "kia-ora-2026";
   let httpServer: ReturnType<typeof createGameServer>["httpServer"];
-  let closeRoom: ReturnType<typeof createGameServer>["closeRoom"];
   let url: string;
   let sockets: Socket[] = [];
   let consoleLog: MockInstance<typeof console.log>;
 
   async function start(options?: Parameters<typeof createGameServer>[0]) {
-    ({ httpServer, closeRoom } = createGameServer(options));
+    ({ httpServer } = createGameServer(options));
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
     url = `http://127.0.0.1:${port}`;
@@ -1070,6 +1078,7 @@ describe("Rooms (ADR-0015)", () => {
     sockets = [];
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     consoleLog.mockRestore();
+    queuedDraws.length = 0;
   });
 
   function open(): Socket {
@@ -1371,6 +1380,105 @@ describe("Rooms (ADR-0015)", () => {
     });
   });
 
+  describe("closing a Room", () => {
+    // Resolves once `socket` receives the Room-ended notice.
+    const roomEnded = (socket: Socket) => new Promise<void>((resolve) => socket.once("roomEnded", () => resolve()));
+
+    it("ends the Room for every socket in it when the Host closes it", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const laptop = await enter(room.code, "host", room.hostKey);
+      const board = await enter(room.code, "board");
+      const player = await enter(room.code, "player");
+      const everyone = [host, laptop, board, player];
+      const ended = everyone.map((c) => roomEnded(c.socket));
+
+      host.socket.emit("closeRoom");
+
+      await Promise.all(ended);
+    });
+
+    it("unbinds every socket, so the closed Room's events no longer reach anything", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const player = await enter(room.code, "player");
+      const ended = roomEnded(player.socket);
+      host.socket.emit("closeRoom");
+      await ended;
+
+      const result = await new Promise<JoinResult>((resolve) =>
+        player.socket.emit("join", { kind: "name", name: "Aroha" }, resolve),
+      );
+
+      expect(result.ok).toBe(false);
+    });
+
+    it("ignores Close Room from a socket that isn't the Room's Host", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const board = await enter(room.code, "board");
+      const player = await enter(room.code, "player");
+      const intruder = await enter(room.code, "host", "guess");
+      let endedNotices = 0;
+      for (const c of [host, board, player, intruder]) c.socket.on("roomEnded", () => endedNotices++);
+
+      for (const c of [board, player, intruder]) c.socket.emit("closeRoom");
+      await Promise.all([board, player, intruder].map((c) => settle(c.socket)));
+
+      expect(endedNotices).toBe(0);
+      expect((await enter(room.code, "board")).result).toBe("accepted");
+    });
+
+    it("answers ended for a closed Room's code, and noRoom for a code never used", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const ended = roomEnded(host.socket);
+      host.socket.emit("closeRoom");
+      await ended;
+      const unused = room.code === "BCDF" ? "BCDG" : "BCDF";
+
+      const late = await enter(room.code.toLowerCase(), "board");
+      await settle(late.socket);
+
+      expect(late.result).toBe("ended");
+      expect(late.received).toEqual([]);
+      expect((await enter(unused, "board")).result).toBe("noRoom");
+    });
+
+    it("frees a closed Room's code for a new Room straight away", async () => {
+      await start();
+      queuedDraws.push(0, 0, 0, 0);
+      const room = await created();
+      expect(room.code).toBe("BBBB");
+      const host = await enter(room.code, "host", room.hostKey);
+      const ended = roomEnded(host.socket);
+      host.socket.emit("closeRoom");
+      await ended;
+
+      queuedDraws.push(0, 0, 0, 0);
+      const next = await created();
+
+      expect(next.code).toBe("BBBB");
+      expect((await enter("BBBB", "host", next.hostKey)).result).toBe("accepted");
+    });
+
+    it("logs the Room closing under its code", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      const ended = roomEnded(host.socket);
+
+      host.socket.emit("closeRoom");
+      await ended;
+
+      expect(consoleLog.mock.calls.map(([line]) => line)).toContain(`[${room.code}] [room] Room closed by the Host`);
+    });
+  });
+
   describe("creating a Room", () => {
     it("returns a Room Code and Host Key for the right Room Passcode", async () => {
       await start({ roomPasscode: ROOM_PASSCODE });
@@ -1424,7 +1532,10 @@ describe("Rooms (ADR-0015)", () => {
 
       expect(await createRoom()).toEqual({ ok: false, reason: "atCapacity" });
 
-      closeRoom(first.code);
+      const host = await enter(first.code, "host", first.hostKey);
+      const ended = new Promise((resolve) => host.socket.once("roomEnded", resolve));
+      host.socket.emit("closeRoom");
+      await ended;
       expect((await createRoom()).ok).toBe(true);
     });
 

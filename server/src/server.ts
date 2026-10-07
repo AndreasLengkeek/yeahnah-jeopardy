@@ -95,6 +95,11 @@ export function createGameServer(options: GameServerOptions = {}) {
 
   // Every live Room, keyed by its upper-case Room Code.
   const rooms = new Map<string, Room>();
+  // The codes of Rooms that have ended, so a role declared on one can be told "ended"
+  // rather than "no such Room". A code leaves here as soon as a new Room takes it.
+  const endedCodes = new Set<string>();
+  // How to let go of each connected socket's Room binding when that Room ends.
+  const releaseOnRoomEnd = new Map<Socket, () => void>();
 
   function newRoomCode(): string {
     for (;;) {
@@ -105,8 +110,8 @@ export function createGameServer(options: GameServerOptions = {}) {
   }
 
   // Room Codes match whatever their case.
-  function roomByCode(code: unknown): Room | undefined {
-    return typeof code === "string" ? rooms.get(code.trim().toUpperCase()) : undefined;
+  function normalizeCode(code: unknown): string | undefined {
+    return typeof code === "string" ? code.trim().toUpperCase() : undefined;
   }
 
   // A Signature Player's current image version (see `signaturePath`).
@@ -224,6 +229,23 @@ export function createGameServer(options: GameServerOptions = {}) {
     return true;
   }
 
+  // Ends a Room, for any reason: `how` finishes its log line ("closed by the Host",
+  // "expired after …"). The Room's Game is discarded and its code is free for a new
+  // Room at once, but remembered as ended. Every socket bound to it gets the Room-ended
+  // notice and is unbound, so its next event acts on no Room.
+  function endRoom(room: Room, how: string): void {
+    if (rooms.get(room.code) !== room) return;
+    rooms.delete(room.code);
+    endedCodes.add(room.code);
+    log(room, `[room] Room ${how}`);
+    for (const socket of room.members.keys()) {
+      socket.emit("roomEnded");
+      releaseOnRoomEnd.get(socket)?.();
+    }
+    room.members.clear();
+    room.devices.clear();
+  }
+
   io.on("connection", (socket) => {
     // The Room this socket is bound to — at most one — and the Player it last joined or
     // reconnected as there, so its disconnect can be logged. A socket bound to no Room
@@ -240,6 +262,12 @@ export function createGameServer(options: GameServerOptions = {}) {
       bound = undefined;
       playerId = undefined;
     }
+
+    // Its Room ended: nothing left to leave, or to log a disconnect from.
+    releaseOnRoomEnd.set(socket, () => {
+      bound = undefined;
+      playerId = undefined;
+    });
 
     socket.on("createRoom", (passcode: unknown, ack?: (result: CreateRoomResult) => void) => {
       if (typeof ack !== "function") return;
@@ -262,6 +290,7 @@ export function createGameServer(options: GameServerOptions = {}) {
         signatureVersions: new Map(),
       };
       rooms.set(room.code, room);
+      endedCodes.delete(room.code);
       log(room, "[room] Room created");
       ack({ ok: true, code: room.code, hostKey: room.hostKey });
     });
@@ -274,10 +303,11 @@ export function createGameServer(options: GameServerOptions = {}) {
       const reply = (result: IdentifyResult) => {
         if (typeof ack === "function") ack(result);
       };
-      const room = roomByCode(claim?.code);
+      const code = normalizeCode(claim?.code);
+      const room = code === undefined ? undefined : rooms.get(code);
       if (room !== bound) unbind();
       if (!room) {
-        reply("noRoom");
+        reply(code !== undefined && endedCodes.has(code) ? "ended" : "noRoom");
         return;
       }
 
@@ -293,7 +323,10 @@ export function createGameServer(options: GameServerOptions = {}) {
       reply(accepted ? "accepted" : "rejected");
     });
 
-    socket.on("disconnect", unbind);
+    socket.on("disconnect", () => {
+      unbind();
+      releaseOnRoomEnd.delete(socket);
+    });
 
     // Registers a Game event that acts on this socket's bound Room. From a socket bound
     // to no Room it changes nothing; an acknowledgement, if asked for, says so.
@@ -467,13 +500,11 @@ export function createGameServer(options: GameServerOptions = {}) {
     onHostEvent("resetGame", (room) => {
       dispatch(room, { type: "resetGame" });
     });
+
+    onHostEvent("closeRoom", (room) => {
+      endRoom(room, "closed by the Host");
+    });
   });
 
-  // Ends a live Room, freeing its slot under the live-Room cap. Its code no longer
-  // matches on identify, and its Signature images stop being served.
-  function closeRoom(code: string): void {
-    rooms.delete(code);
-  }
-
-  return { app, httpServer, io, closeRoom };
+  return { app, httpServer, io };
 }

@@ -6,7 +6,8 @@ import { mutedColor as muted, pillStyle } from "./forms";
 
 // The Host screen's Room panel (prototype variant C on `prototype/rooms`): the Room
 // Code and join address, who's here now, and a way to open the Board. Each part is a
-// RoomPanelSection; later sections (the Host link, the danger zone) slot in the same way.
+// RoomPanelSection; later sections (the Host link) slot in the same way. The danger
+// zone, with Close Room, always comes last.
 
 const panelStyle: CSSProperties = {
   boxSizing: "border-box",
@@ -60,6 +61,46 @@ const stripStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+const danger = "#ff8a7a";
+
+const dangerButtonStyle: CSSProperties = {
+  ...panelButtonStyle,
+  border: `1px solid ${danger}`,
+  color: danger,
+};
+
+// Close Room, behind an in-place confirmation so a stray tap can't end the night.
+function DangerZone({ code, onCloseRoom }: { code: string; onCloseRoom: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+      <div style={{ ...subtitleStyle, color: danger }}>Danger zone</div>
+      {confirming ? (
+        <>
+          <div style={{ fontSize: 13 }}>Close Room {code}? The Game ends for everyone, right now.</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={onCloseRoom}
+              style={{ ...dangerButtonStyle, background: danger, color: "#07103f" }}
+            >
+              Close Room
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} style={panelButtonStyle}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <button type="button" onClick={() => setConfirming(true)} style={dangerButtonStyle}>
+          Close Room…
+        </button>
+      )}
+      <div style={{ color: muted, fontSize: 12 }}>Otherwise it ends by itself 30 min after everyone leaves.</div>
+    </section>
+  );
+}
+
 export function RoomPanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section style={sectionStyle}>
@@ -95,11 +136,12 @@ function HereNow({ info }: { info: RoomInfo | null }) {
 interface RoomPanelProps {
   code: string;
   info: RoomInfo | null;
+  onCloseRoom: () => void;
   // Further RoomPanelSections, shown after the built-in ones.
   children?: ReactNode;
 }
 
-function PanelBody({ code, info, children, style }: RoomPanelProps & { style: CSSProperties }) {
+function PanelBody({ code, info, onCloseRoom, children, style }: RoomPanelProps & { style: CSSProperties }) {
   return (
     <aside aria-label="Room" style={{ ...panelStyle, ...style }}>
       <RoomPanelSection title="Room">
@@ -113,6 +155,7 @@ function PanelBody({ code, info, children, style }: RoomPanelProps & { style: CS
         </a>
       </RoomPanelSection>
       {children}
+      <DangerZone code={code} onCloseRoom={onCloseRoom} />
     </aside>
   );
 }
