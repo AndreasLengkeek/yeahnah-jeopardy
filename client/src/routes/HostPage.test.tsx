@@ -164,6 +164,15 @@ describe("HostPage Host Key claim", () => {
     expect(localStorage.getItem(hostKeyStorage("QZTM"))).toBe("key-qztm");
   });
 
+  it("leaves its Room when the Host screen closes", () => {
+    const { unmount } = renderAt("/BRDK/host");
+    answerLatestClaim("accepted");
+
+    unmount();
+
+    expect(fakeSocket.emit.mock.calls.map(([event]) => event)).toEqual(["identify", "leaveRoom"]);
+  });
+
   it("claims with no Host Key when this device holds none for the Room", () => {
     renderAt("/BRDK/host");
     expect(identifyClaims()[0].claim).toEqual({ code: "BRDK", role: "host", hostKey: undefined });

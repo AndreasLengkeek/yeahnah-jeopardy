@@ -1427,6 +1427,29 @@ describe("Rooms (ADR-0015)", () => {
       expect(await hostA.nextRoomInfo()).toEqual(counts(1, 0, 0));
       expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 0));
     });
+
+    it("drops a device that leaves its Room screen, which then hears nothing more from the Room", async () => {
+      await start();
+      const room = await lobbyRoom();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextRoomInfo();
+      const board = await enter(room.code, "board");
+      await host.nextRoomInfo();
+      const player = await joinedPlayer(room.code, "Dana");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 1));
+
+      board.socket.emit("leaveRoom");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 1));
+      player.socket.emit("leaveRoom");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 0));
+
+      const statesBefore = board.received.length;
+      host.socket.emit("toggleBoardMusic");
+      await host.nextState();
+      await Promise.all([board, player].map((c) => settle(c.socket)));
+      expect(board.received).toHaveLength(statesBefore);
+      expect(consoleLog.mock.calls.map(([line]) => line)).toContain(`[${room.code}] [game] "Dana" disconnected`);
+    });
   });
 
   describe("closing a Room", () => {
@@ -1616,6 +1639,25 @@ describe("Rooms (ADR-0015)", () => {
       sweep();
 
       expect(await isLive(room.code)).toBe(true);
+    });
+
+    it("counts the 30 minutes from when the last Player left the Room screen, still connected", async () => {
+      await startWithClock();
+      const room = await lobbyRoom();
+      const player = await joinedPlayer(room.code, "Aroha");
+      const board = await enter(room.code, "board");
+
+      now += 10 * MINUTE;
+      player.socket.emit("leaveRoom");
+      await settle(player.socket);
+
+      now += 30 * MINUTE - 1;
+      sweep();
+      expect(await isLive(room.code)).toBe(true);
+      const ended = roomEnded(board.socket);
+      now += 1;
+      sweep();
+      await ended;
     });
 
     it("doesn't let a Player device that never joined keep the Room alive", async () => {

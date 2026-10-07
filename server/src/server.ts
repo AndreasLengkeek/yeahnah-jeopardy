@@ -388,6 +388,10 @@ export function createGameServer(options: GameServerOptions = {}) {
       ack({ ok: true, hostKey: room.hostKey });
     });
 
+    // Sent when a Room screen closes in the app (e.g. back to the home page) while the
+    // shared connection stays open: the device leaves the Room as if it had disconnected.
+    socket.on("leaveRoom", () => unbind());
+
     socket.on("disconnect", () => {
       unbind();
       releaseOnRoomEnd.delete(socket);
