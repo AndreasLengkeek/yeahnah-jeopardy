@@ -9,6 +9,7 @@ import type {
   IdentifyResult,
   JoinResult,
   PlayerIdentity,
+  RoomInfo,
   SocketRole,
 } from "@yeahnah/shared";
 import { io as ioClient, type Socket } from "socket.io-client";
@@ -1098,10 +1099,22 @@ describe("Rooms (ADR-0015)", () => {
     });
     const nextState = () =>
       queue.length > 0 ? Promise.resolve(queue.shift()!) : new Promise<GameState>((r) => waiters.push(r));
+    // "roomInfo" pushes, buffered the same way.
+    const infoQueue: RoomInfo[] = [];
+    const infoWaiters: Array<(info: RoomInfo) => void> = [];
+    const roomInfo: RoomInfo[] = [];
+    socket.on("roomInfo", (info: RoomInfo) => {
+      roomInfo.push(info);
+      const waiter = infoWaiters.shift();
+      if (waiter) waiter(info);
+      else infoQueue.push(info);
+    });
+    const nextRoomInfo = () =>
+      infoQueue.length > 0 ? Promise.resolve(infoQueue.shift()!) : new Promise<RoomInfo>((r) => infoWaiters.push(r));
     const result = await new Promise<IdentifyResult>((resolve) =>
       socket.emit("identify", { code, role, hostKey }, resolve),
     );
-    return { socket, nextState, result, received };
+    return { socket, nextState, result, received, nextRoomInfo, roomInfo };
   }
 
   // Events from one socket are handled in order, so once an acked round-trip on
@@ -1262,6 +1275,98 @@ describe("Rooms (ADR-0015)", () => {
       await wanderer.nextState();
 
       expect(wanderer.received.length - before).toBe(1);
+    });
+  });
+
+  describe("Room info for Hosts", () => {
+    const counts = (hosts: number, boards: number, players: number): RoomInfo => ({ hosts, boards, players });
+
+    it("tells the Host how many Host, Board and Player devices are connected as they come and go", async () => {
+      await start();
+      const room = await created();
+
+      const host = await enter(room.code, "host", room.hostKey);
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 0));
+
+      const board = await enter(room.code, "board");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 0));
+
+      const player = await enter(room.code, "player");
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 1, 1));
+
+      const laptop = await enter(room.code, "host", room.hostKey);
+      expect(await host.nextRoomInfo()).toEqual(counts(2, 1, 1));
+      expect(await laptop.nextRoomInfo()).toEqual(counts(2, 1, 1));
+
+      player.socket.close();
+      expect(await host.nextRoomInfo()).toEqual(counts(2, 1, 0));
+      expect(await laptop.nextRoomInfo()).toEqual(counts(2, 1, 0));
+
+      board.socket.close();
+      expect(await host.nextRoomInfo()).toEqual(counts(2, 0, 0));
+
+      laptop.socket.close();
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 0, 0));
+    });
+
+    it("never sends room info to Board or Player sockets, or to a rejected Host claim, which isn't counted", async () => {
+      await start();
+      const room = await created();
+      const host = await enter(room.code, "host", room.hostKey);
+      await host.nextRoomInfo();
+
+      const board = await enter(room.code, "board");
+      await host.nextRoomInfo();
+      const player = await enter(room.code, "player");
+      await host.nextRoomInfo();
+      const intruder = await enter(room.code, "host", "guess");
+      await settle(intruder.socket);
+      const late = await enter(room.code, "board");
+
+      expect(await host.nextRoomInfo()).toEqual(counts(1, 2, 1));
+      await Promise.all([board, player, intruder, late].map((c) => settle(c.socket)));
+      expect(board.roomInfo).toEqual([]);
+      expect(player.roomInfo).toEqual([]);
+      expect(intruder.roomInfo).toEqual([]);
+      expect(late.roomInfo).toEqual([]);
+    });
+
+    it("never mixes one Room's devices into another Room's counts", async () => {
+      await start();
+      const a = await created();
+      const b = await created();
+      const hostA = await enter(a.code, "host", a.hostKey);
+      const hostB = await enter(b.code, "host", b.hostKey);
+      await hostA.nextRoomInfo();
+      await hostB.nextRoomInfo();
+
+      const boardB = await enter(b.code, "board");
+      await enter(b.code, "player");
+      expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 0));
+      expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 1));
+      boardB.socket.close();
+      expect(await hostB.nextRoomInfo()).toEqual(counts(1, 0, 1));
+
+      await enter(a.code, "board");
+      expect(await hostA.nextRoomInfo()).toEqual(counts(1, 1, 0));
+      expect(hostA.roomInfo).toEqual([counts(1, 0, 0), counts(1, 1, 0)]);
+    });
+
+    it("moves a device's count to its new Room when it identifies into another one", async () => {
+      await start();
+      const a = await created();
+      const b = await created();
+      const hostA = await enter(a.code, "host", a.hostKey);
+      const hostB = await enter(b.code, "host", b.hostKey);
+      await hostA.nextRoomInfo();
+      await hostB.nextRoomInfo();
+      const board = await enter(a.code, "board");
+      expect(await hostA.nextRoomInfo()).toEqual(counts(1, 1, 0));
+
+      await new Promise((resolve) => board.socket.emit("identify", { code: b.code, role: "board" }, resolve));
+
+      expect(await hostA.nextRoomInfo()).toEqual(counts(1, 0, 0));
+      expect(await hostB.nextRoomInfo()).toEqual(counts(1, 1, 0));
     });
   });
 

@@ -14,6 +14,7 @@ import type {
   IdentifyResult,
   JoinResult,
   PlayerIdentity,
+  RoomInfo,
   SocketRole,
 } from "@yeahnah/shared";
 import { describeGameEvent, describePlayerConnection } from "./gameLog.js";
@@ -39,6 +40,11 @@ interface Room {
   hostKey: string;
   game: GameState;
   members: Map<Socket, SocketRole>;
+  // The connected devices counted in Room info, by the role each was accepted as. A
+  // rejected Host claim is a member (on the Player view) but no device here.
+  devices: Map<Socket, SocketRole>;
+  // The Room info last sent to its Host sockets, to send again only on a change.
+  roomInfo: RoomInfo;
   // Each Signature Player's current image version, keyed by playerId, so a drawing is
   // hashed once rather than on every broadcast.
   signatureVersions: Map<string, { image: string; version: string }>;
@@ -160,6 +166,28 @@ export function createGameServer(options: GameServerOptions = {}) {
     for (const [socket, role] of room.members) socket.emit("state", viewForRole(game, role));
   }
 
+  // Sends the Room's device counts to its Host sockets — and only those — when they've
+  // changed since last sent. A `newcomer` just accepted as Host gets them regardless,
+  // since it has never seen them.
+  function syncRoomInfo(room: Room, newcomer?: Socket): void {
+    const info: RoomInfo = { hosts: 0, boards: 0, players: 0 };
+    for (const role of room.devices.values()) {
+      if (role === "host") info.hosts++;
+      else if (role === "board") info.boards++;
+      else info.players++;
+    }
+    const changed =
+      info.hosts !== room.roomInfo.hosts ||
+      info.boards !== room.roomInfo.boards ||
+      info.players !== room.roomInfo.players;
+    room.roomInfo = info;
+    if (changed) {
+      for (const [socket, role] of room.members) if (role === "host") socket.emit("roomInfo", info);
+    } else if (newcomer && room.members.get(newcomer) === "host") {
+      newcomer.emit("roomInfo", info);
+    }
+  }
+
   // Every log line names the Room it happened in.
   function log(room: Room, line: string | null): void {
     if (line) console.log(`[${room.code}] ${line}`);
@@ -188,6 +216,8 @@ export function createGameServer(options: GameServerOptions = {}) {
     function unbind(): void {
       if (!bound) return;
       bound.members.delete(socket);
+      bound.devices.delete(socket);
+      syncRoomInfo(bound);
       if (playerId) log(bound, describePlayerConnection(bound.game, playerId, "disconnected"));
       bound = undefined;
       playerId = undefined;
@@ -205,6 +235,8 @@ export function createGameServer(options: GameServerOptions = {}) {
         hostKey: randomBytes(18).toString("base64url"),
         game: initialState(),
         members: new Map(),
+        devices: new Map(),
+        roomInfo: { hosts: 0, boards: 0, players: 0 },
         signatureVersions: new Map(),
       };
       rooms.set(room.code, room);
@@ -232,7 +264,10 @@ export function createGameServer(options: GameServerOptions = {}) {
       const granted = accepted ? role : DEFAULT_ROLE;
       bound = room;
       room.members.set(socket, granted);
+      if (accepted) room.devices.set(socket, role);
+      else room.devices.delete(socket);
       socket.emit("state", viewForRole(publicGame(room), granted));
+      syncRoomInfo(room, socket);
       reply(accepted ? "accepted" : "rejected");
     });
 
